@@ -17,6 +17,7 @@ Obtainable in this package only:
 DA WD, 3D-NLTE: Munday et al 2024. With mention of Tremblay et al 2013b, 2015, Kilic et al 2021, Tremblay \& Bergeron 2009. See Section~5.1.1 of Munday et al 2024 for details.
 
 Obtainable at https://warwick.ac.uk/fac/sci/physics/research/astro/people/tremblay/modelgrids/
+
 DA WD, 3D: Tremblay et al 2013b, 2015
 DB/DBA/DC (helium-rich atmosphere): Cukanovaite et al 2021
 
