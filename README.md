@@ -1,8 +1,8 @@
 # WD-BASS
-White Dwarf Binary And Single Star (WD-BASS) package for spectral fitting
+White Dwarf Binary And Single Star (WD-BASS) package for spectral fitting. It can do spectroscopic, photometric and hybrid fitting with synthetic spectra for single stars or binaries. It can also do Gaussian/Lorentzian profile fitting. The program excels not only for WDs, but any source where you have a relatively smooth continuum.
 
 # How to get started?
-There is a manual and flowchart to assist in its use. I also have made a series of youtube videos to refer to with the most common uses.
+There is a manual that has the most detail and describes every input/output, and I have made a flowchart to assist in the flow of the package. I also have made a series of youtube videos to refer to with the most common uses. I recommend installing the package and taking a look at the example data which can be seen as tutorials. Tutorials are for the tutorial data, but I have made scripts to automate the creation of the input file. Take a look at the commands "create_single" and "create_double".
 
 # Usage of the package and citation
 WD-BASS was first introduced in Munday et al 2024 for use with the DBL survey and the outline of the most important technical details of the package is stated in Section 4 of this work. If there are updates, I will include these by default into WD-BASS and include a change log in the manual. 
