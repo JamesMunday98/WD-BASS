@@ -6,6 +6,7 @@ There is a manual that has the most detail and describes every input/output, and
 
 On top of zipping and extracting the package, you should place these two folders in the extracted file location (file size was too large for github)
 https://drive.google.com/drive/folders/1w8e7O43tm7-AH5OrbYMe3U9msdy7_xjv?usp=sharing
+You should copy the commands from "Bashrc_commands.txt" into your .bashrc file.
 
 # Usage of the package and citation
 WD-BASS was first introduced in Munday et al 2024 for use with the DBL survey and the outline of the most important technical details of the package is stated in Section 4 of this work. If there are updates, I will include these by default into WD-BASS and include a change log in the manual. 
