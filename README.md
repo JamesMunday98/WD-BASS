@@ -23,3 +23,5 @@ DA WD, 3D: Tremblay et al 2013b, 2015
 DB/DBA/DC (helium-rich atmosphere): Cukanovaite et al 2021
 
 - Gaussian/Lorentzian fitting: Nothing
+
+- (In closed beta testing) Atmospheric models for hot subdwarfs. Details to come
