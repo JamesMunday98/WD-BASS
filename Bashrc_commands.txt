@@ -1,0 +1,16 @@
+### IMPORANT --- Number of cores:  The performance benefits from multiple cores. To change the number of cores that will be used, edit anywhere that says "mpiexec -np 3 ", where the number "3" signifies that 3 cores will be used. To see how many cores you have, you can use e.g. htop.
+### INSTALL  --- Type "cd" -> e.g. "nano .bashrc". Replace '/home/james/python_scripts_path/dwd_fit_package/'  with your install location (on text editor, use the "Find and Replace" tool) and copy the lines into your bashrc. Close and open terminal (or execute "source .bashrc"). Now, every time you open a new terminal these commands will be available for you to type.
+
+export WD_BASS_INSTALL_DIR=/home/james/python_scripts_path/dwd_fit_package/
+alias create_single="python /home/james/python_scripts_path/dwd_fit_package/Create_yaml.py single"
+alias create_double="python /home/james/python_scripts_path/dwd_fit_package/Create_yaml.py double"
+alias run_double="mpiexec -np 3 python3 /home/james/python_scripts_path/dwd_fit_package/double_FitSpectrum_MCMC_multfiles_faster.py ATM"
+alias run_single="mpiexec -np 3 python3 /home/james/python_scripts_path/dwd_fit_package/single_FitSpectrum_MCMC_multfiles_faster2.py ATM"
+alias run_single_RV="python /home/james/python_scripts_path/dwd_fit_package/single_FitSpectrum_MCMC_multfiles_faster2.py RV"
+alias run_single_RV_gauss="mpiexec -np 3 python3 /home/james/python_scripts_path/dwd_fit_package/single_FitSpectrum_MCMC_multfiles_faster2.py RV_gauss"
+alias run_double_RV="python /home/james/python_scripts_path/dwd_fit_package/double_FitSpectrum_MCMC_multfiles_faster.py RV"
+alias run_double_RV_commonRV12="python /home/james/python_scripts_path/dwd_fit_package/double_FitSpectrum_MCMC_multfiles_faster.py RV_double_commonRV12"
+alias run_double_RV_gauss="mpiexec -np 3 python3 /home/james/python_scripts_path/dwd_fit_package/double_FitSpectrum_MCMC_multfiles_faster.py RV_gauss"
+alias run_double_plot="python /home/james/python_scripts_path/dwd_fit_package/double_FitSpectrum_MCMC_multfiles_faster.py plotOnly"
+alias run_single_one_by_one="python /home/james/python_scripts_path/dwd_fit_package/Initiate_spectral_fitting_one_by_one.py single"
+alias run_double_one_by_one="python /home/james/python_scripts_path/dwd_fit_package/Initiate_spectral_fitting_one_by_one.py double"
