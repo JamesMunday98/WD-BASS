@@ -4,7 +4,7 @@ White Dwarf Binary And Single Star (WD-BASS) package for spectral fitting. It ca
 # How to get started?
 There is a manual that has the most detail and describes every input/output, and I have made a flowchart to assist in the flow of the package. I also have made a series of youtube videos to refer to with the most common uses. I recommend installing the package and taking a look at the example data which can be seen as tutorials. Tutorials are for the tutorial data, but I have made scripts to automate the creation of the input file. Take a look at the commands "create_single" and "create_double".
 
-On top of zipping and extracting the package, you should place these two folders in the extracted file location (file size was too large for github)
+On top of zipping and extracting the package, you should place these two folders in the extracted file location of the folder "WD-BASS" (file size was too large for github)
 https://drive.google.com/drive/folders/1w8e7O43tm7-AH5OrbYMe3U9msdy7_xjv?usp=sharing
 You should copy the commands from "Bashrc_commands.txt" into your .bashrc file.
 
