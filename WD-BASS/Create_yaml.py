@@ -8,13 +8,31 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+Harry=True
 ### Change the below lines to your desired setup. Can be as many or as little as you want
-desired_lines = [6562, 4861, 4342, 4000, 2000]
-resolution_lines = [6000, 4000, 3000, 2000, 1000]
-model_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
-norm_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
-cut_region = [[-100,100], [-80,80], [-70,70], [-60,60]]
-RV_boundaries = [[-200,200], [-200,200], [-200,200], [-200,200]]
+if not Harry:
+	desired_lines = [6562.79, 4861.35, 4340.472, 4101.734, 3970.075]
+	resolution_lines = [6000, 4000, 3000, 2000, 1000]
+	model_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
+	norm_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
+	cut_region = [[-100,100], [-80,80], [-70,70], [-60,60]]
+	RV_boundaries = [[-300,300], [-200,200], [-200,200], [-200,200]]
+	p0teff_min, p0teff_max = 5000, 15000
+	p0logg_min, p0logg_max = 7, 9
+	p0HoverHe_min, p0HoverHe_max = 0, 0
+	starType1, starType2 = "DA", "DA"
+
+else:
+	desired_lines = [4861.35, 4340.472, 4101.734, 3970.075]
+	resolution_lines = [5076, 4532, 4283, 4145]
+	model_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
+	norm_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
+	cut_region = [[-100,100], [-80,80], [-70,70], [-60,60]]
+	RV_boundaries = [[-350,350], [-350,350], [-350,350], [-350,350]]
+	p0teff_min, p0teff_max = 15000, 55000
+	p0logg_min, p0logg_max = 4.6, 7
+	p0HoverHe_min, p0HoverHe_max = -5.05, -0.041
+	starType1, starType2 = "sd", "sd"
 
 
 
@@ -75,7 +93,54 @@ all_names, all_refwl, all_mod, all_norm, all_cut, all_hjd, all_resolution, final
 
 
 
+
+
+import numpy as np
+
+def move_minus_ones_left(arr):
+    # Find indices of "-1" values
+    minus_one_indices = np.where(arr == -1)[0]
+    
+    # Create a new array with the same shape as the input array
+    new_arr = np.zeros_like(arr)
+    
+    # Move "-1" values to the left
+    new_arr[:len(minus_one_indices)] = -1
+    
+    # Fill the rest of the array with non-"-1" values
+    non_minus_one_indices = np.where(arr != -1)[0]
+    new_arr[len(minus_one_indices):] = arr[non_minus_one_indices]
+    
+    # Report the indices of the input array compared to the result
+    input_indices = np.arange(len(arr))
+    result_indices = np.concatenate((minus_one_indices, non_minus_one_indices))
+    
+    return new_arr, input_indices, result_indices
+
+# Example usage:
+result, input_indices, result_indices = move_minus_ones_left(all_share_rv)
+
+
+all_names, all_refwl, all_mod, all_norm, all_cut, all_hjd, all_resolution, all_share_rv = all_names[result_indices], all_refwl[result_indices], all_mod[result_indices], all_norm[result_indices], all_cut[result_indices], all_hjd[result_indices], all_resolution[result_indices], all_share_rv[result_indices]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 newargs = np.argsort(all_share_rv)
+
 
 all_names, all_refwl, all_mod, all_norm, all_cut, all_hjd, all_resolution, all_share_rv = all_names[newargs], all_refwl[newargs], all_mod[newargs], all_norm[newargs], all_cut[newargs], all_hjd[newargs], all_resolution[newargs], all_share_rv[newargs]
 
@@ -83,11 +148,13 @@ all_names, all_refwl, all_mod, all_norm, all_cut, all_hjd, all_resolution, all_s
 
 
 mask = np.argsort(all_refwl[all_share_rv!=-1])
+
+
+
 all_names[all_share_rv!=-1],       all_refwl[all_share_rv!=-1]     =    all_names[all_share_rv!=-1][mask],        all_refwl[all_share_rv!=-1][mask]
 all_mod[all_share_rv!=-1],         all_norm[all_share_rv!=-1]      =    all_mod[all_share_rv!=-1][mask],          all_norm[all_share_rv!=-1][mask]
 all_cut[all_share_rv!=-1],         all_hjd[all_share_rv!=-1]       =    all_cut[all_share_rv!=-1][mask],          all_hjd[all_share_rv!=-1][mask]
 all_resolution[all_share_rv!=-1],  all_share_rv[all_share_rv!=-1]  =    all_resolution[all_share_rv!=-1][mask],   all_share_rv[all_share_rv!=-1][mask]
-
 
 
 
@@ -107,13 +174,21 @@ for re in np.unique(all_refwl)[::-1]:
 final_all_mod, final_all_norm, final_all_cut  =  all_mod, all_norm, all_cut
 
 
-for afile in np.unique(final_all_names):
+
+
+
+for cn, afile in enumerate(natsorted(np.unique(final_all_names))):
 	minloc=np.amin(np.argwhere(final_all_names==afile))
+	#if cn>2:
+	#	raise ValueError(minloc, final_all_names[final_all_names==afile])
 	final_all_share_rv[(final_all_names==afile) & (final_all_share_rv!=-1)] = minloc
 
 final_all_sharerv = final_all_share_rv.astype(int)
 
 
+
+
+		
 
 
 
@@ -129,18 +204,21 @@ string_to_write = string_to_write[:-2] + "]\n"
 string_to_write+="spectra_source_type: 'wl_flux_fluxerr' # need to INSERT your source type here. Options are 'wl_flux_fluxerr', 'Xshooter'. Default is 'wl_flux_fluxerr' \n"
 string_to_write+="modelHa: ["
 for xx in final_all_mod:
-	string_to_write += str(xx) + ", "
+	tempxx=str(xx)
+	string_to_write += str(tempxx.split("  ")[0]+","+tempxx.split("  ")[1]) + ", "
 string_to_write = string_to_write[:-2] + "]  # in angstroms"
 
 
 string_to_write+="\nnormaliseHa: ["
 for xx in final_all_norm:
-	string_to_write += str(xx) + ", "
+	tempxx=str(xx)
+	string_to_write += str(tempxx.split("  ")[0]+","+tempxx.split("  ")[1]) + ", "
 string_to_write = string_to_write[:-2] + "]  # in angstroms"
 
 string_to_write+="\ncut_Ha_max: ["
 for xx in final_all_cut:
-	string_to_write += str(xx) + ", "
+	tempxx=str(xx)
+	string_to_write += str(tempxx.split("  ")[0]+","+tempxx.split("  ")[1]) + ", "
 string_to_write = string_to_write[:-2] + "]  # in angstroms"
 
 string_to_write+="\nresolutions: ["
@@ -172,10 +250,12 @@ else:
 string_to_write+="\nRV_boundaries1: ["
 if single_or_double=="single":
 	for aval in final_all_RV_boundaries:
-		string_to_write += str(aval) + ", "
+		tempxx=str(aval)
+		string_to_write += str(tempxx.split("  ")[0]+","+tempxx.split("  ")[1]) + ", "
 else:
 	for aval in final_all_RV_boundaries:
-		string_to_write += str(aval)  + ", "
+		tempxx=str(aval)
+		string_to_write += str(tempxx.split("  ")[0]+","+tempxx.split("  ")[1]) + ", "
 string_to_write=string_to_write[:-2] + "] # in kms-1"
 
 
@@ -184,7 +264,8 @@ if single_or_double=="double":
 	string_to_write+="\nRV_boundaries2: [" 
 	
 	for aval in final_all_RV_boundaries:
-		string_to_write += str(aval)  + ", "
+		tempxx=str(aval)
+		string_to_write += str(tempxx.split("  ")[0]+","+tempxx.split("  ")[1]) + ", "
 	string_to_write = string_to_write[:-2] + "] # in kms-1"
 
 
@@ -200,18 +281,18 @@ RAhr, dechr = miscAstro.ra_dec_deg_to_hr(RAdeg,decdeg)
 
 if single_or_double=="double":
 	string_to_write+="\nforced_teff: [0, 0]   # number or 0"
-	string_to_write+="\np0teff: [[5000,15000], [5000,15000]]   # number"
+	string_to_write+="\np0teff: [["+str(p0teff_min)+","+str(p0teff_max)+"], ["+str(p0teff_min)+","+str(p0teff_max)+"]]   # number"
 	string_to_write+="\nforced_logg: [0, 0]   # number or 0"
-	string_to_write+="\np0logg: [[7,9], [7,9]]   # number"
+	string_to_write+="\np0logg: [["+str(p0logg_min)+","+str(p0logg_max)+"], ["+str(p0logg_min)+","+str(p0logg_max)+"]]   # number"
 	string_to_write+="\nforced_HoverHe: [0, 0] # only used if DBA is in starType. number or 0"
-	string_to_write+="\np0HoverHe: [[0,0], [0,0]]   # number"
+	string_to_write+="\np0HoverHe: [["+str(p0HoverHe_min)+","+str(p0HoverHe_max)+"], ["+str(p0HoverHe_min)+","+str(p0HoverHe_max)+"]]   # number"
 else:
 	string_to_write+="\nforced_teff: [0]   # number or 0"
-	string_to_write+="\np0teff: [[5000,15000]]   # number"
+	string_to_write+="\np0teff: [["+str(p0teff_min)+","+str(p0teff_max)+"]]   # number"
 	string_to_write+="\nforced_logg: [0]   # number or 0"
-	string_to_write+="\np0logg: [[7,9]]   # number"
+	string_to_write+="\np0logg: [["+str(p0logg_min)+","+str(p0logg_max)+"]]   # number"
 	string_to_write+="\nforced_HoverHe: [0] # only used if DBA is in starType. number or 0"
-	string_to_write+="\np0HoverHe: [[0,0]]   # number"
+	string_to_write+="\np0HoverHe: [["+str(p0HoverHe_min)+","+str(p0HoverHe_max)+"]]   # number"
 
 
 
@@ -235,7 +316,10 @@ string_to_write+='\nexpected_Gmag: 15 # only used when fit_phot_SED is True. Int
 string_to_write+='\nnwalkers: 50'
 string_to_write+='\nnburnin: 100'
 string_to_write+='\nnsteps: 50'
-string_to_write+='\nreddening_Ebv: "lookup" # "lookup" or number'
+if not Harry:
+	string_to_write+='\nreddening_Ebv: "lookup" # "lookup" or number'
+else:
+	string_to_write+='\nreddening_Ebv: 0 # "lookup" or number'
 string_to_write+="\nfile_ignore: []"
 string_to_write+="\nsigma_clip: ["
 for aval in final_all_sigma:
@@ -250,7 +334,7 @@ string_to_write+='\nplot_phot_spectrum: False'
 
 
 
-string_to_write = string_to_write.replace("  ", ", ")
+#string_to_write = string_to_write.replace("  ", ", ")
 
 if single_or_double=="double":
 	with open("example_Config_dbl.yaml", "w+") as f:
@@ -262,5 +346,5 @@ else:
 
 
 
-print(string_to_write)
+#print(string_to_write)
 
