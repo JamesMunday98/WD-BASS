@@ -21,59 +21,8 @@ class Fit_phot(object):
 		n = 1 + 0.00008336624212083 + 0.02408926869968 / (130.1065924522 - np.square(s)) + 0.0001599740894897 / (38.92568793293 - np.square(s))
 		lambda_vac = lambda_air *  n
 		return lambda_vac
-	@jit
-	def bilinear_interpolation(x, y, points):
-	    """ this is not used ever because I implemented it directly into the script, but is here to refresh the memory on how to quickly do bilinear interpolation """
-	    # https://stackoverflow.com/questions/8661537/how-to-perform-bilinear-interpolation-in-python
-	    # gives near enough the same result as scipy griddata, but is faster.
-	    
-	    # See formula at:  http://en.wikipedia.org/wiki/Bilinear_interpolation
 
 
-
-	    #  points = sorted(points)               # order points by x, then by y    # JM commented in my script because it's already passed this way
-	    
-	    (x1, y1, q11), (_x1, y2, q12), (x2, _y1, q21), (_x2, _y2, q22) = points
-	    
-	    
-	    # JM this is a test: not necessary, but bugged fixed for me!
-	    #if x1 != _x1 or x2 != _x2 or y1 != _y1 or y2 != _y2:
-	    #    raise ValueError('points do not form a rectangle', x1, x2, y1, y2, _x1, _x2, _y1, _y2, x, y)
-	    #if not x1 <= x <= x2 or not y1 <= y <= y2:
-	    #    raise ValueError('(x, y) not within the rectangle', x1, x2, y1, y2, _x1, _x2, _y1, _y2, x, y)
-
-	    return (q11 * (x2 - x) * (y2 - y) +
-		    q21 * (x - x1) * (y2 - y) +
-		    q12 * (x2 - x) * (y - y1) +
-		    q22 * (x - x1) * (y - y1)
-		   ) / ((x2 - x1) * (y2 - y1) + 0.0)
-
-
-
-	@jit
-	def triinear_interpolation(x, y, z, points):
-	    """ not used ever. It is on my to-do-list to get rid of using griddata in DB/DBA/DC fitting """
-	    # See formula at:  https://en.wikipedia.org/wiki/Trilinear_interpolation
-
-	    (x0, y0, z0, flux_x0_y0_z0), (_x0, y1, _z0, flux_x0_y1_z0), (x1, _y0, _z0, flux_x1_y0_z0), (_x1, _y1, _z0, flux_x1_y1_z0),  (_x0, _y0, z1, flux_x0_y0_z1), (_x0, _y1, _z1, flux_x0_y1_z1), (_x1, _y0, _z1, flux_x1_y0_z1), (_x1, _y1, _z1, flux_x1_y1_z1) = points
-	    
-	    
-	    xdist = (x-x0) / (x1-x0);    ydist = (y-y0) / (y1-y0);    zdist = (z-z0) / (z1-z0)
-	    
-	    c000 = flux_x0_y0_z0;   c001 = flux_x0_y0_z1;   c010 = flux_x0_y1_z0;   c011 = flux_x0_y1_z1;
-	    c100 = flux_x1_y0_z0;   c101 = flux_x1_y0_z1;   c110 = flux_x1_y1_z0;   c111 = flux_x1_y1_z1
-	    
-	    c00 = c000*(1-xdist) + c100*xdist;   c01 = c001*(1-xdist) + c101*xdist;   c10 = c010*(1-xdist) + c110*xdist;   c11 = c011*(1-xdist) + c111*xdist
-	    
-	    c0 = c00*(1-ydist) + c10*ydist;   c1 = c01*(1-ydist) + c11*ydist
-	    
-	    c = c0*(1-zdist) + c1*zdist
-	    
-	    raise ValueError("THIS IS NOT TESTED")
-	    
-	    return c
-	
-	
 	
 
 	@njit
@@ -208,7 +157,6 @@ class Fit_phot(object):
 	def fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1, logg1, HoverHe1, T2, logg2, HoverHe2, min_wl=2000, max_wl=10000,starType1="DA", starType2="DA", R1=None, R2=None, parallax=None, red=None,return_indiv_stars=False):
 		""" combine two spectra with scaling and reden the model to fit photometry """
 		
-		
 		mask_logg_wl_1 = (wl_all1_N > min_wl) & (wl_all1_N < max_wl)
 		if starType1=="DA" or starType1=="DB" or starType1=="DC":
 			Grav1_N, wl_all1_N, flux1_N, Teff1_N = Grav1_N[mask_logg_wl_1], wl_all1_N[mask_logg_wl_1], flux1_N[mask_logg_wl_1], Teff1_N[mask_logg_wl_1]
@@ -217,7 +165,6 @@ class Fit_phot(object):
 		elif starType1=="DBA":
 			Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N = Grav1_N[mask_logg_wl_1], wl_all1_N[mask_logg_wl_1], flux1_N[mask_logg_wl_1], Teff1_N[mask_logg_wl_1], HoverHe1_N[mask_logg_wl_1]
 			model_wl1, model_spectrum_star1 = Fit_phot.return_model_spectrum_DBA(wl_all1_N, 0, 0, 0, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe_star=HoverHe1)
-			#model_spectrum_star1=griddata(np.array([Teff1_N, wl_all1_N, Grav1_N, HoverHe1_N]).T, flux_N_N, np.array([np.full((len(model_wl),),T1), model_wl, np.full((len(model_wl),),logg1), np.full((len(model_wl),),HoverHe1)]).T, method="linear",fill_value=0)
 		
 			
 		
@@ -229,12 +176,7 @@ class Fit_phot(object):
 			
 		elif starType2=="DBA":
 			Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N = Grav2_N[mask_logg_wl_2], wl_all2_N[mask_logg_wl_2], flux2_N[mask_logg_wl_2], Teff2_N[mask_logg_wl_2], HoverHe2_N[mask_logg_wl_2]
-			#model_spectrum_star2=griddata(np.array([Teff2_N, wl_all2_N, Grav2_N, HoverHe2_N]).T, flux2_N, np.array([np.full((len(model_wl),),T2), model_wl, np.full((len(model_wl),),logg2), np.full((len(model_wl),),HoverHe2)]).T, method="linear",fill_value=0)
-			
-			
 			model_wl2, model_spectrum_star2 = Fit_phot.return_model_spectrum_DBA(wl_all2_N, 0, 0, 0, Grav2_N, flux2_N, Teff2_N, HoverHe2_N, T2, logg2, HoverHe_star=HoverHe2)
-			
-		
 		
 		
 		
@@ -250,21 +192,14 @@ class Fit_phot(object):
 		else: model_wl=model_wl1
 		
 		
-		#plt.plot(model_wl, model_spectrum_star1);  plt.show()
-		
-		
 		D=(1000/parallax) * pc.value
-		
-		
-		mask=(model_spectrum_star1>0) & (model_spectrum_star2>0)
-		#plt.plot(model_wl[mask], model_spectrum_star1[mask],c='r');  plt.plot(model_wl[mask], model_spectrum_star2[mask],c='g');  plt.show();  plt.close()
 		
 		
 		factor1=4*(R1*R_sun.value)**2;  factor2=4*(R2*R_sun.value)**2
 		
 		
 		if False:
-			plt.plot(model_wl[mask], factor1 * model_spectrum_star1[mask],c='r');   plt.plot(model_wl[mask], factor2 * model_spectrum_star2[mask],c='g')
+			plt.plot(model_wl, factor1 * model_spectrum_star1,c='r');   plt.plot(model_wl, factor2 * model_spectrum_star2,c='g')
 			plt.title(str(R1) + "   " + 	str(R2));   plt.show();   plt.close()
 		
 		spec = (factor1 * model_spectrum_star1  +  factor2 * model_spectrum_star2) *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
@@ -276,15 +211,15 @@ class Fit_phot(object):
 		
 		#plt.plot(model_wl, spec,c='r');   plt.plot(model_wl, spectrum_ext,c='g');   plt.show()
 		
-		if return_indiv_stars==False:  return model_wl[mask], spec[mask]
+		if return_indiv_stars==False:  return model_wl, spec
 		elif return_indiv_stars=="forSpectrum":
-			return model_wl[mask], spec[mask], model_spectrum_star1[mask], model_spectrum_star2[mask]
+			return model_wl, spec, model_spectrum_star1, model_spectrum_star2
 		else:
 			spec1 = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
 			spec2 = factor2 * model_spectrum_star2 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
 			spec1 *= ext.extinguish(model_wl*u.AA, Ebv=red)
 			spec2 *= ext.extinguish(model_wl*u.AA, Ebv=red)
-			return model_wl[mask], spec[mask], spec1[mask], spec2[mask]
+			return model_wl, spec, spec1, spec2
 	
 	
 	
@@ -305,27 +240,21 @@ class Fit_phot(object):
 				model_wl1, model_spectrum_star1 = Fit_phot.return_model_spectrum_subdwarf(wl_all1_N, min_wl, max_wl, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1)
 				
 			
-			
 			D=(1000/parallax) *pc.value
-			
-			
-			mask=(model_spectrum_star1>0)
-			#plt.plot(model_wl[mask], model_spectrum_star1[mask],c='r');  plt.plot(model_wl[mask], model_spectrum_star2[mask],c='g');  plt.show();  plt.close()
 			
 			
 			factor1=4*(R1*R_sun.value)**2  # here R1 is in solR
 			
 			
 			if False:
-				plt.plot(model_wl1[mask], factor1 * model_spectrum_star1[mask],c='r')
+				plt.plot(model_wl1, factor1 * model_spectrum_star1,c='r')
 				plt.title(str(R1));   plt.show();   plt.close()
 			
 
 			spec = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
-			
 			ext = G23(Rv=3.1);   spec *= ext.extinguish(model_wl1*u.AA, Ebv=red)
 			
-			return model_wl1[mask], spec[mask]
+			return model_wl1, spec
 			
 		
 			
@@ -336,28 +265,20 @@ class Fit_phot(object):
 			
 			D=(1000/parallax) *pc.value
 			
-			
 			R1 = np.sqrt(mcmc_Rsquared_over_Dsquared * D**2)  # here R1 is in m
-			
-			#raise ValueError(R1/R_sun.value)
-			
-			mask=(model_spectrum_star1>0)
-			#plt.plot(model_wl1[mask], model_spectrum_star1[mask],c='r');  plt.show();  plt.close()
-			
 			
 			factor1=4*R1**2
 			
 			
 			if False:
-				plt.plot(model_wl1[mask], factor1 * model_spectrum_star1[mask],c='r')
+				plt.plot(model_wl1, factor1 * model_spectrum_star1,c='r')
 				plt.title(str(R1));   plt.show();   plt.close()
 			
 
 			spec = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
-			
 			ext = G23(Rv=3.1);   spec *= ext.extinguish(model_wl1*u.AA, Ebv=red)
 			
-			return model_wl1[mask], spec[mask]
+			return model_wl1, spec
 	
 	
 	
@@ -368,23 +289,15 @@ class Fit_phot(object):
 		RADec_split = RADec.split(":")
 		RADec_new_split=RADec_split[2].split(" ")
 		url="http://vizier.u-strasbg.fr/viz-bin/sed?-c="
-		url+=RADec_split[0]
-		url+="%20"
-		url+=RADec_split[1]
-		url+="%20"
-		url+=RADec_new_split[0]
+		url+=RADec_split[0]  +  "%20"  +  RADec_split[1]  +  "%20"  +  RADec_new_split[0]
 		if "+" in RADec:
 		    url+="%20%2B"
 		    url+=RADec_new_split[1][0:]
 		elif "-" in RADec:
 		    url+="%20"
 		    url+=RADec_new_split[1]
-		url+="%20"
-		url+=RADec_split[3]
-		url+="%20"
-		url+=RADec_split[4]
-		url+="&-c.rs="
-		url+=str(rad)
+		url+="%20"  +  RADec_split[3]  +  "%20"  +  RADec_split[4]
+		url+="&-c.rs="  +  str(rad)
 		return url
 
 
@@ -536,13 +449,6 @@ class Fit_phot(object):
 			matplotlib.rcParams["font.size"] = 14
 			plt.rcParams['xtick.minor.visible'] = True
 			plt.rcParams['ytick.minor.visible'] = True
-			
-			#model_flux = 2.99792458E-05 * model_flux / np.square(model_wl)
-			#specStar1 = 2.99792458E-05 * specStar1 / np.square(model_wl)
-			#specStar2 = 2.99792458E-05 * specStar2 / np.square(model_wl)
-			#list_flux_bpass = 2.99792458E-05 * list_flux_bpass / np.square(list_wl_bpass)
-			#list_flux_sed = 2.99792458E-05 * list_flux_sed / np.square(list_wl_bpass)
-			#list_fluxe = (2.99792458E-5/np.square(list_wl_bpass))*list_fluxe
  
 
 			
