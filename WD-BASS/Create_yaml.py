@@ -8,15 +8,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-Harry=True
+subdwarf=True
 ### Change the below lines to your desired setup. Can be as many or as little as you want
-if not Harry:
+if not subdwarf:
 	desired_lines = [6562.79, 4861.35, 4340.472, 4101.734, 3970.075]
 	resolution_lines = [6000, 4000, 3000, 2000, 1000]
 	model_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
 	norm_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
 	cut_region = [[-100,100], [-80,80], [-70,70], [-60,60]]
-	RV_boundaries = [[-300,300], [-200,200], [-200,200], [-200,200]]
+	RV_boundaries = [[-200,200], [-200,200], [-200,200], [-200,200]]
 	p0teff_min, p0teff_max = 5000, 15000
 	p0logg_min, p0logg_max = 7, 9
 	p0HoverHe_min, p0HoverHe_max = 0, 0
@@ -25,11 +25,11 @@ if not Harry:
 else:
 	desired_lines = [4861.35, 4340.472, 4101.734, 3970.075]
 	resolution_lines = [5076, 4532, 4283, 4145]
-	model_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
-	norm_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
-	cut_region = [[-100,100], [-80,80], [-70,70], [-60,60]]
+	model_region = [[-70,70], [-50,50], [-40,40], [-30,30]]
+	norm_region = [[-70,70], [-50,50], [-40,40], [-30,30]]
+	cut_region = [[-80,80], [-60,60], [-50,50], [-40,40]]
 	RV_boundaries = [[-350,350], [-350,350], [-350,350], [-350,350]]
-	p0teff_min, p0teff_max = 15000, 55000
+	p0teff_min, p0teff_max = 16000, 54000
 	p0logg_min, p0logg_max = 4.6, 7
 	p0HoverHe_min, p0HoverHe_max = -5.05, -0.041
 	starType1, starType2 = "sd", "sd"
@@ -44,49 +44,49 @@ else:
     raise ValueError("Use is - 'python Create_dbl_yaml.py double'  /  'python Create_dbl_yaml.py single'")
 
 
-
 all_names, all_refwl, all_mod, all_norm, all_cut, all_hjd, all_resolution, all_RV_boundaries, all_share_rv, all_sigma = [], [], [], [], [], [], [], [], [], []
-for fil in natsorted(os.listdir(os.getcwd())):
-	if fil.endswith(".dat"):
-		print(fil)
-		if True:#try:
-			wl, flux = np.loadtxt(fil,usecols=[0,1],unpack=True)
-			line1=open(fil).readlines()[0]
-			if "OrderedDict" in line1:
-				HJD = line1.split("HJD")[1].split(")")[0][3:];    RAdeg = line1.split("RA")[1].split(")")[0][3:];    decdeg = line1.split("Dec")[1].split(")")[0][3:]
-			elif line1.startswith("#"):
-				line1=line1.split(" ")
-				vals = [x for x in line1 if x]
-				RAdeg=float(vals[1]);    decdeg=float(vals[2]);    HJD=float(vals[3][:-1])
-			else:
-				print("I can not read the HJD of file:  " + str(fi))
-				print("Line 1 is:");    print(line1);    print()
-				check=False
-		
-		
-			for refwl, mod, norm, cut, res, rv in zip(desired_lines, model_region, norm_region, cut_region, resolution_lines, RV_boundaries):
-				mask = (wl >= refwl+cut[0])  &  (wl <= refwl+cut[1])
-				
-				if len(wl[mask])>1:
-					#plt.plot(wl[mask], flux[mask]);  plt.show()
+for line in desired_lines:
+	for fil in natsorted(os.listdir(os.getcwd())):
+		if fil.endswith(".dat"):
+			if True:#try:
+				wl, flux = np.loadtxt(fil,usecols=[0,1],unpack=True)
+				line1=open(fil).readlines()[0]
+				if "OrderedDict" in line1:
+					HJD = line1.split("HJD")[1].split(")")[0][3:];    RAdeg = line1.split("RA")[1].split(")")[0][3:];    decdeg = line1.split("Dec")[1].split(")")[0][3:]
+				elif line1.startswith("#"):
+					line1=line1.split(" ")
+					vals = [x for x in line1 if x]
+					RAdeg=float(vals[1]);    decdeg=float(vals[2]);    HJD=float(vals[3][:-1])
+				else:
+					print("I can not read the HJD of file:  " + str(fi))
+					print("Line 1 is:");    print(line1);    print()
+					check=False
+			
+			
+				for refwl, mod, norm, cut, res, rv in zip(desired_lines, model_region, norm_region, cut_region, resolution_lines, RV_boundaries):
+					if line == refwl:
+						mask = (wl >= refwl+cut[0])  &  (wl <= refwl+cut[1])
+						
+						if len(wl[mask])>1:
+							#plt.plot(wl[mask], flux[mask]);  plt.show()
+							
+							if fil in all_names:
+								all_share_rv.append(np.argwhere(fil==np.asarray(all_names))[0][0])
+							else:
+								all_share_rv.append(-1)
+							
+							all_names.append(fil)
+							all_refwl.append(refwl)
+							all_mod.append(mod)
+							all_norm.append(norm)
+							all_cut.append(cut)
+							all_hjd.append(HJD)
+							all_resolution.append(res)
+							all_sigma.append(4)
+							all_RV_boundaries.append(rv)
+						
 					
-					if fil in all_names:
-						all_share_rv.append(np.argwhere(fil==np.asarray(all_names))[0][0])
-					else:
-						all_share_rv.append(-1)
-					
-					all_names.append(fil)
-					all_refwl.append(refwl)
-					all_mod.append(mod)
-					all_norm.append(norm)
-					all_cut.append(cut)
-					all_hjd.append(HJD)
-					all_resolution.append(res)
-					all_sigma.append(4)
-					all_RV_boundaries.append(rv)
-					
-				
-		#except Exception as e: print("not liked, ", e)
+			#except Exception as e: print("not liked, ", e)
 
 
 all_names, all_refwl, all_mod, all_norm, all_cut, all_hjd, all_resolution, final_all_RV_boundaries, all_share_rv, all_sigma  =  np.asarray(all_names), np.asarray(all_refwl), np.asarray(all_mod), np.asarray(all_norm), np.asarray(all_cut), np.asarray(all_hjd), np.asarray(all_resolution), np.asarray(all_RV_boundaries), np.asarray(all_share_rv), np.asarray(all_sigma)
@@ -94,8 +94,6 @@ all_names, all_refwl, all_mod, all_norm, all_cut, all_hjd, all_resolution, final
 
 
 
-
-import numpy as np
 
 def move_minus_ones_left(arr):
     # Find indices of "-1" values
@@ -126,69 +124,18 @@ all_names, all_refwl, all_mod, all_norm, all_cut, all_hjd, all_resolution, all_s
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-newargs = np.argsort(all_share_rv)
-
-
-all_names, all_refwl, all_mod, all_norm, all_cut, all_hjd, all_resolution, all_share_rv = all_names[newargs], all_refwl[newargs], all_mod[newargs], all_norm[newargs], all_cut[newargs], all_hjd[newargs], all_resolution[newargs], all_share_rv[newargs]
-
-
-
-
-mask = np.argsort(all_refwl[all_share_rv!=-1])
-
-
-
-all_names[all_share_rv!=-1],       all_refwl[all_share_rv!=-1]     =    all_names[all_share_rv!=-1][mask],        all_refwl[all_share_rv!=-1][mask]
-all_mod[all_share_rv!=-1],         all_norm[all_share_rv!=-1]      =    all_mod[all_share_rv!=-1][mask],          all_norm[all_share_rv!=-1][mask]
-all_cut[all_share_rv!=-1],         all_hjd[all_share_rv!=-1]       =    all_cut[all_share_rv!=-1][mask],          all_hjd[all_share_rv!=-1][mask]
-all_resolution[all_share_rv!=-1],  all_share_rv[all_share_rv!=-1]  =    all_resolution[all_share_rv!=-1][mask],   all_share_rv[all_share_rv!=-1][mask]
-
-
-
-
-final_all_names, final_all_refwl, final_all_hjd, final_all_resolution, final_all_share_rv, final_all_sigma  = np.array([]), np.array([]), np.array([]), np.array([]), np.array([]), np.array([]) #, np.array([]), np.array([]), np.array([])
-
-
-for re in np.unique(all_refwl)[::-1]:
-	mask=all_refwl==re
-	final_all_names = np.append(final_all_names, all_names[mask])
-	final_all_refwl = np.append(final_all_refwl, all_refwl[mask])
-	final_all_hjd = np.append(final_all_hjd, all_hjd[mask])
-	final_all_resolution = np.append(final_all_resolution, all_resolution[mask])
-	final_all_share_rv = np.append(final_all_share_rv, all_share_rv[mask])
-	final_all_sigma = np.append(final_all_sigma, all_sigma[mask])
-
-final_all_mod, final_all_norm, final_all_cut  =  all_mod, all_norm, all_cut
-
-
-
-
-
-for cn, afile in enumerate(natsorted(np.unique(final_all_names))):
-	minloc=np.amin(np.argwhere(final_all_names==afile))
-	#if cn>2:
-	#	raise ValueError(minloc, final_all_names[final_all_names==afile])
-	final_all_share_rv[(final_all_names==afile) & (final_all_share_rv!=-1)] = minloc
-
-final_all_sharerv = final_all_share_rv.astype(int)
-
-
-
-
+names_share_rv_equals_minus1 = all_names[all_share_rv==-1]
+for cn, (aname, an_rv) in enumerate(zip(all_names, all_share_rv)):
+	if an_rv!=-1:
+		all_share_rv[cn] = np.argwhere(aname==names_share_rv_equals_minus1)[0][0]
 		
+
+
+
+
+
+final_all_names, final_all_refwl, final_all_mod, final_all_norm, final_all_cut, final_all_hjd, final_all_resolution, final_all_share_rv, final_all_sigma = all_names, all_refwl, all_mod, all_norm, all_cut, all_hjd, all_resolution, all_share_rv, all_sigma
+
 
 
 
@@ -239,11 +186,10 @@ string_to_write = string_to_write[:-2]  +  "]  # 0 indexed!  needs all shared rv
 
 if single_or_double=="double":
 	string_to_write+="\nstarType: ["
-	for i in range(2):
-		string_to_write+='"DA", '
-	string_to_write=string_to_write[:-2]+"]  # 'DA' or 'DBA'"
+	string_to_write+="'" + starType1 + "', '" + starType2 + "'"
+	string_to_write=string_to_write+"]  # 'DA' or 'DBA'"
 else:
-	string_to_write+="\nstarType: ['DA'] # 'DA' or 'DBA"
+	string_to_write+="\nstarType: ['" + starType1 + "'] # 'DA' or 'DBA"
 
 
 
@@ -316,7 +262,7 @@ string_to_write+='\nexpected_Gmag: 15 # only used when fit_phot_SED is True. Int
 string_to_write+='\nnwalkers: 50'
 string_to_write+='\nnburnin: 100'
 string_to_write+='\nnsteps: 50'
-if not Harry:
+if not subdwarf:
 	string_to_write+='\nreddening_Ebv: "lookup" # "lookup" or number'
 else:
 	string_to_write+='\nreddening_Ebv: 0 # "lookup" or number'

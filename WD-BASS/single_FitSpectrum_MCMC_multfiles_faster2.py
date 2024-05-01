@@ -901,7 +901,7 @@ elif starType1=="sd":
 	if fit_phot_SED:         wl_all, flux_all, Teff_all, Grav_all, H_over_He_all = load_models.load_models_Subdwarfs(minwl=theminww_loadgrid,maxwl=themaxww_loadgrid)
 	else:                    wl_all, flux_all, Teff_all, Grav_all, H_over_He_all = load_models.load_models_Subdwarfs(minwl=np.amin(reference_wl)-150,maxwl=np.amax(reference_wl)+250)
 	
-	if False:
+	if True:
 		if forced_teff1==0 and forced_logg1==0:
 			# Trim the grid to only include the values within p0Teff and p0logg
 			min_p0T = np.amin(np.array([p0T1[0], p0T1[1]]));    max_p0T = np.amax(np.array([p0T1[0], p0T1[1]]))
@@ -938,7 +938,10 @@ elif starType1=="sd":
 		
 
 	Teff_all_logg = Teff_all;   wl_all_logg = wl_all;     flux_all_logg = flux_all;      logg_all_logg = Grav_all;     HoverHe_all_logg = H_over_He_all
+	unique_Teff=np.unique(Teff_all_logg)
+	unique_logg=np.unique(logg_all_logg)
 	unique_HoverHe=np.unique(HoverHe_all_logg)
+	
 	
 	
 	
@@ -1110,7 +1113,10 @@ except: None
 try:
 	if fit_phot_SED==False:
 		mask = (wl_all_logg > min_wl_all_files) & (wl_all_logg < max_wl_all_files)
-		Teff_all_logg = Teff_all_logg[mask];   wl_all_logg = wl_all_logg[mask];     flux_all_logg = flux_all_logg[mask];      logg_all_logg = logg_all_logg[mask];     HoverHe_all_logg_DBA = HoverHe_all_logg_DBA[mask]
+		Teff_all_logg = Teff_all_logg[mask];   wl_all_logg = wl_all_logg[mask];     flux_all_logg = flux_all_logg[mask];      logg_all_logg = logg_all_logg[mask]
+		try: HoverHe_all_logg_DBA = HoverHe_all_logg_DBA[mask]
+		except:
+			HoverHe_all_logg = HoverHe_all_logg[mask]
 except: None
 
 
@@ -1433,16 +1439,14 @@ def return_DBAgrids(temperature_star, logg_star, HoverHestar):
 		elif logg_star<7.5: raise ValueError("Minimum logg for grid is 7.5. You attempted with " + str(logg_star))
 		else: print(logg_star); print(logg_star); print(logg_star);  raise ValueError
 		
-		Teff_all = Teff_all_logg;  wl_all = wl_all_logg;     flux_all = flux_all_logg;      logg_all = logg_all_logg;   HoverHe_all = HoverHe_all_logg_DBA
-		
 		
 		if HoverHestar>=2 and HoverHestar<=5: HoverHe_min=2; HoverHe_max=5
 		elif HoverHestar>=5 and HoverHestar<=8: HoverHe_min=5; HoverHe_max=8
 		elif HoverHestar>=8 and HoverHestar<=30: HoverHe_min=8; HoverHe_max=30
 		else: print(HoverHestar);  print(HoverHestar);  raise ValueError
 		
-		mask_logg = (logg_all<=maxval) & (logg_all>=minval) & (HoverHe_all>=HoverHe_min) & (HoverHe_all<=HoverHe_max)
-		Grav_N = logg_all[mask_logg];    wl_all_N=wl_all[mask_logg];    flux_N=flux_all[mask_logg];    Teff_N=Teff_all[mask_logg];     HoverHe_N = HoverHe_all[mask_logg]
+		mask_logg = (logg_all_logg<=maxval) & (logg_all_logg>=minval) & (HoverHe_all_logg_DBA>=HoverHe_min) & (HoverHe_all_logg_DBA<=HoverHe_max)
+		Grav_N = logg_all_logg[mask_logg];    wl_all_N=wl_all_logg[mask_logg];    flux_N=flux_all_logg[mask_logg];    Teff_N=Teff_all_logg[mask_logg];     HoverHe_N = HoverHe_all_logg_DBA[mask_logg]
 		
 		
 		unique_Teffs_DBA=np.unique(Teff_N)
@@ -1463,22 +1467,19 @@ def return_DBAgrids(temperature_star, logg_star, HoverHestar):
 		
 		
 	else:
-		Teff_all = Teff_all_logg;  wl_all = wl_all_logg;     flux_all = flux_all_logg;      logg_all = logg_all_logg;   HoverHe_all = HoverHe_all_logg
+		Teff_min = unique_Teff[unique_Teff<=temperature_star][-1]
+		Teff_max = unique_Teff[unique_Teff>=temperature_star][0]
+		logg_min = unique_logg[unique_logg<=logg_star][-1]
+		logg_max = unique_logg[unique_logg>=logg_star][0]
+		HoverHe_min = unique_HoverHe[unique_HoverHe<=HoverHestar][-1]
+		HoverHe_max = unique_HoverHe[unique_HoverHe>=HoverHestar][0]
 		
 		
-		Teff_min = np.unique(Teff_all)[np.unique(Teff_all)<=temperature_star][-1]
-		Teff_max = np.unique(Teff_all)[np.unique(Teff_all)>=temperature_star][0]
-		logg_min = np.unique(logg_all)[np.unique(logg_all)<=logg_star][-1]
-		logg_max = np.unique(logg_all)[np.unique(logg_all)>=logg_star][0]
-		HoverHe_min = np.unique(HoverHe_all)[np.unique(HoverHe_all)<=HoverHestar][-1]
-		HoverHe_max = np.unique(HoverHe_all)[np.unique(HoverHe_all)>=HoverHestar][0]
+		mask = (Teff_all_logg<=Teff_max) & (Teff_all_logg>=Teff_min)  &  (logg_all_logg<=logg_max) & (logg_all_logg>=logg_min)  &  (HoverHe_all_logg<=HoverHe_max) & (HoverHe_all_logg>=HoverHe_min)
 		
-		mask = (Teff_all<=Teff_max) & (Teff_all>=Teff_min)  &  (logg_all<=logg_max) & (logg_all>=logg_min)  &  (HoverHe_all<=HoverHe_max) & (HoverHe_all>=HoverHe_min)
+		if len(logg_all_logg[mask])==0:   raise ValueError("ERROR - Grid of subdwarfs")
 		
-		
-		if len(logg_all[mask])==0:   raise ValueError("ERROR - Grid of subdwarfs")
-		
-		return logg_all[mask], wl_all[mask], flux_all[mask], Teff_all[mask], HoverHe_all[mask]
+		return logg_all_logg[mask], wl_all_logg[mask], flux_all_logg[mask], Teff_all_logg[mask], HoverHe_all_logg[mask]
 	
 	
 	
@@ -2768,7 +2769,7 @@ elif sys.argv[1]=="ATM":
 				Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_DAgrids(forced_teff1, forced_logg1)
 				model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, 5000, -5000, 5000, Grav1_N, flux1_N, Teff1_N, forced_teff1, forced_logg1)
 			elif starType1.startswith("sd"):
-				Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N = return_DBAgrids(forced_teff1[0], forced_logg1[0], forced_HoverHe1[0])
+				Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N = return_DBAgrids(forced_teff1, forced_logg1, forced_HoverHe1)
 				model_wl1, model_spectrum_star1 = return_model_spectrum_subdwarf(wl_all1_N, 5000, -5000, 5000, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1_med, logg1_med, HoverHe1_med)
 			
 			
