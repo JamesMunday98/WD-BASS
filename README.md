@@ -29,3 +29,6 @@ DB/DBA/DC (helium-rich atmosphere): Cukanovaite et al 2021
 - Gaussian/Lorentzian fitting: Nothing
 
 - (In closed beta testing) Atmospheric models for hot subdwarfs. Details to come
+
+
+[![DOI](https://zenodo.org/badge/786251349.svg)](https://zenodo.org/doi/10.5281/zenodo.11188043)
