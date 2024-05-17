@@ -1,5 +1,6 @@
 # WD-BASS
 White Dwarf Binary And Single Star (WD-BASS) package for spectral fitting. It can do spectroscopic, photometric and hybrid fitting with synthetic spectra for single stars or binaries. It can also do Gaussian/Lorentzian profile fitting. The program excels not only for WDs, but any source where you have a relatively smooth continuum.
+[![DOI](https://zenodo.org/badge/786251349.svg)](https://zenodo.org/doi/10.5281/zenodo.11188043)
 
 # How to get started?
 There is a manual that has the most detail and describes every input/output, and I have made a flowchart to assist in the flow of the package. I also have made a series of youtube videos to refer to with the most common uses. I recommend installing the package and taking a look at the example data which can be seen as tutorials. Tutorials are for the tutorial data, but I have made scripts to automate the creation of the input file. Take a look at the commands "create_single" and "create_double".
@@ -31,4 +32,4 @@ DB/DBA/DC (helium-rich atmosphere): Cukanovaite et al 2021
 - (In closed beta testing) Atmospheric models for hot subdwarfs. Details to come
 
 
-[![DOI](https://zenodo.org/badge/786251349.svg)](https://zenodo.org/doi/10.5281/zenodo.11188043)
+
