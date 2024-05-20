@@ -4,6 +4,11 @@ White Dwarf Binary And Single Star (WD-BASS) package for spectral fitting. It ca
 [![DOI](https://zenodo.org/badge/786251349.svg)](https://zenodo.org/doi/10.5281/zenodo.11188043)
 
 # How to get started?
+Pip install command:
+pip install astropy pillow natsort matplotlib emcee corner scipy schwimmbad numba dust-extinction astroquery tqdm
+````pip install mpi4py''''    or   ````conda install mpi4py''''
+
+
 There is a manual that has the most detail and describes every input/output, and I have made a flowchart to assist in the flow of the package. I recommend installing the package and taking a look at the example data which can be viewed as tutorials. Input files here are for the tutorial data, but I have made scripts to automate the creation of the input file (read the manual, particularly mentions of Create_yaml.py).
 
 On top of zipping and extracting the package, you should place these two folders in the extracted file location of the folder "WD-BASS" (file size was too large for github)
