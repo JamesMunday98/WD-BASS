@@ -4,7 +4,7 @@ White Dwarf Binary And Single Star (WD-BASS) package for spectral fitting. It ca
 [![DOI](https://zenodo.org/badge/786251349.svg)](https://zenodo.org/doi/10.5281/zenodo.11188043)
 
 # How to get started?
-There is a manual that has the most detail and describes every input/output, and I have made a flowchart to assist in the flow of the package. I recommend installing the package and taking a look at the example data which can be seen as tutorials. Tutorials are for the tutorial data, but I have made scripts to automate the creation of the input file. Take a look at the commands "create_single" and "create_double".
+There is a manual that has the most detail and describes every input/output, and I have made a flowchart to assist in the flow of the package. I recommend installing the package and taking a look at the example data which can be viewed as tutorials. Input files here are for the tutorial data, but I have made scripts to automate the creation of the input file (read the manual, particularly mentions of Create_yaml.py).
 
 On top of zipping and extracting the package, you should place these two folders in the extracted file location of the folder "WD-BASS" (file size was too large for github)
 https://drive.google.com/drive/folders/1w8e7O43tm7-AH5OrbYMe3U9msdy7_xjv?usp=sharing
