@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-subdwarf=True
+subdwarf=False
 ### Change the below lines to your desired setup. Can be as many or as little as you want
 if not subdwarf:
 	desired_lines = [6562.79, 4861.35, 4340.472, 4101.734, 3970.075]
