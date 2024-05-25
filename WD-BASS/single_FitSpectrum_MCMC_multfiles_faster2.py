@@ -1120,7 +1120,6 @@ try:
 except: None
 
 
-
 if len(p0labels) == 1:
 	p0labels = np.flip(np.append(p0labels, "Dummy"))
 	dummybound = [-1, 1]
@@ -2039,10 +2038,13 @@ def lnprior_gauss_lorentz(theta, arguments):
 	args = np.argwhere(p0labels=="sig1_2")[0][0];   gaussLorentz1_sigma2 = theta[args]
 	
 	
-	if not (A1_1_boundaries[0] < gaussLorentz1_A1 < A1_1_boundaries[1] or A1_2_boundaries[0] < gaussLorentz1_A2 < A1_2_boundaries[1]):
+	if not (A1_1_boundaries[0] < gaussLorentz1_A1 < A1_1_boundaries[1]):
 		return -np.inf
-	
-	if not (sigma1_1_boundaries[0] < gaussLorentz1_sigma1 < sigma1_1_boundaries[1] or sigma1_2_boundaries[0] < gaussLorentz1_sigma2 < sigma1_2_boundaries[1]):
+	if not (A1_2_boundaries[0] < gaussLorentz1_A2 < A1_2_boundaries[1]):
+		return -np.inf
+	if not (sigma1_1_boundaries[0] < gaussLorentz1_sigma1 < sigma1_1_boundaries[1]):
+		return -np.inf
+	if not (sigma1_2_boundaries[0] < gaussLorentz1_sigma2 < sigma1_2_boundaries[1]):
 		return -np.inf
 	
 	
@@ -2444,7 +2446,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss":
 					#plt.title(str(A1) + "   " + str(A2) + "   " + str(std_dev1) + "   " + str(std_dev2));   plt.show()
 					
 					
-					desired_range = (normalised_wavelength>desired_wl-20)  &  (normalised_wavelength<desired_wl+20)
+					desired_range = (normalised_wavelength>desired_wl-40)  &  (normalised_wavelength<desired_wl+40)
 					chisq += -0.5*np.sum((np.square(normalised_flux[desired_range]-interparr[desired_range]))/np.square(normalised_err[desired_range]))
 					
 					
@@ -2595,7 +2597,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss":
 		'''Calculates residuals for a given model'''
 		model = calc_model2(params, xxx, wl1, spec1, gauss1)
 
-		mask_narrow = (xxx > desired_refwl-20) & (xxx < desired_refwl+20)
+		mask_narrow = (xxx > desired_refwl-40) & (xxx < desired_refwl+40)
 		
 		return (yyy[mask_narrow]-model[mask_narrow]) / yyyerr[mask_narrow]
 
