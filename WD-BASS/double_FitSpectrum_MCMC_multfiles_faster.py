@@ -281,10 +281,11 @@ if (forced_K1==False and forced_Vgamma1=="Fit") or (forced_K2==False and forced_
 
 
 
-if not len(input_files)==len(reference_wl)==len(normaliseHa_all)==len(cut_Ha_all)==len(resolutions)==len(share_rv)==len(RV_boundaries1)==len(RV_boundaries2)==len(sigma_clip)==len(HJD_values):
+if not len(input_files)==len(modelHa)==len(reference_wl)==len(normaliseHa_all)==len(cut_Ha_all)==len(resolutions)==len(share_rv)==len(RV_boundaries1)==len(RV_boundaries2)==len(sigma_clip)==len(HJD_values):
 	print("ALERT");  print("ALERT"); print("ALERT"); print("ALERT"); print("ALERT")
 	print("Mismatch of length of required arrays")
 	print("input_files", len(input_files));  print("reference_wl", len(reference_wl))
+	print("modelHa", len(modelHa))
 	print("normaliseHa", len(normaliseHa_all));  print("cut_Ha_all", len(cut_Ha_all))
 	print("resolutions", len(resolutions));  print("share_rv", len(share_rv))
 	print("RV_boundaries1", len(RV_boundaries1));  print("RV_boundaries2", len(RV_boundaries2))
@@ -1237,6 +1238,8 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
 				break
 	except:
 		print(files)
+		print("The input wavelengths that I am selecting to normaliise the spectra are:")
+		print(mask_out_Ha_min, mask_out_Ha_max, cut_limits_min, cut_limits_max)
 		m,c = polyfit(wl_data_normmask, flux_data_normmask, w=1/fluxe_data_normmask, deg=1)
 		print("DIDN'T LIKE THE NORMALISTATION OF THE OBSERVED SPECTRA, NO CLIPPING ON NORMALISATION APPLIED")
 		
@@ -1689,8 +1692,8 @@ def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, 
 	
 	if ref_wl>6500:     fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*50)) # 0.02AA spacing
 	elif ref_wl>4500:   fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*33)) # 0.03AA spacing
-	elif ref_wl>4200:   fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*20)) # 0.05AA spacing
-	else:               fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*10)) # 0.1AA spacing
+	elif ref_wl>4200:   fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*25)) # 0.04AA spacing
+	else:               fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*25)) # 0.04AA spacing
 	
 	
 	#fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*400)) # 0.0025AA spacing
@@ -1741,7 +1744,6 @@ if forced_logg2==0: checklogg2=True
 if forced_HoverHe1==0 and starType1=="DBA": checkHoverHe1=True
 if forced_HoverHe2==0 and starType2=="DBA": checkHoverHe2=True
 if forced_Scaling==False: checkscaling=True
-
 
 
 
@@ -1968,7 +1970,7 @@ def lnlike(theta, arguments):
 		
 		rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, return_points_for_phot_model=False)
 		
-		
+		chisq_phot*=1000
 		
 		if np.round(chisq_phot,11)==0:
 			plt.plot(smeared_wl, smeared_flux);   plt.title(str(T1) + "  "+ str(logg1) + "  "+ str(T2) + "  "+ str(logg2) + "   " + "chisq=" +str(chisq_phot));   plt.show()
@@ -2732,7 +2734,6 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
 	else:   Scaling_med=1
 	
 	
-	
 	cut_limits_min, cut_limits_max = np.amin(cut_Ha_all.T), np.amax(cut_Ha_all.T)
 	
 	if starType1.startswith("D") or starType2.startswith("D"):
@@ -2782,8 +2783,8 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
 		
 		
 		ndim=4
-		p0A1, p0A2 = [-0.1, 0], [-0.1, 0]
-		p0std_dev1,  p0std_dev2 = [0, 1], [0, 1]
+		p0A1, p0A2 = [-0.05, 0], [-0.05, 0]
+		p0std_dev1,  p0std_dev2 = [0, 1.5], [0, 1.5]
 		
 		pos_min = np.array([p0A1[0], p0std_dev1[0], p0A2[0], p0std_dev2[0]])
 		pos_max = np.array([p0A1[1], p0std_dev1[1], p0A2[1], p0std_dev2[1]])
@@ -2804,7 +2805,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
 				p0labels = np.append(p0labels,"RV2_"+str(ii))
 		
 		nwalkers=len(p0labels)+(len(p0labels)-4)*2 + 2
-		burnin=50
+		burnin=100
 		nsteps=50
 		
 		def lnprior_gauss(theta, arguments):
@@ -2833,53 +2834,51 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
 			gauss1 = agauss(wl1-desired_refwl, A1, 0, std_dev1)
 			gauss2 = agauss(wl1-desired_refwl, A2, 0, std_dev2)
 			
-			mask_ref_wl = reference_wl==desired_refwl
 			chisq=0
-			for ii, (in_fi, modha, cut_lim, norm_lim, RV1, RV2) in enumerate(zip(input_files[mask_ref_wl], modelHa[mask_ref_wl], cut_Ha_all[mask_ref_wl], normaliseHa_all[mask_ref_wl], RVs_star1, RVs_star2)):
-				if not in_fi in file_ignore:
-					wl_RV1 = RV1/speed_of_light * desired_refwl;    wl_RV2 = RV2/speed_of_light * desired_refwl
-					normalised_wavelength, normalised_flux, normalised_err, inp_resolution = list_norm_wl_grids[ii], list_normalised_flux[ii], list_normalised_err[ii], resolutions[ii]
-					rvbound1, rvbound2 = RV_boundaries1[ii], RV_boundaries2[ii]
-					modelHa_min, modelHa_max = modha
-					cut_limits_min, cut_limits_max = cut_lim
-					norm_limits_min, norm_limits_max = norm_lim
-					
-					
-					resAA = desired_refwl/inp_resolution
-					
-					
-					smear_model_spectrum_star1 = convolve(spec1, Gaussian1DKernel(stddev=0.5*resAA/(wl1[10]-wl1[9])), boundary = 'extend')
-					smear_model_spectrum_star2 = convolve(spec2, Gaussian1DKernel(stddev=0.5*resAA/(wl2[10]-wl2[9])), boundary = 'extend')
-					
-					smear_model_spectrum_star1 = interp(wl1, wl1+wl_RV1, smear_model_spectrum_star1)
-					smear_model_spectrum_star2 = interp(wl1, wl2+wl_RV2, smear_model_spectrum_star2)
-					
-					
-					interparr = smear_model_spectrum_star1 + smear_model_spectrum_star2
-					
-					
-					mask = ((wl1>desired_refwl+cut_limits_min) & (wl1<desired_refwl+norm_limits_min)) | ((wl1>desired_refwl+norm_limits_max)   & (wl1<desired_refwl+cut_limits_max))
-					
-					m,c =  polyfit(wl1[mask], interparr[mask], deg=1)
-					interparr /= (m*wl1 + c)
-					interparr = interp(normalised_wavelength, wl1, interparr)
-					
-					
-					smear_gauss1 = convolve(gauss1, Gaussian1DKernel(stddev=0.5*resAA/(wl1[10]-wl1[9])), boundary = 'extend')
-					smear_gauss2 = convolve(gauss2, Gaussian1DKernel(stddev=0.5*resAA/(wl2[10]-wl2[9])), boundary = 'extend')
-					
-					smear_gauss1 = interp(normalised_wavelength, wl1+wl_RV1, smear_gauss1)
-					smear_gauss2 = interp(normalised_wavelength, wl1+wl_RV2, smear_gauss2)
-					
-					
-					#plt.plot(normalised_wavelength, interparr+smear_gauss1+smear_gauss2,c='g');  plt.plot(normalised_wavelength, interparr,c='r');  plt.plot(normalised_wavelength, normalised_flux, c='k')
-					##plt.plot(normalised_wavelength, smear_gauss1+1, c='orange');   plt.plot(normalised_wavelength, smear_gauss2+1, c='b')
-					##plt.plot(normalised_wavelength, smear_gauss1+smear_gauss2+1, c='purple')
-					#plt.title(str(A1) + "   " + str(A2) + "   " + str(std_dev1) + "   " + str(std_dev2));   plt.show()
-					
-					
-					desired_range = (normalised_wavelength>desired_wl-25)  &  (normalised_wavelength<desired_wl+25)
-					chisq += -0.5*np.sum((np.square(normalised_flux[desired_range]-interparr[desired_range]))/np.square(normalised_err[desired_range]))
+			for ii, (in_fi, modha, cut_lim, norm_lim, RV1, RV2) in enumerate(zip(input_files, modelHa, cut_Ha_all, normaliseHa_all, RVs_star1, RVs_star2)):
+				wl_RV1 = RV1/speed_of_light * desired_refwl;    wl_RV2 = RV2/speed_of_light * desired_refwl
+				normalised_wavelength, normalised_flux, normalised_err, inp_resolution = list_norm_wl_grids[ii], list_normalised_flux[ii], list_normalised_err[ii], resolutions[ii]
+				rvbound1, rvbound2 = RV_boundaries1[ii], RV_boundaries2[ii]
+				modelHa_min, modelHa_max = modha
+				cut_limits_min, cut_limits_max = cut_lim
+				norm_limits_min, norm_limits_max = norm_lim
+				
+				
+				resAA = desired_refwl/inp_resolution
+				
+				
+				smear_model_spectrum_star1 = convolve(spec1, Gaussian1DKernel(stddev=0.5*resAA/(wl1[10]-wl1[9])), boundary = 'extend')
+				smear_model_spectrum_star2 = convolve(spec2, Gaussian1DKernel(stddev=0.5*resAA/(wl2[10]-wl2[9])), boundary = 'extend')
+				
+				smear_model_spectrum_star1 = interp(wl1, wl1+wl_RV1, smear_model_spectrum_star1)
+				smear_model_spectrum_star2 = interp(wl1, wl2+wl_RV2, smear_model_spectrum_star2)
+				
+				
+				interparr = smear_model_spectrum_star1 + smear_model_spectrum_star2
+				
+				
+				mask = ((wl1>desired_refwl+cut_limits_min) & (wl1<desired_refwl+norm_limits_min)) | ((wl1>desired_refwl+norm_limits_max)   & (wl1<desired_refwl+cut_limits_max))
+				
+				m,c =  polyfit(wl1[mask], interparr[mask], deg=1)
+				interparr /= (m*wl1 + c)
+				interparr = interp(normalised_wavelength, wl1, interparr)
+				
+				
+				smear_gauss1 = convolve(gauss1, Gaussian1DKernel(stddev=0.5*resAA/(wl1[10]-wl1[9])), boundary = 'extend')
+				smear_gauss2 = convolve(gauss2, Gaussian1DKernel(stddev=0.5*resAA/(wl2[10]-wl2[9])), boundary = 'extend')
+				
+				smear_gauss1 = interp(normalised_wavelength, wl1+wl_RV1, smear_gauss1)
+				smear_gauss2 = interp(normalised_wavelength, wl1+wl_RV2, smear_gauss2)
+				
+				
+				#plt.plot(normalised_wavelength, interparr+smear_gauss1+smear_gauss2,c='g');  plt.plot(normalised_wavelength, interparr,c='r');  plt.plot(normalised_wavelength, normalised_flux, c='k')
+				##plt.plot(normalised_wavelength, smear_gauss1+1, c='orange');   plt.plot(normalised_wavelength, smear_gauss2+1, c='b')
+				##plt.plot(normalised_wavelength, smear_gauss1+smear_gauss2+1, c='purple')
+				#plt.title(str(A1) + "   " + str(A2) + "   " + str(std_dev1) + "   " + str(std_dev2));   plt.show()
+				
+				
+				desired_range = (normalised_wavelength>desired_wl-25)  &  (normalised_wavelength<desired_wl+25)
+				chisq += -0.5*np.sum((np.square(normalised_flux[desired_range]-interparr[desired_range]))/np.square(normalised_err[desired_range]))
 					
 			return chisq
 			
@@ -2909,7 +2908,29 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
 		
 		
 		
-		sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_gauss, pool=pool, args=[[input_files, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, model_wl1, model_spectrum_star1, model_wl2, model_spectrum_star2, desired_refwl]])
+		
+		file_ignore=np.asarray([config_info["file_ignore"]])[0]
+		
+		process_gauss_inpf, process_gauss_rwl, process_gauss_cHa, process_gauss_nHa, process_gauss_normwl, process_gauss_normfl, process_gauss_normerr, process_gauss_res, process_gauss_rvbound = [], [], [], [], [], [], [], [], []
+		
+		if len(file_ignore)>0:
+			for inpf, rwl, cHa, nHa, normwl, normfl, normerr, res, rvbound in zip(input_files, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries):
+				if not inpf in file_ignore and rwl==desired_refwl:
+					process_gauss_inpf.append(inpf);          process_gauss_rwl.append(rwl)
+					process_gauss_cHa.append(cHa);            process_gauss_nHa.append(nHa)
+					process_gauss_normwl.append(normwl);      process_gauss_normfl.append(normfl)
+					process_gauss_normerr.append(normerr);    process_gauss_res.append(res)
+					process_gauss_rvbound.append(rvbound)
+
+		
+		
+		process_gauss_inpf = np.asarray(process_gauss_inpf);       process_gauss_rwl = np.asarray(process_gauss_rwl);         process_gauss_cHa = np.asarray(process_gauss_cHa)
+		process_gauss_nHa = np.asarray(process_gauss_nHa);         process_gauss_normwl = np.asarray(process_gauss_normwl);   process_gauss_normfl = np.asarray(process_gauss_normfl)
+		process_gauss_normerr = np.asarray(process_gauss_normerr); process_gauss_res = np.asarray(process_gauss_res);         process_gauss_rvbound = np.asarray(process_gauss_rvbound)
+		
+		
+		#sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_gauss, pool=pool, args=[[input_files, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, model_wl1, model_spectrum_star1, model_wl2, model_spectrum_star2, desired_refwl]])
+		sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_gauss, pool=pool, args=[[process_gauss_inpf, process_gauss_rwl, process_gauss_cHa, process_gauss_nHa, process_gauss_normwl, process_gauss_normfl, process_gauss_normerr,  process_gauss_res, process_gauss_rvbound, model_wl1, model_spectrum_star1, model_wl2, model_spectrum_star2, desired_refwl]])
 		pos, prob, state = sampler.run_mcmc(p0,burnin,progress=True)
 		samples = sampler.flatchain
 		np.savetxt("RVfits/Gauss_MCMC_samples_burnin.dat",samples)
@@ -3097,6 +3118,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
 	rvfilename=[]
 	desired_refwl = np.amax(reference_wl)
 	mask_ref_wl = reference_wl==desired_refwl
+	ref_wl = desired_refwl
 	for ii, (in_fi, modha, cut_lim, norm_lim, aHJD, sigclipspec) in enumerate(zip(input_files[mask_ref_wl], modelHa[mask_ref_wl], cut_Ha_all[mask_ref_wl], normaliseHa_all[mask_ref_wl], HJD_values[mask_ref_wl], sigma_clip[mask_ref_wl])):
 		issue_here=False
 		
@@ -3134,6 +3156,40 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
 				quad = m4 * (model_wl1-ref_wl)**4  +  m3 * (model_wl1-ref_wl)**3  +  m2 * (model_wl1-ref_wl)**2  +  m1*(model_wl1-ref_wl)  +  c
 				smear_model_spectrum_star1= smear_model_spectrum_star1_temp + 0.5*quad
 				smear_model_spectrum_star2 = smear_model_spectrum_star2_temp + 0.5*quad
+				
+				combined_spectrum_dummy = smear_model_spectrum_star1+smear_model_spectrum_star2
+				mask_negative_grad=np.array([])
+				first_up, first_down, second_up, second_down = True, False, False, False
+				for cnt, val in enumerate(combined_spectrum_dummy):
+					try:
+						if first_up==True:
+							if combined_spectrum_dummy[cnt+1] - combined_spectrum_dummy[cnt] > 0:
+								mask_negative_grad = np.append(mask_negative_grad, True)
+							else:
+								mask_negative_grad = np.append(mask_negative_grad, False)
+								first_up=False
+						elif first_down==True:
+							mask_negative_grad = np.append(mask_negative_grad, False)
+							if combined_spectrum_dummy[cnt+1] - combined_spectrum_dummy[cnt] > 0:
+								first_down=False; second_up=True
+						elif second_up==True:
+							mask_negative_grad = np.append(mask_negative_grad, False)
+							if combined_spectrum_dummy[cnt+1] - combined_spectrum_dummy[cnt] < 0:
+								second_down=True; second_up=False
+						elif second_down==True:
+							mask_negative_grad = np.append(mask_negative_grad, True)
+						else:
+							mask_negative_grad = np.append(mask_negative_grad, False)
+							if combined_spectrum_dummy[cnt+1] - combined_spectrum_dummy[cnt] > 0:
+								first_down=True;   first_up=False
+					except:   mask_negative_grad = np.append(mask_negative_grad, True)
+				
+				mask_negative_grad=mask_negative_grad.astype(bool)
+				
+				smear_model_spectrum_star1[mask_negative_grad] = np.amax(smear_model_spectrum_star1[~mask_negative_grad])
+				smear_model_spectrum_star2[mask_negative_grad] = np.amax(smear_model_spectrum_star2[~mask_negative_grad])
+				
+				# plt.plot(model_wl1[~mask_negative_grad], smear_model_spectrum_star1[~mask_negative_grad], c='k');   plt.plot(model_wl1[~mask_negative_grad], smear_model_spectrum_star2[~mask_negative_grad], c='r');   plt.show()
 			
 			
 			Low_SNR=True  # note that this improvement to normalisation only makes a noticeable difference when the SNR is low (because the normalisation of the data is not good). For speed, it can absolutely be ignored, but if you're analysing a small sample or on a case by case basis I recommend to leave it on. I noticed an accuracy of a couple 100ms-1 improved in SNR=25 in the wings for Halpha fits and a big improvement in precision for SNR=10-15 data.
@@ -3222,6 +3278,40 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
 					quad = m4 * (model_wl1-ref_wl)**4  +  m3 * (model_wl1-ref_wl)**3  +  m2 * (model_wl1-ref_wl)**2  +  m1*(model_wl1-ref_wl)  +  c
 					smear_model_spectrum_star1= smear_model_spectrum_star1_temp + 0.5*quad
 					smear_model_spectrum_star2 = smear_model_spectrum_star2_temp + 0.5*quad
+					
+					
+					combined_spectrum_dummy=smear_model_spectrum_star1+smear_model_spectrum_star2
+					mask_negative_grad=np.array([])
+					first_up, first_down, second_up, second_down = True, False, False, False
+					for cnt, val in enumerate(combined_spectrum_dummy):
+						try:
+							if first_up==True:
+								if combined_spectrum_dummy[cnt+1] - combined_spectrum_dummy[cnt] > 0:
+									mask_negative_grad = np.append(mask_negative_grad, True)
+								else:
+									mask_negative_grad = np.append(mask_negative_grad, False)
+									first_up=False
+							elif first_down==True:
+								mask_negative_grad = np.append(mask_negative_grad, False)
+								if combined_spectrum_dummy[cnt+1] - combined_spectrum_dummy[cnt] > 0:
+									first_down=False; second_up=True
+							elif second_up==True:
+								mask_negative_grad = np.append(mask_negative_grad, False)
+								if combined_spectrum_dummy[cnt+1] - combined_spectrum_dummy[cnt] < 0:
+									second_down=True; second_up=False
+							elif second_down==True:
+								mask_negative_grad = np.append(mask_negative_grad, True)
+							else:
+								mask_negative_grad = np.append(mask_negative_grad, False)
+								if combined_spectrum_dummy[cnt+1] - combined_spectrum_dummy[cnt] > 0:
+									first_down=True;   first_up=False
+						except:   mask_negative_grad = np.append(mask_negative_grad, True)
+					
+					mask_negative_grad=mask_negative_grad.astype(bool)
+					
+					smear_model_spectrum_star1[mask_negative_grad] = np.amax(smear_model_spectrum_star1[~mask_negative_grad])
+					smear_model_spectrum_star2[mask_negative_grad] = np.amax(smear_model_spectrum_star2[~mask_negative_grad])
+					
 				
 			else: clip_mask2=normalised_flux==normalised_flux; off=0; mask_narrow=normalised_wavelength==normalised_wavelength
 			
@@ -3914,14 +4004,14 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
 			ax2.set_xlim(trim_plot2_xvals_min, trim_plot2_xvals_max)
 			ax.set_ylim(0.3,1.2);    ax2.set_ylim(0.35,1.1)
 			plt.savefig("out/"+filename.split(".dat")[0]+"_"+str(ref_wl)+".png", dpi=300)
-			if ii in plot_fit and not False in plot_fit:   plt.show()
+			if ii in plot_fit:   plt.show()
 			plt.clf();    plt.close()
 
 
 
 
 
-	plot_fancy=False
+	plot_fancy=True
 	if plot_fancy==True:
 		minstored=np.inf
 		maxstored=-np.inf
@@ -4287,7 +4377,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
 				ax.text(minBalmerText,y,lab, fontsize=11)
 			
 			plt.savefig("out/"+filename.split(".dat")[0]+"_all_shared_rvs_fancy"+".pdf", dpi=300)
-		if unique_shared_rv in plot_fit and not False in plot_fit:   plt.show()
+		if unique_shared_rv in plot_fit:   plt.show()
 		plt.clf();   plt.close()
 
 
