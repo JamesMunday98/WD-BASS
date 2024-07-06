@@ -28,7 +28,7 @@ class Fit_phot(object):
 	@njit
 	def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, temperature_star, logg_star):
 		""" return model spectrum to fit photometry with a DA """
-	
+		
 		Grav_N_N = Grav1_N;   wl_all_N_N=wl_all1_N;    flux_N_N=flux1_N;    Teff_N_N=Teff1_N
 		
 		# interpolate for a model at the reference wavelength with this mcmc interation	
@@ -49,8 +49,9 @@ class Fit_phot(object):
 		ffffsss2 = flux_N_N[maskT0 & maskG1]
 		ffffsss3 = flux_N_N[maskT1 & maskG0]
 		ffffsss4 = flux_N_N[maskT1 & maskG1]
-
 		
+		
+
 		model_spectrum = (ffffsss1 * (unique_Ts[1] - temperature_star) * (unique_Gs[1] - logg_star) +           ffffsss3 * (temperature_star - unique_Ts[0]) * (unique_Gs[1] - logg_star) +            ffffsss2 * (unique_Ts[1] - temperature_star) * (logg_star - unique_Gs[0]) +            ffffsss4 * (temperature_star - unique_Ts[0]) * (logg_star - unique_Gs[0])           ) / ((unique_Ts[1] - unique_Ts[0]) * (unique_Gs[1] - unique_Gs[0]))
 		
 		#plt.plot(wl_grid, model_spectrum,c='r', ls='--');   plt.show()
@@ -414,7 +415,7 @@ class Fit_phot(object):
 			raise ValueError("Issue with chisq calculation for photometric SED fitting. Likely that one of the errors are nans/0. I have printed all filters with the flux and fluxerr above.")
 		
 		
-		plot_fancy=False
+		plot_fancy=True #True
 		if plot_solution==True and plot_fancy==False:
 			plt.clf()
 			fig, (ax, ax2) = plt.subplots(2, gridspec_kw={'height_ratios': [3, 1]})
@@ -432,10 +433,11 @@ class Fit_phot(object):
 			ax.set_xlim(theminww_plot, themaxww_plot);   ax2.set_xlim(theminww_plot, themaxww_plot)
 			ax.set_title(chisq)
 			plt.savefig(os.getcwd()+"/out/photometric_fit.png")
+			np.savetxt("out/Fitted_Photometry.dat", np.array([list_wl_bpass, list_flux_bpass]).T)
 			#plt.show()
 			plt.clf();   plt.close()
 		elif plot_solution==True and plot_fancy==True:
-			
+			np.savetxt("out/Fitted_Photometry.dat", np.array([list_wl_bpass, list_flux_bpass]).T)
 			matplotlib.rcParams['text.usetex'] = True
 			matplotlib.rcParams['mathtext.fontset'] = 'stix'
 			matplotlib.rcParams['font.family'] = 'STIXGeneral'
@@ -467,7 +469,7 @@ class Fit_phot(object):
 			ax.errorbar(list_wl_bpass, list_flux_sed*1000, yerr=list_fluxe*1000, fmt='.k', label='cds data')
 			
 			
-			ax2.errorbar(list_wl_bpass, 100*(list_flux_bpass-list_flux_sed)/list_flux_sed, yerr=list_fluxe/list_flux_sed, fmt='.k', label='cds data')
+			ax2.errorbar(list_wl_bpass, 100*(list_flux_bpass-list_flux_sed)/list_flux_sed, yerr=100*list_fluxe/list_flux_sed, fmt='.k', label='cds data')
 			ax2.axhline(0,ls='--',c='grey')
 			ax2.set_xlim(np.amin(model_wl), np.amax(model_wl))
 			ax2.set_ylabel(r"\%\,F", labelpad=5)

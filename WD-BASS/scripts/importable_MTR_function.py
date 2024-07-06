@@ -61,7 +61,10 @@ def save_tables_output_DA():
 	all_radiusHe=np.sqrt(G*all_massHe*one_solM/all_gHe)/one_solR
 	
 	np.savetxt("../saved_MTR/table_valuesCO.dat", np.array([all_tempsCO, all_loggCO, all_massCO, all_radiusCO]).T)
+	np.save("../saved_MTR/table_valuesCO.npy", np.array([all_tempsCO, all_loggCO, all_massCO, all_radiusCO]))
+	
 	np.savetxt("../saved_MTR/table_valuesHe.dat", np.array([all_tempsHe, all_loggHe, all_massHe, all_radiusHe]).T)
+	np.save("../saved_MTR/table_valuesHe.npy", np.array([all_tempsHe, all_loggHe, all_massHe, all_radiusHe]))
 
 def save_Althaus_2013_full():  #  I depend on Istrate for lower masses, so only need the higher mass ones here
 	all_T, all_logg, all_R, all_M = np.array([]), np.array([]), np.array([]), np.array([])
@@ -93,7 +96,7 @@ def save_Althaus_2013_full():  #  I depend on Istrate for lower masses, so only 
 			turn_around = np.argwhere(mask==True)[-1][0]  + 50
 			
 			
-			mask  =  (Teff[turn_around:] > 4400)  &  ((Teff[turn_around:]>9000) | (np.in1d(Teff[turn_around:],  Teff[::2])))    &   ((Teff[turn_around:]>6000)  |  (np.in1d(Teff[turn_around:],  Teff[::5])))   &   ((Teff[turn_around:]<22500)  |  (np.in1d(Teff[turn_around:],  Teff[::2])))
+			mask  =  (Teff[turn_around:] > 4300)  &  ((Teff[turn_around:]>9000) | (np.in1d(Teff[turn_around:],  Teff[::2])))    &   ((Teff[turn_around:]>6000)  |  (np.in1d(Teff[turn_around:],  Teff[::5])))   &   ((Teff[turn_around:]<22500)  |  (np.in1d(Teff[turn_around:],  Teff[::2])))
 			
 			
 			mass_star = float("0."+str(f[1:5]))
@@ -124,11 +127,11 @@ def save_Althaus_2013_full():  #  I depend on Istrate for lower masses, so only 
 			all_T, all_logg, all_R, all_M  =  np.append(all_T, Teff),  np.append(all_logg, Log_grav),  np.append(all_R, R),  np.append(all_M, mass_star)
 			
 	
+	
 	np.save(install_path+ "/saved_MTR/Althaus_2013_full.npy", np.array([all_T, all_logg, all_M, all_R]))
 	np.save(install_path+ "/saved_MTR/Althaus_2013_full_nomasses.npy", np.array([all_T, all_logg, all_R]))
-			
-			
-			
+	
+	
 			
 			
 
@@ -188,8 +191,8 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 		rad_CO = float(griddata(np.array([all_tempsCO,all_massCO]).T,all_radiusCO,np.array([T, M]).T, method='linear')[0])
 		
 		if compute_logg:
-			g_He=np.log10(   1000*G*M*one_solM*1000/(rad_He*one_solR*100)**2 )
-			g_CO=np.log10(   1000*G*M*one_solM*1000/(rad_CO*one_solR*100)**2 )
+			g_He=np.log10(   1000*G*M*one_solM*1000/np.square(rad_He*one_solR*100) )
+			g_CO=np.log10(   1000*G*M*one_solM*1000/np.square(rad_CO*one_solR*100) )
 			return rad_He, rad_CO, g_He, g_CO
 		else:
 			return rad_He, rad_CO
@@ -265,6 +268,7 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 			#all_tempsCO, all_loggCO, all_massCO, all_radiusCO = np.loadtxt("/home/james/python_scripts_path/dwd_fit_package/saved_MTR/table_valuesCO.dat", unpack=True)
 			if len(loaded_CO)==0: all_tempsCO, all_loggCO, all_massCO, all_radiusCO = load(install_path + "/saved_MTR/table_valuesCO.npy")
 			else:  all_tempsCO, all_loggCO, all_massCO, all_radiusCO  =  loaded_CO
+			#mask = all_tempsCO==all_tempsCO
 			mask=(all_tempsCO>=4500)  &  (all_tempsCO>=T-5000)  &  (all_tempsCO<=T+5000)  &  (all_loggCO<logg+0.5)  &  (all_loggCO>logg-0.5)
 			radius_CO = float(griddata(np.array([all_tempsCO[mask],all_loggCO[mask]]).T,all_radiusCO[mask],np.array([T, logg]).T, method='linear')[0])
 			#print("CO")
@@ -341,11 +345,109 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 			mass_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_massHe,np.array([T, logg]).T, method='linear')[0])
 			mass_CO = float(griddata(np.array([all_tempsCO,all_loggCO]).T,all_massCO,np.array([T, logg]).T, method='linear')[0])
 		if compute_logg:
-			g_He=np.log10(   1000*G*mass_He*one_solM*1000/(radius_He*one_solR*100)**2 )
-			g_CO=np.log10(   1000*G*mass_CO*one_solM*1000/(radius_CO*one_solR*100)**2 )
+			g_He=np.log10(   1000*G*mass_He*one_solM*1000/np.square(radius_He*one_solR*100) )
+			g_CO=np.log10(   1000*G*mass_CO*one_solM*1000/np.square(radius_CO*one_solR*100) )
 			return mass_He, mass_CO, g_He, g_CO
 		else:
 			return mass_He, mass_CO
+
+
+
+def get_MR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, return_M=False, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]):
+	#  the code is not good here for He cores. Haven't needed to do it, so I'm leaving it half finished. CO only
+	try:
+		raise ValueError
+		if logg>7.71: raise ValueError  #  Althaus has a maximum logg of 7.7, Istrate 7.62
+		
+		if Althaus_or_Istrate=="Althaus":# or corresponding_mass_CO>0.392:
+			#all_tempsHe, all_loggHe, all_massHe, all_radiusHe = np.loadtxt("/home/james/python_scripts_path/dwd_fit_package/saved_MTR/table_valuesHe.dat", unpack=True)
+			if False:   all_tempsHe, all_loggHe, all_massHe, all_radiusHe = load(install_path + "/saved_MTR/table_valuesHe.npy")
+			else: 
+				if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe  =  loaded_Althaus
+				else:  all_tempsHe, all_loggHe, all_radiusHe = load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
+			
+			
+			masked=(all_tempsHe>20000)
+			all_tempsHe, all_loggHe, all_massHe, all_radiusHe = all_tempsHe[masked], all_loggHe[masked], all_massHe[masked], all_radiusHe[masked]
+			
+			sorted_loggs = np.argsort(all_loggHe)
+			
+			m4, m3, m2, m, c = np.polyfit(all_loggHe[sorted_loggs], all_radiusHe[sorted_loggs], deg=4)
+			
+			radius_He = logg**4 * m4  +  logg**3 * m3  +  logg**2 * m2  +  logg * m  +  c
+			
+			#plt.plot(all_loggHe[sorted_loggs], all_loggHe[sorted_loggs]**4 * m4  +  all_loggHe[sorted_loggs]**3 * m3  +  all_loggHe[sorted_loggs]**2 * m2  +  all_loggHe[sorted_loggs] * m  +  c)
+			#plt.scatter(all_loggHe, all_radiusHe)
+			#plt.show()
+			
+			
+			
+		else:
+			
+			try:
+				if logg>7.625: raise ValueError  # istrate grid max logg is 7.625  (I checked)
+				if len(loaded_Istrate)==0:  all_tempsHe_Ist, all_radiusHe_Ist, all_loggHe_Ist=load(install_path + "/saved_MTR/Istrate_Z0p02_diffusion_nomasses.npy")
+				else:  all_tempsHe_Ist, all_radiusHe_Ist, all_loggHe_Ist  =  loaded_Istrate
+				
+				
+				masked=(all_tempsHe_Ist>10000) & (all_loggHe_Ist>7.05)
+				all_tempsHe_Ist, all_loggHe_Ist, all_radiusHe_Ist = all_tempsHe_Ist[masked], all_loggHe_Ist[masked], all_radiusHe_Ist[masked]
+				
+				sorted_loggs = np.argsort(all_loggHe_Ist)
+				
+				m4, m3, m2, m, c = np.polyfit(all_loggHe_Ist[sorted_loggs], all_radiusHe_Ist[sorted_loggs], deg=4)
+				
+				radius_He = logg**4 * m4  +  logg**3 * m3  +  logg**2 * m2  +  logg * m  +  c
+				
+				plt.scatter(all_loggHe_Ist[sorted_loggs], all_radiusHe_Ist[sorted_loggs])
+				plt.plot(all_loggHe_Ist[sorted_loggs], all_loggHe_Ist[sorted_loggs]**4 * m4  +  all_loggHe_Ist[sorted_loggs]**3 * m3  +  all_loggHe_Ist[sorted_loggs]**2 * m2  +  all_loggHe_Ist[sorted_loggs] * m  +  c)
+				plt.show()
+				
+				
+				if np.isnan(radius_He): raise ValueError
+			except:
+				#all_tempsHe, all_loggHe, all_massHe, all_radiusHe = np.loadtxt(install_path + "/saved_MTR/table_valuesHe.dat", unpack=True)
+				
+				if False:   all_tempsHe, all_loggHe, all_massHe, all_radiusHe = load(install_path + "/saved_MTR/table_valuesHe.npy")
+				else:       
+					if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe = load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
+					else:  all_tempsHe, all_loggHe, all_radiusHe  =  loaded_Althaus
+				
+
+				masked=(all_tempsHe>25000)
+				all_tempsHe, all_loggHe, all_massHe, all_radiusHe = all_tempsHe[masked], all_loggHe[masked], all_massHe[masked], all_radiusHe[masked]
+				
+				sorted_loggs = np.argsort(all_loggHe)
+				
+				m4, m3, m2, m, c = np.polyfit(all_loggHe[sorted_loggs], all_radiusHe[sorted_loggs], deg=4)
+				
+				radius_He = logg**4 * m4  +  logg**3 * m3  +  logg**2 * m2  +  logg * m  +  c
+				
+				
+		return radius_He	
+	except:
+		if logg<7.6: raise ValueError("I have not coded this properly. Do not use logg < 7.6 as prob He core. MR relationship is only correct for CO core")
+		if len(loaded_CO)==0: all_tempsCO, all_loggCO, all_massCO, all_radiusCO = load(install_path + "/saved_MTR/table_valuesCO.npy")
+		else:  all_tempsCO, all_loggCO, all_massCO, all_radiusCO  =  loaded_CO
+		
+		
+		masked=(all_loggCO>7.55) & (all_tempsCO>26000)
+		all_tempsCO, all_loggCO, all_massCO, all_radiusCO = all_tempsCO[masked], all_loggCO[masked], all_massCO[masked], all_radiusCO[masked]
+		
+		sorted_loggs = np.argsort(all_loggCO)
+		radius_CO = np.interp(logg, all_loggCO[sorted_loggs], all_radiusCO[sorted_loggs])
+		
+		m4, m3, m2, m, c = np.polyfit(all_loggCO[sorted_loggs], all_radiusCO[sorted_loggs], deg=4)
+		
+		radius_CO = logg**4 * m4  +  logg**3 * m3  +  logg**2 * m2  +  logg * m  +  c
+		
+		#plt.plot(all_loggCO[sorted_loggs], all_loggCO[sorted_loggs]**4 * m4  +  all_loggCO[sorted_loggs]**3 * m3  +  all_loggCO[sorted_loggs]**2 * m2  +  all_loggCO[sorted_loggs] * m  +  c)
+		#plt.scatter(all_loggCO, all_radiusCO)
+		#plt.show()
+		
+		return radius_CO
+			
+	
 		
 def get_MTR_DB(T, M=None, R=None, logg=None, compute_logg=True, return_R=False, return_M=False, return_R_from_T_logg=False, track="Bedard"):
 	if track=="Bedard":
@@ -569,27 +671,21 @@ def get_age(T, M):
 	return age_He/1E9, age_CO/1E9
 
 
-#print(get_age(10000,0.3))
-
-
 #print(get_age(16800, 0.82)/1E9, "Gyr")
 	
 #save_tables_output_DB()
 #save_tables_output_DA()
 
-#print(get_MTR(15000, logg=8.5, return_M=True))
-#print(get_MTR(25907.676461419862, logg=7.428950802490025, return_R_from_T_logg=True))
-#print(get_MTR(17779, logg=7.96, return_M=True))
-
-#print(get_MTR(8810.429169171699, logg=7.554559857826662, return_R_from_T_logg=True))
-
-#print(get_MTR(5449.995708879497, logg=7.995481417753759, return_R_from_T_logg=True))
-
-
 
 #save_Althaus_2013_full()
 
 
+#save_tables_output_DA()
+
+
+#print(get_MTR(20191.717742087985, logg=8.151168419239117, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(17225.118149858405, logg=8.408405076265293, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
 
 
 
