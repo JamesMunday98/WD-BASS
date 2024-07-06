@@ -14,3 +14,4 @@ alias run_double_RV_gauss="mpiexec -np 3 python3 /home/james/python_scripts_path
 alias run_double_plot="python /home/james/python_scripts_path/dwd_fit_package/double_FitSpectrum_MCMC_multfiles_faster.py plotOnly"
 alias run_single_one_by_one="python /home/james/python_scripts_path/dwd_fit_package/Initiate_spectral_fitting_one_by_one.py single"
 alias run_double_one_by_one="python /home/james/python_scripts_path/dwd_fit_package/Initiate_spectral_fitting_one_by_one.py double"
+alias run_single_phot="mpiexec -np 5 python3 /home/james/python_scripts_path/dwd_fit_package/single_FitSpectrum_MCMC_multfiles_faster2.py photometry_only"
