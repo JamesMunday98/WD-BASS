@@ -277,7 +277,7 @@ string_to_write+='\nparallax: "A"'
 string_to_write+='\nparallax_uncertainty: "A"'
 string_to_write+='\nphot_min_val: 0'
 string_to_write+='\nplot_phot_spectrum: False'
-
+string_to_write+='\nwant_gaiadr3: False'
 
 
 #string_to_write = string_to_write.replace("  ", ", ")
