@@ -5,6 +5,21 @@ import subprocess, yaml
 install_path = os.environ['WD_BASS_INSTALL_DIR']
 
 
+filesout = os.listdir(os.getcwd()+"/out")
+files_one_by_one = []
+for ff in filesout:
+	if "result" in ff and ".out" in ff:
+		files_one_by_one.append(ff)
+
+try: files_one_by_one.remove("result_one_by_one.out")
+except: None
+
+try: files_one_by_one.remove("result.out")
+except: None
+
+for ff in files_one_by_one:
+	os.remove(os.getcwd()+"/out/"+ff)
+
 
 
 single_double=sys.argv[1]
@@ -54,41 +69,42 @@ while dowhile:
 	stopwhile=True
 	original_input_files = input_files
 	original_share_rv = share_rv
-	for aaaa in file_ignore:
-		try:
-			original_file_index = np.argwhere(original_input_files==aaaa)[0][0]
-		except: raise ValueError(aaaa)
-		for zcnt, aaa_sharerv in enumerate(original_share_rv):
-			if aaa_sharerv>=original_file_index:
-				share_rv[zcnt]-=1
-		
-		#print(len(normaliseHa_all),len(cut_Ha_all),len(resolutions),len(reference_wl),len(RV_boundaries1),len(RV_boundaries2), len(HJD_values), len(input_files))
-		mask_ignore_files = input_files!=aaaa
-		modelHa = modelHa[mask_ignore_files]
-		normaliseHa_all=normaliseHa_all[mask_ignore_files]
-		cut_Ha_all=cut_Ha_all[mask_ignore_files]
-		resolutions=resolutions[mask_ignore_files]
-		reference_wl=reference_wl[mask_ignore_files]
-		share_rv=share_rv[mask_ignore_files]
-		RV_boundaries1=RV_boundaries1[mask_ignore_files]
-		try: RV_boundaries2=RV_boundaries2[mask_ignore_files]
-		except: None
-		HJD_values=HJD_values[mask_ignore_files]
-		input_files=input_files[mask_ignore_files]
-		
-		file_ignore_mask=file_ignore!=aaaa
-		file_ignore=file_ignore[file_ignore_mask]
-		
-		
-		stopwhile=False
-		break
+	if False:
+		for aaaa in file_ignore:
+			try:
+				original_file_index = np.argwhere(original_input_files==aaaa)[0][0]
+			except: raise ValueError(aaaa)
+			for zcnt, aaa_sharerv in enumerate(original_share_rv):
+				if aaa_sharerv>=original_file_index:
+					share_rv[zcnt]-=1
+			
+			#print(len(normaliseHa_all),len(cut_Ha_all),len(resolutions),len(reference_wl),len(RV_boundaries1),len(RV_boundaries2), len(HJD_values), len(input_files))
+			mask_ignore_files = input_files!=aaaa
+			modelHa = modelHa[mask_ignore_files]
+			normaliseHa_all=normaliseHa_all[mask_ignore_files]
+			cut_Ha_all=cut_Ha_all[mask_ignore_files]
+			resolutions=resolutions[mask_ignore_files]
+			reference_wl=reference_wl[mask_ignore_files]
+			share_rv=share_rv[mask_ignore_files]
+			RV_boundaries1=RV_boundaries1[mask_ignore_files]
+			try: RV_boundaries2=RV_boundaries2[mask_ignore_files]
+			except: None
+			HJD_values=HJD_values[mask_ignore_files]
+			input_files=input_files[mask_ignore_files]
+			
+			file_ignore_mask=file_ignore!=aaaa
+			file_ignore=file_ignore[file_ignore_mask]
+			
+			
+			stopwhile=False
+			break
 	if stopwhile: dowhile=False
 
 
 
 
 
-
+done_wanted_index=[]
 for i in np.unique(share_rv[share_rv!=-1]):
 	if True: #i==3:
 		wanted_index = (share_rv==i) | (share_rv==share_rv[i])
@@ -115,15 +131,28 @@ for i in np.unique(share_rv[share_rv!=-1]):
 
 
 
-
 		print("Handling share_rv=", i)
 		fp = open("output.txt", "w")
 		if single_double=="single":
-			p = subprocess.Popen(["mpiexec", "-np", "5", "python3", install_path+"/single_FitSpectrum_MCMC_multfiles_faster2.py", "ATM", "run_single_one_by_oneMCMC", str(i)], stdout=fp)
+			p = subprocess.Popen(["mpiexec", "-np", "5", "python3", install_path+"single_FitSpectrum_MCMC_multfiles_faster2.py", "ATM", "run_single_one_by_oneMCMC", str(i)], stdout=fp)
 		elif single_double=="double":
-			p = subprocess.Popen(["mpiexec", "-np", "5", "python3", install_path+"/double_FitSpectrum_MCMC_multfiles_faster.py", "ATM", "run_double_one_by_oneMCMC", str(i)], stdout=fp)
+			p = subprocess.Popen(["mpiexec", "-np", "5", "python3", install_path+"double_FitSpectrum_MCMC_multfiles_faster.py", "ATM", "run_double_one_by_oneMCMC", str(i)], stdout=fp)
 		p.wait()
 		fp.close()
+		
+		done_wanted_index.append(wanted_index)
+
+if len(done_wanted_index) < 1:
+	for cn, _ in enumerate(share_rv[share_rv==-1]):
+		print("Handling spectrum=", cn)
+		fp = open("output.txt", "w")
+		if single_double=="single":
+			p = subprocess.Popen(["mpiexec", "-np", "5", "python3", install_path+"single_FitSpectrum_MCMC_multfiles_faster2.py", "ATM", "run_single_one_by_oneMCMC", str(cn)], stdout=fp)
+		elif single_double=="double":
+			p = subprocess.Popen(["mpiexec", "-np", "5", "python3", install_path+"double_FitSpectrum_MCMC_multfiles_faster.py", "ATM", "run_double_one_by_oneMCMC", str(cn)], stdout=fp)
+		p.wait()
+		fp.close()
+		
 
 
 
