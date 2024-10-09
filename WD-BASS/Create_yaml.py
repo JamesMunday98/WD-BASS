@@ -12,11 +12,11 @@ subdwarf=False
 ### Change the below lines to your desired setup. Can be as many or as little as you want
 if not subdwarf:
 	desired_lines = [6562.79, 4861.35, 4340.472, 4101.734, 3970.075]
-	resolution_lines = [6000, 4000, 3000, 2000, 1000]
-	model_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
-	norm_region = [[-90,90], [-70,70], [-60,60], [-50,50]]
-	cut_region = [[-100,100], [-80,80], [-70,70], [-60,60]]
-	RV_boundaries = [[-200,200], [-200,200], [-200,200], [-200,200]]
+	resolution_lines = [6000, 4000, 3000, 2000, 1000, 1000]
+	model_region = [[-90,90], [-70,70], [-60,60], [-50,50], [-40,40]]
+	norm_region = [[-90,90], [-70,70], [-60,60], [-50,50], [-40,40]]
+	cut_region = [[-100,100], [-80,80], [-70,70], [-60,60], [-50,50]]
+	RV_boundaries = [[-200,200], [-200,200], [-200,200], [-200,200], [-200,200]]
 	p0teff_min, p0teff_max = 5000, 15000
 	p0logg_min, p0logg_max = 7, 9
 	p0HoverHe_min, p0HoverHe_max = 0, 0
@@ -243,7 +243,7 @@ else:
 
 
 string_to_write+="\nforced_scaling: ['WD'] # False, 'WD' or float. If false, will be added to the mcmc parameters"
-string_to_write+="\nplot_corner: True # True or False"
+string_to_write+="\nplot_corner: False # True or False"
 string_to_write+="\nforced_ephemeris: [False] # expects [False] or [T0, P0]  (in days)"
 string_to_write+="\nforced_K1: [False] # in kms-1. Options [False], [float], ['Fit']"
 string_to_write+="\nK1_boundaries: [-300,300] # in kms-1"
@@ -259,25 +259,26 @@ string_to_write+="\nfit_phot_SED: False"
 string_to_write+='\nRA: "' + RAhr+'"  # only used when fit_phot_SED is True. Hexadesimal string or a float. Set to None if not necessary'
 string_to_write+='\nDec: "' + dechr + '" # only used when fit_phot_SED is True. Hexadesimal string or a float. Set to None if not necessary'
 string_to_write+='\nexpected_Gmag: 15 # only used when fit_phot_SED is True. Integer/float/None'
-string_to_write+='\nnwalkers: 50'
-string_to_write+='\nnburnin: 100'
-string_to_write+='\nnsteps: 50'
+string_to_write+='\nnwalkers: 50 # num walkers in mcmc'
+string_to_write+='\nnburnin: 100 # num burnin steps in mcmc'
+string_to_write+='\nnsteps: 50 # num post-burnin steps in mcmc'
 if not subdwarf:
 	string_to_write+='\nreddening_Ebv: "lookup" # "lookup" or number'
 else:
 	string_to_write+='\nreddening_Ebv: 0 # "lookup" or number'
-string_to_write+="\nfile_ignore: []"
+string_to_write+="\nfile_ignore: [] # ignore a file that is input"
 string_to_write+="\nsigma_clip: ["
 for aval in final_all_sigma:
 	string_to_write += str(aval)  + ", "
 string_to_write = string_to_write[:-2] + "]"
 
 
-string_to_write+='\nparallax: "A"'
-string_to_write+='\nparallax_uncertainty: "A"'
-string_to_write+='\nphot_min_val: 0'
-string_to_write+='\nplot_phot_spectrum: False'
-string_to_write+='\nwant_gaiadr3: False'
+string_to_write+='\nparallax: "A" # parallax in mas'
+string_to_write+='\nparallax_uncertainty: "A" # parallax uncertainty in mas'
+string_to_write+='\nphot_min_val: 0 # if you have photometry included, trim off points with a flux below this value'
+string_to_write+='\nplot_phot_spectrum: False # plot the input photometry if desired'
+string_to_write+='\nwant_gaiadr3: False # include gaia dr3 in the photometric fitting'
+
 
 
 #string_to_write = string_to_write.replace("  ", ", ")
