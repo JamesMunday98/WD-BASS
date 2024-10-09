@@ -116,6 +116,8 @@ if starType1=="quadLorentz":
         sigma1_1_boundaries = np.asarray([config_info["sigma1_1_boundaries"]])[0]
     except: raise ValueError("Missing boundaries for star1: A1_1_boundaries/sigma1_1_boundaries")
 
+try:  reddening_Ebv=float(np.asarray([config_info["reddening_Ebv"]])[0])
+except: reddening_Ebv=np.asarray([config_info["reddening_Ebv"]])[0]
 
 if reddening_Ebv=="lookup" or fit_phot_SED:
 	if type(RA)==np.str_ and type(Dec)==np.str_:  RAdeg, Decdeg= miscAstro.ra_dec_hr_to_deg(RA,Dec)
@@ -126,8 +128,6 @@ expected_Gmag=np.asarray([config_info["expected_Gmag"]])[0]
 nwalkers=np.asarray([config_info["nwalkers"]])[0]
 burnin=np.asarray([config_info["nburnin"]])[0]
 nsteps=np.asarray([config_info["nsteps"]])[0]
-try:  reddening_Ebv=float(np.asarray([config_info["reddening_Ebv"]])[0])
-except: reddening_Ebv=np.asarray([config_info["reddening_Ebv"]])[0]
 
 if reddening_Ebv=="lookup":
     try:
