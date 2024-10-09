@@ -6,6 +6,7 @@ from scipy import interpolate
 from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 from numpy import load
+from numpy import polyfit
 
 def save_tables_output_DA():
 	""" save cooling tracks into .dat files for DA He and DA CO core"""
@@ -190,6 +191,7 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 		rad_He = float(griddata(np.array([all_tempsHe,all_massHe]).T,all_radiusHe,np.array([T, M]).T, method='linear')[0])
 		rad_CO = float(griddata(np.array([all_tempsCO,all_massCO]).T,all_radiusCO,np.array([T, M]).T, method='linear')[0])
 		
+		G=6.67430E-11;  one_solM = 1.989E30;   one_solR = 695700000
 		if compute_logg:
 			g_He=np.log10(   1000*G*M*one_solM*1000/np.square(rad_He*one_solR*100) )
 			g_CO=np.log10(   1000*G*M*one_solM*1000/np.square(rad_CO*one_solR*100) )
@@ -372,7 +374,7 @@ def get_MR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, ret
 			
 			sorted_loggs = np.argsort(all_loggHe)
 			
-			m4, m3, m2, m, c = np.polyfit(all_loggHe[sorted_loggs], all_radiusHe[sorted_loggs], deg=4)
+			m4, m3, m2, m, c = polyfit(all_loggHe[sorted_loggs], all_radiusHe[sorted_loggs], deg=4)
 			
 			radius_He = logg**4 * m4  +  logg**3 * m3  +  logg**2 * m2  +  logg * m  +  c
 			
@@ -395,7 +397,7 @@ def get_MR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, ret
 				
 				sorted_loggs = np.argsort(all_loggHe_Ist)
 				
-				m4, m3, m2, m, c = np.polyfit(all_loggHe_Ist[sorted_loggs], all_radiusHe_Ist[sorted_loggs], deg=4)
+				m4, m3, m2, m, c = polyfit(all_loggHe_Ist[sorted_loggs], all_radiusHe_Ist[sorted_loggs], deg=4)
 				
 				radius_He = logg**4 * m4  +  logg**3 * m3  +  logg**2 * m2  +  logg * m  +  c
 				
@@ -419,7 +421,7 @@ def get_MR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, ret
 				
 				sorted_loggs = np.argsort(all_loggHe)
 				
-				m4, m3, m2, m, c = np.polyfit(all_loggHe[sorted_loggs], all_radiusHe[sorted_loggs], deg=4)
+				m4, m3, m2, m, c = polyfit(all_loggHe[sorted_loggs], all_radiusHe[sorted_loggs], deg=4)
 				
 				radius_He = logg**4 * m4  +  logg**3 * m3  +  logg**2 * m2  +  logg * m  +  c
 				
@@ -437,7 +439,7 @@ def get_MR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, ret
 		sorted_loggs = np.argsort(all_loggCO)
 		radius_CO = np.interp(logg, all_loggCO[sorted_loggs], all_radiusCO[sorted_loggs])
 		
-		m4, m3, m2, m, c = np.polyfit(all_loggCO[sorted_loggs], all_radiusCO[sorted_loggs], deg=4)
+		m4, m3, m2, m, c = polyfit(all_loggCO[sorted_loggs], all_radiusCO[sorted_loggs], deg=4)
 		
 		radius_CO = logg**4 * m4  +  logg**3 * m3  +  logg**2 * m2  +  logg * m  +  c
 		
@@ -685,7 +687,84 @@ def get_age(T, M):
 
 #print(get_MTR(20191.717742087985, logg=8.151168419239117, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
 
+#print(get_MTR(20191.717742087985+280, logg=8.151168419239117+0.021, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(20191.717742087985-280, logg=8.151168419239117+0.021, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(20191.717742087985+280, logg=8.151168419239117-0.021, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(20191.717742087985-280, logg=8.151168419239117-0.021, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(20191.717742087985, logg=8.151168419239117, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+###################################
 #print(get_MTR(17225.118149858405, logg=8.408405076265293, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(17225.118149858405+710, logg=8.408405076265293+0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(17225.118149858405-710, logg=8.408405076265293+0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(17225.118149858405+710, logg=8.408405076265293-0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(17225.118149858405-710, logg=8.408405076265293-0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(17225.118149858405-710, logg=8.408405076265293-0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+
+
+
+#print(get_MTR(18010, logg=8.18, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(18010-80, logg=8.18-0.02, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(18010-80, logg=8.18+0.02, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(18010+80, logg=8.18-0.02, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(18010+80, logg=8.18+0.02, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+
+
+
+
+
+
+
+#print(get_MTR(20000, logg=8.164, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(20000-2000, logg=8.164-0.03, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(20000-2000, logg=8.164+0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(20000+400, logg=8.164-0.03, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(20000+400, logg=8.164+0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+
+
+
+
+#print(get_MTR(17260, logg=8.35, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(17260-880, logg=8.35-0.052, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(17260-880, logg=8.35+0.066, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(17260+1380, logg=8.35-0.052, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+#print(get_MTR(17260+1380, logg=8.35+0.066, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+
+
+print(get_MTR(20000, logg=8.164, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+print(get_MTR(17260, logg=8.35, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+
+
+
+
+
+
+
 
 
 

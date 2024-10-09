@@ -29,26 +29,20 @@ class Fit_phot(object):
 	def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, temperature_star, logg_star):
 		""" return model spectrum to fit photometry with a DA """
 		
-		Grav_N_N = Grav1_N;   wl_all_N_N=wl_all1_N;    flux_N_N=flux1_N;    Teff_N_N=Teff1_N
-		
 		# interpolate for a model at the reference wavelength with this mcmc interation	
-		wl_grid, unique_Ts, unique_Gs = np.unique(wl_all_N_N), np.unique(Teff_N_N), np.unique(Grav_N_N)
+		wl_grid, unique_Ts, unique_Gs = np.unique(wl_all1_N), np.unique(Teff1_N), np.unique(Grav1_N)
 
 
-		#ffffsss1 = flux_N_N[(Teff_N_N==unique_Ts[0]) & (Grav_N_N==unique_Gs[0])]
-		#ffffsss2 = flux_N_N[(Teff_N_N==unique_Ts[0]) & (Grav_N_N==unique_Gs[1])]
-		#ffffsss3 = flux_N_N[(Teff_N_N==unique_Ts[1]) & (Grav_N_N==unique_Gs[0])]
-		#ffffsss4 = flux_N_N[(Teff_N_N==unique_Ts[1]) & (Grav_N_N==unique_Gs[1])]
+		#ffffsss1 = flux1_N[(Teff1_N==unique_Ts[0]) & (Grav1_N==unique_Gs[0])]
+		#ffffsss2 = flux1_N[(Teff1_N==unique_Ts[0]) & (Grav1_N==unique_Gs[1])]
+		#ffffsss3 = flux1_N[(Teff1_N==unique_Ts[1]) & (Grav1_N==unique_Gs[0])]
+		#ffffsss4 = flux1_N[(Teff1_N==unique_Ts[1]) & (Grav1_N==unique_Gs[1])]
 		
 		
-		maskT0 = Teff_N_N==unique_Ts[0]
-		maskT1 = Teff_N_N==unique_Ts[1]
-		maskG0 = Grav_N_N==unique_Gs[0]
-		maskG1 = Grav_N_N==unique_Gs[1]
-		ffffsss1 = flux_N_N[maskT0 & maskG0]
-		ffffsss2 = flux_N_N[maskT0 & maskG1]
-		ffffsss3 = flux_N_N[maskT1 & maskG0]
-		ffffsss4 = flux_N_N[maskT1 & maskG1]
+		maskT0 = Teff1_N==unique_Ts[0];    maskT1 = Teff1_N==unique_Ts[1]
+		maskG0 = Grav1_N==unique_Gs[0];    maskG1 = Grav1_N==unique_Gs[1]
+		ffffsss1 = flux1_N[maskT0 & maskG0];   ffffsss2 = flux1_N[maskT0 & maskG1]
+		ffffsss3 = flux1_N[maskT1 & maskG0];   ffffsss4 = flux1_N[maskT1 & maskG1]
 		
 		
 
@@ -74,11 +68,10 @@ class Fit_phot(object):
 	def return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, temperature_star, logg_star, HoverHe_star):
 		""" return model spectrum to fit photometry with a DB/DBA/DC with varied H/He """
 		
-		Grav_N_N = Grav1_N;   wl_all_N_N=wl_all1_N;    flux_N_N=flux1_N;    Teff_N_N=Teff1_N;    HoverHe_N_N = HoverHe1_N
 		
 		# interpolate for a model at the reference wavelength with this mcmc interation	
-		wl_grid, unique_Ts, unique_Gs, unique_HoverHes = np.unique(wl_all_N_N), np.unique(Teff_N_N), np.unique(Grav_N_N), np.unique(HoverHe_N_N)
-		model_spectrum=griddata(np.array([Teff_N_N, wl_all_N_N, Grav_N_N, HoverHe_N_N]).T, flux_N_N, np.array([np.full((len(wl_grid),),temperature_star), wl_grid, np.full((len(wl_grid),),logg_star), np.full((len(wl_grid),),HoverHe_star)]).T, method="linear")
+		wl_grid, unique_Ts, unique_Gs, unique_HoverHes = np.unique(wl_all1_N), np.unique(Teff1_N), np.unique(Grav1_N), np.unique(HoverHe1_N)
+		model_spectrum=griddata(np.array([Teff1_N, wl_all1_N, Grav1_N, HoverHe1_N]).T, flux1_N, np.array([np.full((len(wl_grid),),temperature_star), wl_grid, np.full((len(wl_grid),),logg_star), np.full((len(wl_grid),),HoverHe_star)]).T, method="linear")
 		
 		if ref_wl>6500:     fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*10)) # 0.1AA spacing
 		elif ref_wl>4500:   fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*10)) # 0.1AA spacing
@@ -124,12 +117,9 @@ class Fit_phot(object):
 		
 		
 		
-		mask_Ts_equal_uniqueT0 = Teff_N_N==unique_Ts[0]
-		mask_Ts_equal_uniqueT1 = Teff_N_N==unique_Ts[1]
-		mask_Gs_equal_uniqueG0 = Grav_N_N==unique_Gs[0]
-		mask_Gs_equal_uniqueG1 = Grav_N_N==unique_Gs[1]
-		mask_Hs_equal_uniqueH0 = HoverHe_N_N==unique_HoverHes[0]
-		mask_Hs_equal_uniqueH1 = HoverHe_N_N==unique_HoverHes[1]
+		mask_Ts_equal_uniqueT0 = Teff_N_N==unique_Ts[0];    mask_Ts_equal_uniqueT1 = Teff_N_N==unique_Ts[1]
+		mask_Gs_equal_uniqueG0 = Grav_N_N==unique_Gs[0];    mask_Gs_equal_uniqueG1 = Grav_N_N==unique_Gs[1]
+		mask_Hs_equal_uniqueH0 = HoverHe_N_N==unique_HoverHes[0];   mask_Hs_equal_uniqueH1 = HoverHe_N_N==unique_HoverHes[1]
 		
 		
 		
@@ -167,7 +157,7 @@ class Fit_phot(object):
 			Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N = Grav1_N[mask_logg_wl_1], wl_all1_N[mask_logg_wl_1], flux1_N[mask_logg_wl_1], Teff1_N[mask_logg_wl_1], HoverHe1_N[mask_logg_wl_1]
 			model_wl1, model_spectrum_star1 = Fit_phot.return_model_spectrum_DBA(wl_all1_N, 0, 0, 0, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe_star=HoverHe1)
 		
-			
+		
 		
 		mask_logg_wl_2 = (wl_all2_N > min_wl) & (wl_all2_N < max_wl)
 		if starType2=="DA" or starType2=="DB" or starType2=="DC":
@@ -415,7 +405,7 @@ class Fit_phot(object):
 			raise ValueError("Issue with chisq calculation for photometric SED fitting. Likely that one of the errors are nans/0. I have printed all filters with the flux and fluxerr above.")
 		
 		
-		plot_fancy=True #True
+		plot_fancy=False #True
 		if plot_solution==True and plot_fancy==False:
 			plt.clf()
 			fig, (ax, ax2) = plt.subplots(2, gridspec_kw={'height_ratios': [3, 1]})
@@ -423,7 +413,7 @@ class Fit_phot(object):
 			if single_or_double=="double":
 				ax.plot(model_wl, specStar1,c='g', ls='--', label="star1 fit");
 				ax.plot(model_wl, specStar2,c='r', ls='--', label="star2 fit")
-			ax.scatter(list_wl_bpass, list_flux_bpass, c='orange', label='integrated flux')
+			ax.scatter(list_wl_bpass, list_flux_bpass, c='orange', label='integrated flux',linewidths=2)
 			ax.errorbar(list_wl_bpass, list_flux_sed, yerr=list_fluxe, fmt='.b', label='cds data')
 			ax2.errorbar(list_wl_bpass, list_flux_bpass - list_flux_sed, yerr=list_fluxe, fmt='.b')
 			ax2.axhline(0,ls='--',c='grey')
@@ -452,24 +442,37 @@ class Fit_phot(object):
 			plt.rcParams['xtick.minor.visible'] = True
 			plt.rcParams['ytick.minor.visible'] = True
  
-
+			try: os.mkdir("out/forPlotting")
+			except: None
 			
 			plt.clf()
 			fig, (ax, ax2) = plt.subplots(2, gridspec_kw={'height_ratios':[4.5,1]}, sharex=True)
 			fig.subplots_adjust(hspace=0.08)
 			#ax.plot(model_wl, model_flux/1E-15,c='k', label="model fit")
 			ax.plot(model_wl, model_flux*1000,c='k', label="model fit")
+			np.savetxt("out/forPlotting/photometry_combined.dat", np.array([model_wl, model_flux*1000]).T)
+			
+			
 			if single_or_double=="double":
 				#ax.plot(model_wl, specStar1/1E-15,c='g', ls='--', label="star1 fit");   ax.plot(model_wl, specStar2/1E-15,c='r', ls='--', label="star2 fit")
-				ax.plot(model_wl, specStar1*1000,c='g', ls='--', label="star1 fit");
+				ax.plot(model_wl, specStar1*1000,c='g', ls='--', label="star1 fit")
 				ax.plot(model_wl, specStar2*1000,c='r', ls='--', label="star2 fit")
-			#ax.scatter(list_wl_bpass, list_flux_bpass/1E-15, marker="x", c='orange', label='integrated flux')
+				np.savetxt("out/forPlotting/photometry_star1.dat", np.array([model_wl, specStar1*1000]).T)
+				np.savetxt("out/forPlotting/photometry_star2.dat", np.array([model_wl, specStar2*1000]).T)
+				
+			#ax.scatter(list_wl_bpass, list_flux_bpass/1E-15, marker="x", c='orange', label='integrated flux',linewidths=2)
 			#ax.errorbar(list_wl_bpass, list_flux_sed/1E-15, yerr=list_fluxe/1E-15, fmt='.k', label='cds data')
-			ax.scatter(list_wl_bpass, list_flux_bpass*1000, marker="x", c='orange', label='integrated flux')
+			ax.scatter(list_wl_bpass, list_flux_bpass*1000, marker="x", c='orange', label='integrated flux',linewidths=2)
 			ax.errorbar(list_wl_bpass, list_flux_sed*1000, yerr=list_fluxe*1000, fmt='.k', label='cds data')
+			
+			np.savetxt("out/forPlotting/photometry_points.dat", np.array([list_wl_bpass, list_flux_bpass*1000, list_flux_sed*1000, list_fluxe*1000]).T, header="wls_bandpass, flux_model, flux_data, fluxerr_data")
+			
 			
 			
 			ax2.errorbar(list_wl_bpass, 100*(list_flux_bpass-list_flux_sed)/list_flux_sed, yerr=100*list_fluxe/list_flux_sed, fmt='.k', label='cds data')
+			
+			np.savetxt("out/forPlotting/photometry_points_residual.dat", np.array([list_wl_bpass, 100*(list_flux_bpass-list_flux_sed)/list_flux_sed, 100*list_fluxe/list_flux_sed]).T, header="wls_bandpass, residual_%f, %f_error")
+			
 			ax2.axhline(0,ls='--',c='grey')
 			ax2.set_xlim(np.amin(model_wl), np.amax(model_wl))
 			ax2.set_ylabel(r"\%\,F", labelpad=5)

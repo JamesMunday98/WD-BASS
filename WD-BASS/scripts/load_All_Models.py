@@ -265,7 +265,6 @@ class load_models(object):
 			
 			
 			
-			
 				
 		wl_all=np.asarray(wl_all).astype("float")
 		flux=np.asarray(flux).astype("float")
@@ -332,12 +331,7 @@ class load_models(object):
 		
 		
 		
-			wl_all=new_wl
-			flux=new_flux
-			Teff=new_teff
-			Grav=new_grav
-			
-		
+			wl_all, flux, Teff, Grav = new_wl, new_flux, new_teff, new_grav
 		
 		
 		
@@ -414,10 +408,9 @@ class load_models(object):
 
 		# get wavelengths
 		big_flux_list=[]
-		flux=[]
+		wl_all, flux=[], []
 		Teff, Grav, H_over_He=[], [], []
 
-		wl_all=[]
 
 		list_found=0
 		for filename in os.listdir(cwd):
@@ -520,16 +513,7 @@ class load_models(object):
 		mask_wl_all = ((wl_all > minwl) & (wl_all <= maxwl))
 		
 		
-		wl_all=wl_all[mask_wl_all]
-		flux=flux[mask_wl_all]
-		Teff=Teff[mask_wl_all]
-		Grav=Grav[mask_wl_all]
-		H_over_He=H_over_He[mask_wl_all]
-		
-		
-		
-				
-		return wl_all, flux, Teff, Grav, H_over_He
+		return wl_all[mask_wl_all], flux[mask_wl_all], Teff[mask_wl_all], Grav[mask_wl_all], H_over_He[mask_wl_all]
 
 
 	def load_model_1D_DA(minwl=3000,maxwl=8000): # use this when outside the bounds of 3Ds. Even grid
@@ -604,9 +588,8 @@ class load_models(object):
 
 		# get wavelengths
 		big_flux_list=[]
-		flux, Teff, Grav=[], [], []
+		wl_all, flux, Teff, Grav = [], [], [], []
 
-		wl_all = []
 
 		for filename in os.listdir(cwd):
 			Effective_counter=0
@@ -726,9 +709,8 @@ class load_models(object):
 
 		# get wavelengths
 		big_flux_list=[]
-		flux, Teff, Grav=[], [], []
+		wl_all, flux, Teff, Grav=[], [], [], []
 
-		wl_all = []
 
 		for filename in os.listdir(cwd):
 			Effective_counter=0
@@ -873,6 +855,8 @@ class load_models(object):
 			
 			
 			wl_all_1Dp, flux_1Dp, Teff_1Dp, Grav_1Dp = load_models.load_model_1D_DA(minwl=minwl,maxwl=maxwl)
+			
+			
 			amask=  (Grav_1Dp<7) & ((Teff_1Dp==14500) | (Teff_1Dp==15000) | (Teff_1Dp==15500) | (Teff_1Dp==16000) | (Teff_1Dp==16500) | (Teff_1Dp==17000) | (Teff_1Dp==20000) | (Teff_1Dp==25000) | (Teff_1Dp==30000) | (Teff_1Dp==35000) | (Teff_1Dp==40000) )
        
 			wl_all_1Dp, flux_1Dp, Teff_1Dp, Grav_1Dp = wl_all_1Dp[amask], flux_1Dp[amask], Teff_1Dp[amask], Grav_1Dp[amask]
@@ -980,6 +964,25 @@ class load_models(object):
 			
 			
 			
+			
+			wl_all_1Dp, flux_1Dp, Teff_1Dp, Grav_1Dp = load_models.load_model_1D_DA(minwl=minwl,maxwl=maxwl)
+			mask_under_5000K = (Teff_1Dp<5000) & (Teff_1Dp>=4000)
+			
+			new1Dwl, new1Dflux, new1Dteff, new1Dlogg = np.array([]), np.array([]), np.array([]), np.array([])
+			wl_grid_3D = np.unique(wl_all_3Dp)
+			for uniqueT_1D in np.unique(Teff_1Dp[mask_under_5000K]):
+				for uniqueG_1D in np.unique(Grav_1Dp[mask_under_5000K]):
+					mask = (Teff_1Dp==uniqueT_1D) & (Grav_1Dp==uniqueG_1D)
+					getwls, getfluxes = wl_all_1Dp[mask], flux_1Dp[mask]
+					new1Dwl = np.concatenate((new1Dwl, wl_grid_3D))
+					new1Dflux = np.concatenate((new1Dflux, np.interp(wl_grid_3D, getwls, getfluxes)))
+					new1Dteff = np.concatenate((new1Dteff, np.full((len(wl_grid_3D),), uniqueT_1D)))
+					new1Dlogg = np.concatenate((new1Dlogg, np.full((len(wl_grid_3D),), uniqueG_1D)))
+			
+			
+			
+			
+			wl_all_3Dp, flux_3Dp, Teff_3Dp, Grav_3Dp = np.concatenate((new1Dwl, wl_all_3Dp)), np.concatenate((new1Dflux, flux_3Dp)), np.concatenate((new1Dteff, Teff_3Dp)), np.concatenate((new1Dlogg, Grav_3Dp))
 			
 
 			if saveit==True:
@@ -1178,15 +1181,7 @@ class load_models(object):
 							new_grav = np.append(new_grav, newG)
 			
 			
-			
-			
-				wl_all=new_wl
-				flux=new_flux
-				Teff=new_teff
-				Grav=new_grav
-				
-			
-			
+				wl_all, flux, Teff, Grav = new_wl, new_flux, new_teff, new_grav
 			
 			
 			
@@ -1296,20 +1291,12 @@ class load_models(object):
 	def load_models_DBA_1eMinus5(minwl=3000,maxwl=8000):
 		# get wavelengths
 		big_flux_list=[]
-		flux=[]
-		Teff, Grav=[], []
+		wl_all, flux = [], []
+		Teff, Grav = [], []
 
-		wl_all=[]
-		
 		
 		cwd="/home/james/Desktop/FitDA_properly/1d_dba/he-grid_v3"
 
-		# get wavelengths
-		big_flux_list=[]
-		flux=[]
-		Teff, Grav=[], []
-
-		wl_all=[]
 
 		list_found=0
 		for filename in os.listdir(cwd):
@@ -1516,34 +1503,24 @@ class load_models(object):
 		mask_wl_all = ((wl_all > minwl) & (wl_all <= maxwl))
 		
 		
-		wl_all=wl_all[mask_wl_all]
-		flux=flux[mask_wl_all]
-		Teff=Teff[mask_wl_all]
-		Grav=Grav[mask_wl_all]
-		
-				
-		return wl_all, flux, Teff, Grav
+		return wl_all[mask_wl_all], flux[mask_wl_all], Teff[mask_wl_all], Grav[mask_wl_all]
 	
 	
 	
 	def load_models_DBA(minwl=3000,maxwl=8000):
 		# get wavelengths
 		big_flux_list=[]
-		flux=[]
-		Teff, Grav=[], []
+		wl_all, flux = [], []
+		Teff, Grav = [], []
 
-		wl_all=[]
-		
 		
 		cwd="/home/james/Desktop/FitDA_properly/1d_dba/he-grid_v3"
 
 		# get wavelengths
 		big_flux_list=[]
-		flux=[]
+		wl_all, flux = [], []
 		Teff, Grav, HoverHe = [], [], []
 		
-
-		wl_all=[]
 
 		list_found=0
 		for filename in os.listdir(cwd):
@@ -1801,13 +1778,7 @@ class load_models(object):
 		mask_wl_all = ((wl_all > minwl) & (wl_all <= maxwl))  &  (Teff>=4000)
 		
 		
-		wl_all=wl_all[mask_wl_all]
-		flux=flux[mask_wl_all]
-		Teff=Teff[mask_wl_all]
-		Grav=Grav[mask_wl_all]
-		HoverHe=HoverHe[mask_wl_all]
-		
-		return wl_all, flux, Teff, Grav, HoverHe
+		return wl_all[mask_wl_all], flux[mask_wl_all], Teff[mask_wl_all], Grav[mask_wl_all], HoverHe[mask_wl_all]
 
 
 
