@@ -8,12 +8,12 @@ There is a manual that has the most detail and describes every input/output, and
 
 On top of zipping and extracting the package, you should place these two folders in the extracted file location of the folder "WD-BASS" (file size was too large for github)
 https://drive.google.com/drive/folders/1w8e7O43tm7-AH5OrbYMe3U9msdy7_xjv?usp=sharing
-You should copy the commands from "Bashrc_commands.txt" into your .bashrc file.
+You should copy the commands from "Bashrc_commands.txt" into your .bashrc file which is found in your home directory.
 
 
 **Pip install command:**
 
-1) pip install astropy pillow natsort matplotlib emcee corner scipy schwimmbad numba dust-extinction astroquery tqdm
+1) pip install -U astropy pillow natsort matplotlib emcee corner scipy schwimmbad numba dust-extinction astroquery tqdm
 
 2) pip install mpi4py    OR   conda install mpi4py
 
