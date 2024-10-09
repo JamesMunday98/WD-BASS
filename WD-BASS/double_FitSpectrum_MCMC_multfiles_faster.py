@@ -3737,16 +3737,16 @@ elif sys.argv[1]=="ATM":
     
     
     
-    try: os.mkdir("out/corner")
-    except: None
+    #try: os.mkdir("out/corner")
+    #except: None
     
-    try:
-        for ll, (fi, arv, arvBounds1, arvBounds2) in enumerate(zip(input_files, share_rv, RV_boundaries1, RV_boundaries2)):
-        
-            fig3 = corner.corner(samples.T[ll*2:ll*2+2].T, labels=["RV1", "RV2"], range=[arvBounds1, arvBounds2], bins=30, smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
-            fig3.savefig("out/corner/corner_"+str(fi).split("/")[-1]+".png")
-            del fig3
-    except: None
+    #try:
+    #    for ll, (fi, arv, arvBounds1, arvBounds2) in enumerate(zip(input_files, share_rv, RV_boundaries1, RV_boundaries2)):
+    #    
+    #        fig3 = corner.corner(samples.T[ll*2:ll*2+2].T, labels=["RV1", "RV2"], range=[arvBounds1, arvBounds2], bins=30, smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
+    #        fig3.savefig("out/corner/corner_"+str(fi).split("/")[-1]+".png")
+    #        del fig3
+    #except: None
 
 
 
