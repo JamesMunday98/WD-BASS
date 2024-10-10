@@ -135,7 +135,6 @@ if reddening_Ebv=="lookup":
         star_e_plx=float(np.asarray(config_info["parallax_uncertainty"])) # in mas
     except:
         RAdeg, Decdeg, star_mag, star_plx, star_e_plx, warning = checkLocalStars.find_star_in_gaia_edr3(RAdeg, Decdeg, 10, predicted_Gmag=expected_Gmag)
-        #raise ValueError(star_mag)
         #print(star_mag.value[0], star_plx.value[0], star_e_plx.value[0], warning)
     c = SkyCoord(ra=RAdeg*u.degree, dec=Decdeg*u.degree, frame='icrs')
     gal_coords= c.galactic
@@ -423,7 +422,7 @@ if fit_phot_SED:
                 if "II/328/allwise" in catalogue: allwise_found=True
                 else: allwise_found=False
                 for cnt, (ff, cat) in enumerate(zip(sedfilter, catalogue)):
-                    if not ff in ignore_filt:
+                    if not ff in ignore_filt and not "OAJ" in ff:
                         if "SDSS" in ff:
                             if str(cat)=="J/MNRAS/508/3877/maincat": list_gaia.append(True)
                             else: list_gaia.append(False)
@@ -524,8 +523,11 @@ if fit_phot_SED:
                 External_Flux_Jy=10**(23-(External_AB_mag+48.594)/2.5)  #  erg/cm2/s/Hz
                 External_Flux_Jy_err=npsqrt(  ((-(0.9210340371976184*10**((External_AB_mag+243/5)*-0.4+23)))*External_AB_mag_err)**2   )
             except:
-                External_Flux_Jy = np.asarray(config_info["External_Flux_Jy"]).astype(float)
-                External_Flux_Jy_err = np.asarray(config_info["External_Flux_Jy_err"]).astype(float)
+                try:
+                    External_Flux_Jy = np.asarray(config_info["External_Flux_Jy"]).astype(float)
+                    External_Flux_Jy_err = np.asarray(config_info["External_Flux_Jy_err"]).astype(float)
+                except:
+                    raise ValueError("No good sources of photometry found. Consider want_gaiadr3: True, want_2mass: True, in yaml file. Alternatively, you can add your own photometry manually with External_AB_mag, External_AB_mag_err   or   External_Flux_Jy, External_Flux_Jy_err")
             External_Filter = np.asarray(config_info["External_Filter"])
             External_wl = []
             for an_external_filt in External_Filter:
