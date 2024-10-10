@@ -1293,9 +1293,9 @@ class load_models(object):
 		big_flux_list=[]
 		wl_all, flux = [], []
 		Teff, Grav = [], []
-
 		
-		cwd="/home/james/Desktop/FitDA_properly/1d_dba/he-grid_v3"
+
+		cwd=install_path+"/saved_grids_npy/he-grid_v3"
 
 
 		list_found=0
@@ -1397,8 +1397,7 @@ class load_models(object):
 		wl_all,  flux,  Teff,  Grav  =  wl_all.tolist(),  flux.tolist(),  Teff.tolist(),  Grav.tolist()
 		
 		
-		
-		cwd="/home/james/Desktop/FitDA_properly/3d_dba/3d_dba/3D_DBA"
+		cwd=install_path+"/saved_grids_npy/3D_DBA"
 		
 		list_found=0
 		for filename in os.listdir(cwd):
@@ -1513,8 +1512,7 @@ class load_models(object):
 		wl_all, flux = [], []
 		Teff, Grav = [], []
 
-		
-		cwd="/home/james/Desktop/FitDA_properly/1d_dba/he-grid_v3"
+		cwd=install_path+"/saved_grids_npy/he-grid_v3"
 
 		# get wavelengths
 		big_flux_list=[]
@@ -1635,7 +1633,8 @@ class load_models(object):
 		
 		
 		wl_all_3D,  flux_3D,  Teff_3D,  Grav_3D,  HoverHe_3D = [], [], [], [], []
-		cwd="/home/james/Desktop/FitDA_properly/3d_dba/3d_dba/3D_DBA"
+		
+		cwd=install_path+"/saved_grids_npy/3D_DBA"
 		
 		list_found=0
 		for filename in os.listdir(cwd):
