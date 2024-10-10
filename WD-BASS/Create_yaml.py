@@ -187,9 +187,9 @@ string_to_write = string_to_write[:-2]  +  "]  # 0 indexed!  needs all shared rv
 if single_or_double=="double":
 	string_to_write+="\nstarType: ["
 	string_to_write+="'" + starType1 + "', '" + starType2 + "'"
-	string_to_write=string_to_write+"]  # 'DA' or 'DBA'"
+	string_to_write=string_to_write+"]  # 'DA', 'DB', 'DC' or 'DBA'"
 else:
-	string_to_write+="\nstarType: ['" + starType1 + "'] # 'DA' or 'DBA"
+	string_to_write+="\nstarType: ['" + starType1 + "'] # 'DA', 'DB', 'DC' or 'DBA'"
 
 
 
