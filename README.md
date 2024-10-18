@@ -42,5 +42,5 @@ DB/DBA/DC (helium-rich atmosphere): Cukanovaite et al 2021
 
 # Change log (YYYYMMDD):
 20240706:  Added the ability to fit the photometry only. Command run_single_phot has been added to the bashrc command list to perform this task.
-20241009:  Code neatening and speeding improvements, small bug fixes
+20241009:  Code neatening and speed improvements, small bug fixes
 
