@@ -25,6 +25,7 @@ from mpi4py import MPI
 if sys.argv[1]=="ATM" or sys.argv[1]=="photometry_only":
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
+else: rank=1
 
 sys_args = sys.argv
 
@@ -696,7 +697,7 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
                 med_flux = np.median(flux_data[mask_norm])   # this gets the median flux of the normalised region
                 
                 
-                predicted_SNR_of_normalise_region_per_pixel = 15  # this is the predicted flux of the normalised part of the spectrum.  I use this to predict what the SNR is for all other pixels below
+                predicted_SNR_of_normalise_region_per_pixel = 10  # this is the predicted flux of the normalised part of the spectrum.  I use this to predict what the SNR is for all other pixels below
                 
                 flux_e_data = med_flux /predicted_SNR_of_normalise_region_per_pixel   *  npsqrt(med_flux/(m6*xs**6 + m5*xs**5 + m4*xs**4 + m3*xs**3 + m2*xs**2 + m*xs + c))  # propogate SNR to all parts of the spectrum. I assume that there is no detector readout noise and so your SNR only depends on the root(#photons)
                 
@@ -2718,8 +2719,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
     
     
     else:
-        model_wl1 = nplinspace(cut_limits_min, cut_limits_max, int(cut_limits_max-cut_limits_min)*10)
-        model_wl2 = nplinspace(cut_limits_min, cut_limits_max, int(cut_limits_max-cut_limits_min)*10)
+        model_wl1 = model_wl2 = nplinspace(cut_limits_min, cut_limits_max, int(cut_limits_max-cut_limits_min)*1000)
         if starType1=="GG":     model_spectrum_star1 = gauss_2x_mcmc(model_wl1, A1_1_med, sig1_1_med, A1_2_med, sig1_2_med) + 1
         elif starType1=="LL":   model_spectrum_star1 = lorentz_2x_mcmc(model_wl1, A1_1_med, sig1_1_med, A1_2_med, sig1_2_med) + 1
         elif starType1=="GL":   model_spectrum_star1 = gauss_lorentz_mcmc(model_wl1, A1_1_med, sig1_1_med, A1_2_med, sig1_2_med) + 1
@@ -2963,14 +2963,13 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
         
         mask = ((x>desired_refwl+cut_limits_min) & (x<desired_refwl+norm_limits_min)) | ((x>desired_refwl+norm_limits_max)   & (x<desired_refwl+cut_limits_max))
         
-        
-        m,c =  polyfit(x[mask], interparr[mask], deg=1)
-        interparr /= (m*x + c)
-        
+        if not (starType1=="quadLorentz" and starType2=="quadLorentz"):
+            m,c =  polyfit(x[mask], interparr[mask], deg=1)
+            interparr /= (m*x + c)
+
         
         if gauss1[0]!=1 and gauss2[0]!=1:
             interparr += interp(x,wl1+wl_RV1,gauss1) + interp(x,wl2+wl_RV2,gauss2)
-        
         
         return interparr
 
@@ -3041,18 +3040,23 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
     def residual2(params, xxx, yyy, yyyerr,wl1,spec1,wl2,spec2,gauss1,gauss2,model_range):
         '''Calculates residuals for a given model'''
         RV1, RV2, offset = params
-        model = WDmodel(xxx, RV1, RV2, wl1, spec1, wl2, spec2,gauss1,gauss2) + offset
+        
+        
         
         if starType1=="quadLorentz" and starType2=="quadLorentz":
-            m4, m3, m2, m1, c = polyfit(xxx, yyy - interp(xxx, wl1, spec1)  - interp(xxx, wl2, spec2), 4)
+            m4, m3, m2, m1, c = polyfit(xxx, yyy - interp(xxx, wl1+RV1/speed_of_light * desired_refwl, spec1)  - interp(xxx, wl2+RV2/speed_of_light * desired_refwl, spec2), 4)
             quad = m4 * (xxx)**4  +  m3 * (xxx)**3  +  m2 * np_square(xxx)  +  m1*(xxx)  +  c
             #args = np.argsort(xxx);   plt.plot(xxx[args], quad[args]);   plt.plot(wl1,spec1);   plt.plot(wl2,spec2);   plt.show()
-            yyy+=quad
-            m,c =  polyfit(xxx, yyy, deg=1)
-            yyy /= (m*xxx + c)
-            yyyerr /= (m*xxx + c)
+            model=quad+interp(xxx, wl1+RV1/speed_of_light * desired_refwl, spec1)  +  interp(xxx, wl2+RV2/speed_of_light * desired_refwl, spec2)
+            #yyy+=quad
+            #m,c =  polyfit(xxx, yyy, deg=1)
+            #yyy /= (m*xxx + c)
+            #yyyerr /= (m*xxx + c)
+        else:
+            model = WDmodel(xxx, RV1, RV2, wl1, spec1, wl2, spec2,gauss1,gauss2) + offset
 
         mask_narrow = (xxx > desired_refwl-model_range) & (xxx < desired_refwl+model_range)
+        
         return (yyy[mask_narrow]-model[mask_narrow]) / yyyerr[mask_narrow]
     
     def residual2_commonRV(params, xxx, yyy, yyyerr,wl1,spec1,wl2,spec2,gauss1,gauss2,model_range):
@@ -3115,6 +3119,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
         if npamin(modha)>-40 or npamax(modha)<40:   model_range = npamin(np.abs(modha))
         else:   model_range=npamin(np.abs(modha))
         
+        
         try:
             
             normalised_wavelength, normalised_flux, normalised_err, inp_resolution = list_norm_wl_grids[ii], list_normalised_flux[ii], list_normalised_err[ii], resolutions[ii]
@@ -3129,7 +3134,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
             smear_model_spectrum_star1 = convolve(model_spectrum_star1, Gaussian1DKernel(stddev=0.5*resAA/(model_wl1[10]-model_wl1[9])), boundary = 'extend')
             smear_model_spectrum_star2 = convolve(model_spectrum_star2, Gaussian1DKernel(stddev=0.5*resAA/(model_wl2[10]-model_wl2[9])), boundary = 'extend')
             smear_model_spectrum_star2 = interp(model_wl1, model_wl2, smear_model_spectrum_star2)
-            model_wl2 = model_wl1
+            
             
             
             if sys.argv[1]=="RV_gauss":
@@ -3321,6 +3326,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
             else:
                 returnvars = fit_bootstrap2([RV1, RV2, off],  normalised_wavelength[mask_narrow],  normalised_flux[mask_narrow],  normalised_err[mask_narrow], bounds=[rvbound1[0], rvbound1[1], rvbound2[0], rvbound2[1], -20.0, 20.0], num_its=200, wl1=model_wl1, spec1=smear_model_spectrum_star1, wl2=model_wl2, spec2=smear_model_spectrum_star2, model_range=model_range, Common_RV_both_stars=commonRV_1_2)
             
+            
             try: RV1, RV1err, RV2, RV2err, off, off_err = returnvars
             except: 
                 RV1, RV1err, off, off_err = returnvars
@@ -3329,7 +3335,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
             
             
             if starType1=="quadLorentz" and starType2=="quadLorentz":
-                m4, m3, m2, m1, c = polyfit(normalised_wavelength[mask_narrow], normalised_flux[mask_narrow] - interp(normalised_wavelength[mask_narrow], model_wl1+model_wl1*RV1/3E5, smear_model_spectrum_star1)  - interp(normalised_wavelength[mask_narrow], model_wl2+model_wl2*RV2/3E5, smear_model_spectrum_star1), 4)
+                m4, m3, m2, m1, c = polyfit(normalised_wavelength[mask_narrow], normalised_flux[mask_narrow] - interp(normalised_wavelength[mask_narrow], model_wl1+model_wl1*RV1/speed_of_light, smear_model_spectrum_star1)  - interp(normalised_wavelength[mask_narrow], model_wl2+model_wl2*RV2/speed_of_light, smear_model_spectrum_star1), 4)
                 quad = m4 * (model_wl1)**4  +  m3 * (model_wl1)**3  +  m2 * np_square(model_wl1)  +  m1*(model_wl1)  +  c
                 smear_model_spectrum_star1 += 0.5*quad
                 smear_model_spectrum_star2 += 0.5*quad
@@ -3338,7 +3344,6 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
                     m,c =  polyfit(normalised_wavelength[mask], smear_model_spectrum_star1+smear_model_spectrum_star2, deg=1)
                     interparr /= (m*normalised_wavelength + c)
                 except: None
-                
                 
             
             if True:
@@ -3374,7 +3379,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
                 
         except Exception as e: 
             print_exception_details(e)
-            rvfilename.append([in_fi, aHJD, "ERROR", "ERROR", "ERROR", "ERROR"])
+            rvfilename.append([in_fi, aHJD, "ERROR", "ERROR", "ERROR", "ERROR", "WTF"])
     np.savetxt("RVfits/RVfit_results.dat", rvfilename, fmt="%s", delimiter="\t",header="Observed velocities. For relativistic correction to source velocities (~0.14kms-1 for 200kms-1),  vsource  =  vobs/np.sqrt((1+vobs/c) / (1-vobs/c) )")
     
     

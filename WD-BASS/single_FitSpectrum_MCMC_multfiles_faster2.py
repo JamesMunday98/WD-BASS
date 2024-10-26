@@ -24,6 +24,7 @@ from mpi4py import MPI
 if sys.argv[1]=="ATM" or sys.argv[1]=="photometry_only":
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
+else: rank=1
 
 with open('example_Config_sgl.yaml') as file:
     config_info = yaml.load(file, Loader=yaml.FullLoader)
