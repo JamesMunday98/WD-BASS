@@ -215,7 +215,7 @@ class Fit_phot(object):
 	
 	
 	
-	def fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=2000, max_wl=10000, starType1="DA", R1=None, parallax=None, red=None):
+	def fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=2000, max_wl=10000, starType1="DA", R1=None, parallax=None, red=None, extraflux=0):
 		""" scale one spectrum and reden the model to fit photometry """
 		if not isinstance(R1, list):
 			mask_logg_wl_1 = (wl_all1_N > min_wl) & (wl_all1_N < max_wl)
@@ -245,7 +245,9 @@ class Fit_phot(object):
 			spec = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
 			ext = G23(Rv=3.1);   spec *= ext.extinguish(model_wl1*u.AA, Ebv=red)
 			
-			return model_wl1, spec
+			
+			if extraflux!=0:   return model_wl1, spec + np.interp(model_wl1, extraflux[0], extraflux[1])
+			else:   return model_wl1, spec
 			
 		
 			
@@ -269,7 +271,8 @@ class Fit_phot(object):
 			spec = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
 			ext = G23(Rv=3.1);   spec *= ext.extinguish(model_wl1*u.AA, Ebv=red)
 			
-			return model_wl1, spec
+			if extraflux!=0:   return model_wl1, spec + np.interp(model_wl1, extraflux[0], extraflux[1])
+			else:   return model_wl1, spec
 	
 	
 	

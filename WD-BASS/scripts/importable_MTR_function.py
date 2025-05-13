@@ -181,12 +181,9 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 	if return_R==True:
 		#all_tempsCO, all_loggCO, all_massCO, all_radiusCO = np.loadtxt("/home/james/python_scripts_path/dwd_fit_package/saved_MTR/table_valuesCO.dat", unpack=True)
 		all_tempsCO, all_loggCO, all_massCO, all_radiusCO = load(install_path + "/saved_MTR/table_valuesCO.npy")
-		all_tempsHe, all_loggHe, all_massHe, all_radiusHe = np.loadtxt(install_path + "/saved_MTR/table_valuesHe.dat", unpack=True)
+		#all_tempsHe, all_loggHe, all_massHe, all_radiusHe = np.loadtxt(install_path + "/saved_MTR/table_valuesHe.dat", unpack=True)
+		all_tempsHe, all_loggHe, all_massHe, all_radiusHe = load(install_path + "/saved_MTR/table_valuesHe.npy")
 		
-		#import matplotlib.pyplot as plt
-		#plt.plot(all_tempsCO[all_massCO==0.6], all_loggCO[all_massCO==0.6])
-		#plt.show()
-		#raise ValueError
 		
 		rad_He = float(griddata(np.array([all_tempsHe,all_massHe]).T,all_radiusHe,np.array([T, M]).T, method='linear')[0])
 		rad_CO = float(griddata(np.array([all_tempsCO,all_massCO]).T,all_radiusCO,np.array([T, M]).T, method='linear')[0])
@@ -684,86 +681,57 @@ def get_age(T, M):
 
 #save_tables_output_DA()
 
+if False:
+	teff1=21300;  teff1err=300
+	teff2=11200;  teff2err=500
+	logg1=7.86;   logg1err=0.04
+	logg2=8.19;   logg2err=0.05
 
-#print(get_MTR(20191.717742087985, logg=8.151168419239117, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(20191.717742087985+280, logg=8.151168419239117+0.021, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(20191.717742087985-280, logg=8.151168419239117+0.021, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(20191.717742087985+280, logg=8.151168419239117-0.021, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(20191.717742087985-280, logg=8.151168419239117-0.021, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(20191.717742087985, logg=8.151168419239117, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-###################################
-#print(get_MTR(17225.118149858405, logg=8.408405076265293, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(17225.118149858405+710, logg=8.408405076265293+0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(17225.118149858405-710, logg=8.408405076265293+0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(17225.118149858405+710, logg=8.408405076265293-0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(17225.118149858405-710, logg=8.408405076265293-0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(17225.118149858405-710, logg=8.408405076265293-0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	medmass1=np.asarray(get_MTR(teff1, logg=logg1, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mask=np.isnan(medmass1)
+	medmass1=medmass1[~mask][0]
+	medmass2=np.asarray(get_MTR(teff2, logg=logg2, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mask=np.isnan(medmass2)
+	medmass2=medmass2[~mask][0]
 
 
+	mass1err1=np.asarray(get_MTR(teff1+teff1err, logg=logg1+logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mask=np.isnan(mass1err1)
+	mass1err1=mass1err1[~mask][0]
+	mass1err2=np.asarray(get_MTR(teff1+teff1err, logg=logg1-logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mask=np.isnan(mass1err2)
+	mass1err2=mass1err2[~mask][0]
+	mass1err3=np.asarray(get_MTR(teff1-teff1err, logg=logg1+logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mask=np.isnan(mass1err3)
+	mass1err3=mass1err3[~mask][0]
+	mass1err4=np.asarray(get_MTR(teff1-teff1err, logg=logg1-logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mask=np.isnan(mass1err4)
+	mass1err4=mass1err4[~mask][0]
 
 
-#print(get_MTR(18010, logg=8.18, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mass1arr=np.array([mass1err1-medmass1, mass1err2-medmass1, mass1err3-medmass1, mass1err4-medmass1])
+	mass1max, mass1min=np.amax(mass1arr), np.amin(mass1arr)
 
-#print(get_MTR(18010-80, logg=8.18-0.02, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(18010-80, logg=8.18+0.02, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(18010+80, logg=8.18-0.02, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(18010+80, logg=8.18+0.02, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-
-
-
-
-
-
-
-#print(get_MTR(20000, logg=8.164, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(20000-2000, logg=8.164-0.03, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(20000-2000, logg=8.164+0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(20000+400, logg=8.164-0.03, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(20000+400, logg=8.164+0.027, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mass2err1=np.asarray(get_MTR(teff2+teff2err, logg=logg2+logg2err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mask=np.isnan(mass2err1)
+	mass2err1=mass2err1[~mask][0]
+	mass2err2=np.asarray(get_MTR(teff2+teff2err, logg=logg2-logg2err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mask=np.isnan(mass2err2)
+	mass2err2=mass2err2[~mask][0]
+	mass2err3=np.asarray(get_MTR(teff2-teff2err, logg=logg2+logg2err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mask=np.isnan(mass2err3)
+	mass2err3=mass2err3[~mask][0]
+	mass2err4=np.asarray(get_MTR(teff2-teff2err, logg=logg2-logg2err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	mask=np.isnan(mass2err4)
+	mass2err4=mass2err4[~mask][0]
 
 
+	mass2arr=np.array([mass2err1-medmass2, mass2err2-medmass2, mass2err3-medmass2, mass2err4-medmass2])
+	mass2max, mass2min=np.amax(mass2arr), np.amin(mass2arr)
 
 
-
-#print(get_MTR(17260, logg=8.35, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(17260-880, logg=8.35-0.052, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(17260-880, logg=8.35+0.066, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(17260+1380, logg=8.35-0.052, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-#print(get_MTR(17260+1380, logg=8.35+0.066, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-
-
-print(get_MTR(20000, logg=8.164, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-print(get_MTR(17260, logg=8.35, compute_logg=False, return_R=False, return_M=True, return_R_from_T_logg=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-
-
-
-
-
-
+	print("M1:", medmass1, "+", np.round(mass1max,3), np.round(mass1min,3))
+	print("M2:", medmass2, "+", np.round(mass2max,3), np.round(mass2min,3))
 
 
 

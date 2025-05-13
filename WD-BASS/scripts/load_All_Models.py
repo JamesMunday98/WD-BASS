@@ -1294,7 +1294,7 @@ class load_models(object):
 		wl_all, flux = [], []
 		Teff, Grav = [], []
 		
-
+		install_path = os.environ['WD_BASS_INSTALL_DIR']
 		cwd=install_path+"/saved_grids_npy/he-grid_v3"
 
 
@@ -1511,7 +1511,8 @@ class load_models(object):
 		big_flux_list=[]
 		wl_all, flux = [], []
 		Teff, Grav = [], []
-
+		
+		install_path = os.environ['WD_BASS_INSTALL_DIR']
 		cwd=install_path+"/saved_grids_npy/he-grid_v3"
 
 		# get wavelengths
