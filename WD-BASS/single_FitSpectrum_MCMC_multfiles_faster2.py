@@ -68,7 +68,8 @@ if sys.argv[1] == "photometry_only" and not fit_phot_SED:
     raise ValueError("Must set 'fit_phot_SED: True' in yaml file")
 RA=np.asarray([config_info["RA"]])[0]
 Dec=np.asarray([config_info["Dec"]])[0]
-
+try: high_RV_amp=bool(np.asarray([config_info["high_RV_amp"]])[0])
+except: high_RV_amp=False
 
 
 
@@ -781,34 +782,47 @@ if sys.argv[1] != "photometry_only":
     for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_Ha_all, reference_wl):
         if spectra_source_type=="wl_flux_fluxerr":
             try:  wl_data, flux_data, flux_e_data = nploadtxt(os.getcwd()+"/"+files, skiprows=1, unpack=True)
-            except:  
-                ##### this part of the code is for when you do not have flux errors. I do my best to guess the SNR of the data given an expected continuum SNR under the assumption that your spectral line follows a gaussian profile. In the "gauss" function below, mmm and ccc are included to fit the general trend of the continuum as a linear fit. 
+            except:
+                try:
+                    if "LAMOST_COADD" in files or "DESI_" in files:
+                        wl_data, flux_data = nploadtxt(os.getcwd()+"/"+files, skiprows=1, unpack=True,usecols=[0,1])
+                        #cut_limits_min, cut_limits_max = ref_wl+cut_Ha[0],  ref_wl+cut_Ha[1]
+                        #norm_limits_min, norm_limits_max = ref_wl+normaliseHa[0],  ref_wl+normaliseHa[1]
+                        #mask_cut = (wl_data>=cut_limits_min) & (wl_data<=cut_limits_max)
+                        #mask_norm = ((wl_data>=cut_limits_min) & (wl_data<=norm_limits_min)) | ((wl_data<=cut_limits_max) & (wl_data>=norm_limits_max))
+                    
+                        #med_flux = np.median(flux_data[mask_norm])   # this gets the median flux of the normalised region
+                        flux_e_data = flux_data /25
+                    else:
+                        wl_data, flux_data, flux_e_data = nploadtxt(os.getcwd()+"/"+files, skiprows=1, unpack=True,usecols=[0,1,2])
+                except:
+                    ##### this part of the code is for when you do not have flux errors. I do my best to guess the SNR of the data given an expected continuum SNR under the assumption that your spectral line follows a gaussian profile. In the "gauss" function below, mmm and ccc are included to fit the general trend of the continuum as a linear fit. 
                 
-                ##### I used this method to fit to FIES observations as errors are not output in its reduction pipeline
-                wl_data, flux_data = nploadtxt(os.getcwd()+"/"+files, skiprows=2, unpack=True)
+                    ##### I used this method to fit to FIES observations as errors are not output in its reduction pipeline
+                    wl_data, flux_data = nploadtxt(os.getcwd()+"/"+files, skiprows=2, unpack=True)
                 
-                cut_limits_min, cut_limits_max = ref_wl+cut_Ha[0],  ref_wl+cut_Ha[1]
-                norm_limits_min, norm_limits_max = ref_wl+normaliseHa[0],  ref_wl+normaliseHa[1]
-                
-                
-                mask_cut = (wl_data>=cut_limits_min) & (wl_data<=cut_limits_max)
-                mask_norm = ((wl_data>=cut_limits_min) & (wl_data<=norm_limits_min)) | ((wl_data<=cut_limits_max) & (wl_data>=norm_limits_max))
+                    cut_limits_min, cut_limits_max = ref_wl+cut_Ha[0],  ref_wl+cut_Ha[1]
+                    norm_limits_min, norm_limits_max = ref_wl+normaliseHa[0],  ref_wl+normaliseHa[1]
                 
                 
-                popt, pcov = curve_fit(gauss_if_no_flux_error, wl_data[mask_cut], flux_data[mask_cut], p0 = [-0.8, ref_wl, 10, 1, 1, 1], bounds=[[-np_inf,ref_wl-5,0,0,-np_inf,-np_inf], [0,ref_wl+5,80,np_inf,np_inf,np_inf]])
-                
-                # plt.plot(wl_data[mask_cut], flux_data[mask_cut], c='k');  plt.plot(wl_data[mask_cut], gauss_if_no_flux_error(wl_data[mask_cut], *popt));  plt.show()
-                
-                med_flux = np.median(flux_data[mask_norm])   # this gets the median flux of the normalised region
+                    mask_cut = (wl_data>=cut_limits_min) & (wl_data<=cut_limits_max)
+                    mask_norm = ((wl_data>=cut_limits_min) & (wl_data<=norm_limits_min)) | ((wl_data<=cut_limits_max) & (wl_data>=norm_limits_max))
                 
                 
-                predicted_SNR_of_normalise_region_per_pixel = 10  # this is the predicted flux of the normalised part of the spectrum.  I use this to predict what the SNR is for all other pixels below
+                    popt, pcov = curve_fit(gauss_if_no_flux_error, wl_data[mask_cut], flux_data[mask_cut], p0 = [-0.8, ref_wl, 10, 1, 1, 1], bounds=[[-np_inf,ref_wl-5,0,0,-np_inf,-np_inf], [0,ref_wl+5,80,np_inf,np_inf,np_inf]])
                 
-                flux_e_data = med_flux /predicted_SNR_of_normalise_region_per_pixel   *  npsqrt(med_flux/gauss_if_no_flux_error(wl_data, *popt))  # propogate SNR to all parts of the spectrum. I assume that there is no detector readout noise and so your SNR only depends on the root(#photons)
+                    # plt.plot(wl_data[mask_cut], flux_data[mask_cut], c='k');  plt.plot(wl_data[mask_cut], gauss_if_no_flux_error(wl_data[mask_cut], *popt));  plt.show()
                 
-                #plt.plot(wl_data[mask_cut], flux_e_data[mask_cut]);   plt.plot(wl_data[mask_cut], flux_data[mask_cut],c='k');   plt.show()
+                    med_flux = np.median(flux_data[mask_norm])   # this gets the median flux of the normalised region
                 
-                flux_e_data[flux_e_data<0] = npamax(flux_e_data[mask_cut][flux_e_data[mask_cut]>0]) #  if negative flux, the error on these measurements is taken as the maximum positive error. Bit arbitrary... better to have actual flux errors!! I do this in case there is a big negative outlier (e.g. poor sky subtraction)
+                
+                    predicted_SNR_of_normalise_region_per_pixel = 10  # this is the predicted flux of the normalised part of the spectrum.  I use this to predict what the SNR is for all other pixels below
+                
+                    flux_e_data = med_flux /predicted_SNR_of_normalise_region_per_pixel   *  npsqrt(med_flux/gauss_if_no_flux_error(wl_data, *popt))  # propogate SNR to all parts of the spectrum. I assume that there is no detector readout noise and so your SNR only depends on the root(#photons)
+                
+                    #plt.plot(wl_data[mask_cut], flux_e_data[mask_cut]);   plt.plot(wl_data[mask_cut], flux_data[mask_cut],c='k');   plt.show()
+                
+                    flux_e_data[flux_e_data<0] = npamax(flux_e_data[mask_cut][flux_e_data[mask_cut]>0]) #  if negative flux, the error on these measurements is taken as the maximum positive error. Bit arbitrary... better to have actual flux errors!! I do this in case there is a big negative outlier (e.g. poor sky subtraction)
                 
             args = np.argsort(wl_data)
             wl_data,  flux_data, flux_e_data = wl_data[args],   flux_data[args],  flux_e_data[args]
@@ -851,10 +865,12 @@ if sys.argv[1] != "photometry_only":
         	cut_limits_min, cut_limits_max = ref_wl+cut_Ha[0],  ref_wl+cut_Ha[1]
         	cut_limits_min_all.append(cut_limits_min);    cut_limits_max_all.append(cut_limits_max)
         	
+        	
         	mask_out_Ha_min, mask_out_Ha_max = ref_wl+normaliseHa[0],  ref_wl+normaliseHa[1]
         	mask_out_Ha_min_all.append(mask_out_Ha_min);    mask_out_Ha_max_all.append(mask_out_Ha_max)
         	
-        	mask_out = (wl_data>cut_limits_min) & (wl_data<cut_limits_max)
+        	if high_RV_amp:   mask_out = (wl_data>cut_limits_min-20) & (wl_data<cut_limits_max+20) #  if I want to allow high RV amps where the cuts are dynamic, extend the range that is snipped to allow for it. DO NOT INCLUDE THIS AS A NEW LIMIT THOUGH! (line above) I am not changing the yaml file limits globally. 20A is arbitrary
+        	else:             mask_out = (wl_data>cut_limits_min) & (wl_data<cut_limits_max)
         	wl_data=wl_data[mask_out];   flux_data = flux_data[mask_out];   flux_e_data = flux_e_data[mask_out]
         	
         	mask_norm = (wl_data>cut_limits_min) & (wl_data<cut_limits_max) & ((wl_data<mask_out_Ha_min) | (wl_data>mask_out_Ha_max))
@@ -1084,8 +1100,10 @@ except: p0scaling = None
 if found_parallax:
     if dojplus:
         p0parallax=[plax-6*plax_unc, plax+6*plax_unc]  # only used for plotting. gaussian prior
+        if p0parallax[0]<0: p0parallax[0]=0.0001
     else:
-        p0parallax=[plax-3*plax_unc, plax+3*plax_unc]  # only used for plotting. gaussian prior
+        p0parallax=[plax-8*plax_unc, plax+8*plax_unc]  # only used for plotting. gaussian prior
+        if p0parallax[0]<0: p0parallax[0]=0.0001
 if starType1.startswith("sd") and fit_phot_SED:
     want_R=True
     Dguess = 3.086E16 * 1000/plax
@@ -1325,6 +1343,34 @@ elif starType1=="quadLorentz":
 
 
 else: raise ValueError("WD-BASS Error: Star types must be two degenerate stars (Dx) or both be of: GG, LL")
+
+
+
+try:    want_extraBB=bool(np.asarray(config_info["extraBB"]))
+except: want_extraBB=False
+if want_extraBB:  #  note: this is barely tested, if I need this in the future sus it out. I never added in the plotting stuff, only fitting for spec/photometry
+	from astropy.modeling import models
+	BBT = np.asarray(config_info["p0BBT"])
+	BBR = np.asarray(config_info["p0BBR"])
+	for cnt, val in enumerate(p0labels):
+		if val.startswith("RV"):
+			cnt_start_rvs=cnt
+			break
+	
+	p0labels=np.insert(p0labels, cnt_start_rvs, "BBR")
+	p0range=np.insert(p0range, cnt_start_rvs, np.array([p0BBR[0],p0BBR[1]]))
+	pos_min=np.insert(pos_min, cnt_start_rvs, p0BBR[0])
+	pos_max=np.insert(pos_max, cnt_start_rvs, p0BBR[1])
+	
+	
+	p0labels=np.insert(p0labels, cnt_start_rvs, "BBT")
+	p0range=np.insert(p0range, cnt_start_rvs, np.array([p0BBT[0],p0BBT[1]]))
+	pos_min=np.insert(pos_min, cnt_start_rvs, p0BBT[0])
+	pos_max=np.insert(pos_max, cnt_start_rvs, p0BBT[1])
+	
+	ndim+=2
+
+
 
 
 
@@ -1768,12 +1814,13 @@ if forced_Scaling=="WD" and fit_phot_SED:
     loaded_CO = np.load(install_path + "/saved_MTR/table_valuesCO.npy")
 
 
-checkT1, checklogg1, checkHoverHe1, checkscaling, checkR, checkDummy = False, False, False, False, False, False
+checkT1, checklogg1, checkHoverHe1, checkscaling, checkR, checkDummy, checkBBT, checkBBR = False, False, False, False, False, False, False, False
 if forced_teff1==0: checkT1=True
 if forced_logg1==0: checklogg1=True
 if forced_HoverHe1==0 and (starType1=="DBA" or starType1.startswith("sd")): checkHoverHe1=True
 if forced_Scaling==False and fit_phot_SED: checkscaling=True
 if fit_phot_SED and starType1.startswith("sd"): checkR = True
+if want_extraBB: checkBBT, checkBBR = True, True
 if "Dummy" in p0labels: checkDummy=True
 
 
@@ -1797,7 +1844,8 @@ def lnprior(theta, arguments):
     if "Parallax" in p0labels:      args = npargwhere(p0labels=="Parallax")[0][0];     mcmc_parallax = theta[args]
     if "R" in p0labels:       args = npargwhere(p0labels=="R")[0][0];     mcmc_R = theta[args]
     if "Dummy" in p0labels:   args = npargwhere(p0labels=="Dummy")[0][0];     mcmc_Dummy = theta[args]
-    
+    if "BBT" in p0labels:           args = npargwhere(p0labels=="BBT")[0][0];     mcmc_BBT = theta[args]
+    if "BBR" in p0labels:           args = npargwhere(p0labels=="BBR")[0][0];     mcmc_BBR = theta[args]
     
         
     passed = True
@@ -1813,6 +1861,9 @@ def lnprior(theta, arguments):
         if not p0R[0]<mcmc_R<p0R[1]: passed = False
     if checkDummy:
         if not dummybound[0]<mcmc_Dummy<dummybound[1]: passed=False
+    if want_extraBB:
+        if not p0BBT[0]<mcmc_BBT<p0BBT[1]: passed=False
+        if not p0BBR[0]<mcmc_BBR<p0BBR[1]: passed=False
     if passed==False:  return -np_inf
     
     
@@ -1873,9 +1924,28 @@ def lnlike(theta, arguments):
     if "Scaling" in p0labels:       args = npargwhere(p0labels=="Scaling")[0][0];     Scaling = theta[args]
     else:                           Scaling = forced_Scaling
 
-    if "R" in p0labels:       args = npargwhere(p0labels=="R")[0][0];     mcmc_R = theta[args]
+    if "R" in p0labels:             args = npargwhere(p0labels=="R")[0][0];     mcmc_R = theta[args]
     
     if "RV1_0" in p0labels:         num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0]
+    
+    
+    if "BBT" in p0labels:           args = npargwhere(p0labels=="BBT")[0][0];     mcmc_BBT = theta[args]
+    if "BBR" in p0labels:           args = npargwhere(p0labels=="BBR")[0][0];     mcmc_BBR = theta[args]
+    
+    
+    if want_extraBB:
+        bb1 = models.BlackBody(temperature=mcmc_BBT*u.K)
+        BBwlgrid=np.linspace(theminww, themaxww, 50000)
+        spectrumBB = bb1(BBwlgrid * u.AA)  #power / [area × solid angle × frequency].
+        spectrumBB *= np_pi  * u.sr * (mcmc_BBR*696340000)**2
+        if fit_phot_SED:
+            spectrumBB /= (1000/mcmc_parallax*3.086e+16)**2     #  power / frequency
+        spectrumBB = spectrumBB.to("erg/(s cm2 Hz)", u.spectral_density(wav=BBwlgrid*u.AA)).value
+        ext = G23(Rv=3.1)
+        spectrumBB *= ext.extinguish(BBwlgrid*u.AA, Ebv=reddening_Ebv)
+        constraintsBB=[BBwlgrid, spectrumBB]
+    else: spectrumBB=0; constraintsBB=0
+    
     
     
     if not isinstance(T1,float):   T1=T1[0]
@@ -1918,11 +1988,11 @@ def lnlike(theta, arguments):
         elif isinstance(forced_Scaling, float): Scaling=forced_Scaling
         
         if starType1=="DA" or starType1=="DB" or starType1=="DC":
-            smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, T1, logg1, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=R1, parallax=mcmc_parallax, red=reddening_Ebv)
+            smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, T1, logg1, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=R1, parallax=mcmc_parallax, red=reddening_Ebv, extraflux=constraintsBB)
         elif starType1=="DBA":
-            smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=R1, parallax=mcmc_parallax, red=reddening_Ebv)
+            smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=R1, parallax=mcmc_parallax, red=reddening_Ebv, extraflux=constraintsBB)
         elif starType1.startswith("sd"):
-            smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=mcmc_R, parallax=mcmc_parallax, red=reddening_Ebv)
+            smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=mcmc_R, parallax=mcmc_parallax, red=reddening_Ebv, extraflux=constraintsBB)
         
         
         rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False)
@@ -1966,6 +2036,9 @@ def lnlike(theta, arguments):
                 elif starType1=="DBA": model_wl1, model_spectrum_star1 = return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1)
                 elif starType1.startswith("sd"): model_wl1, model_spectrum_star1 = return_model_spectrum_subdwarf(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1)
                 
+                if want_extraBB:
+                    model_spectrum_star1 += np.interp(model_wl1, BBwlgrid, spectrumBB)
+                
             
             
             
@@ -1995,7 +2068,7 @@ def lnlike(theta, arguments):
                 normalised_wavelength = list_norm_wl_grids[ii];    normalised_flux = list_normalised_flux[ii];    normalised_err = list_normalised_err[ii];    inp_resolution = resolutions[ii]
                 dlam1 = ref_wl*mcmc_rv1/speed_of_light
 
-                
+                if high_RV_amp: modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
                     
                 # Smear to the resolution desired
                 interparmodel = convolve(model_spectrum_star1, Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])), boundary = 'extend')
@@ -2223,6 +2296,7 @@ def lnlike_gauss_lorentz(theta, arguments):
             
             
             dlam1 = ref_wl*mcmc_rv1/speed_of_light
+            if high_RV_amp: modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
             
             
             # interpolate the model onto the observation's wavelength grid
@@ -2400,6 +2474,7 @@ def lnlike_quad_lorentz(theta, arguments):
             
             
             dlam1 = ref_wl*mcmc_rv1/speed_of_light
+            if high_RV_amp: modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
 
             
             
@@ -3394,6 +3469,16 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly" or sys.argv[1] == "photometry_o
             cut_limits_min, cut_limits_max = cut_lim
             modelHa_min, modelHa_max = modha
             
+            if high_RV_amp: 
+                if sh_wl == -1:  rv_med1 = allRV1s[ii]
+                else:            rv_med1 = allRV1s[sh_wl]
+                dlam1 = ref_wl*rv_med1/speed_of_light
+                modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
+                
+                mask_input_spectrum = ((normalised_wavelength>ref_wl+cut_limits_min)   & (normalised_wavelength<ref_wl+cut_limits_max))
+                normalised_wavelength, normalised_flux, normalised_err = normalised_wavelength[mask_input_spectrum], normalised_flux[mask_input_spectrum], normalised_err[mask_input_spectrum]
+            
+            
             fig, (ax, ax2) = plt.subplots(2)
             
             if starType1.startswith("D")  or starType1.startswith("sd"):
@@ -3476,7 +3561,9 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly" or sys.argv[1] == "photometry_o
             
             
             
-            normwl_to_rv = speed_of_light * (normalised_wavelength-ref_wl)/ref_wl 
+            normwl_to_rv = speed_of_light * (normalised_wavelength-ref_wl)/ref_wl
+            
+            
 
             mask_norm = ((normalised_wavelength>ref_wl+cut_limits_min) & (normalised_wavelength<ref_wl+norm_limits_min) ) | (normalised_wavelength<ref_wl+cut_limits_max) & ((normalised_wavelength>ref_wl+norm_limits_max))
             
@@ -3556,6 +3643,13 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly" or sys.argv[1] == "photometry_o
                 cut_limits_min, cut_limits_max = cut_lim
                 norm_limits_min, norm_limits_max = norm_lim
                 modelHa_min, modelHa_max = modha
+                if high_RV_amp: 
+                    rv_med1 = allRV1s[unique_shared_rv]
+                    dlam1 = ref_wl*rv_med1/speed_of_light
+                    modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
+                
+                    mask_input_spectrum = ((normalised_wavelength>ref_wl+cut_limits_min)   & (normalised_wavelength<ref_wl+cut_limits_max))
+                    normalised_wavelength, normalised_flux, normalised_err = normalised_wavelength[mask_input_spectrum], normalised_flux[mask_input_spectrum], normalised_err[mask_input_spectrum]
                 
                 
                 if starType1=="DA" or starType1=="DB" or starType1=="DC": model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, T1_med, logg1_med)
@@ -3629,7 +3723,6 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly" or sys.argv[1] == "photometry_o
                 
 
                 mask_norm = ((normalised_wavelength>ref_wl+cut_limits_min) & (normalised_wavelength<ref_wl+norm_limits_min) ) | (normalised_wavelength<ref_wl+cut_limits_max) & ((normalised_wavelength>ref_wl+norm_limits_max))
-                
                 
 
                 ax.plot(normalised_wavelength - ref_wl,normalised_flux + offset, c='k')

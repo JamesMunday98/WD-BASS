@@ -3,6 +3,7 @@ import numpy as np
 from subprocess import call
 import subprocess, yaml
 install_path = os.environ['WD_BASS_INSTALL_DIR']
+from natsort import natsorted
 
 
 filesout = os.listdir(os.getcwd()+"/out")
@@ -101,34 +102,16 @@ while dowhile:
 	if stopwhile: dowhile=False
 
 
-
-
-
 done_wanted_index=[]
+finished_index=[]
 for i in np.unique(share_rv[share_rv!=-1]):
 	if True: #i==3:
 		wanted_index = (share_rv==i) | (share_rv==share_rv[i])
-		modelHa = modelHa[wanted_index]
-		normaliseHa_all=normaliseHa_all[wanted_index]
-		cut_Ha_all=cut_Ha_all[wanted_index]
-		resolutions=resolutions[wanted_index]
-		reference_wl=reference_wl[wanted_index]
-		share_rv=share_rv[wanted_index]
-		RV_boundaries1=RV_boundaries1[wanted_index]
-		if single_double=="double":  RV_boundaries2=RV_boundaries2[wanted_index]
-		HJD_values=HJD_values[wanted_index]
-		input_files=input_files[wanted_index]
-		
 		
 		if len(share_rv)==0:
 			continue
 
-
 		print(i, len(share_rv))
-
-
-
-
 
 
 		print("Handling share_rv=", i)
@@ -141,6 +124,35 @@ for i in np.unique(share_rv[share_rv!=-1]):
 		fp.close()
 		
 		done_wanted_index.append(wanted_index)
+		
+		finished_index.append(i)
+
+
+for cn, shrv in enumerate(share_rv):
+	if not cn in finished_index and shrv==-1: #i==3:
+		wanted_index = (share_rv==cn) | (share_rv==share_rv[cn])
+		
+		if len(share_rv)==0:
+			continue
+
+		print(cn, len(share_rv))
+
+
+		print("Handling share_rv=", cn)
+		fp = open("output.txt", "w")
+		if single_double=="single":
+			p = subprocess.Popen(["mpiexec", "-np", "5", "python3", install_path+"single_FitSpectrum_MCMC_multfiles_faster2.py", "ATM", "run_single_one_by_oneMCMC", str(cn)], stdout=fp)
+		elif single_double=="double":
+			p = subprocess.Popen(["mpiexec", "-np", "5", "python3", install_path+"double_FitSpectrum_MCMC_multfiles_faster.py", "ATM", "run_double_one_by_oneMCMC", str(cn)], stdout=fp)
+		p.wait()
+		fp.close()
+		
+		done_wanted_index.append(wanted_index)
+		
+		finished_index.append(cn)
+
+
+
 
 if len(done_wanted_index) < 1:
 	for cn, _ in enumerate(share_rv[share_rv==-1]):
@@ -161,7 +173,7 @@ if len(done_wanted_index) < 1:
 
 
 all_lines_RV1, all_lines_RV2 = [], []
-for aresult in os.listdir(os.getcwd()+"/out"):
+for aresult in natsorted(os.listdir(os.getcwd()+"/out")):
 	if ("result" in aresult and ".out" in aresult) and (not aresult=="result.out") and (not aresult=="result_one_by_one.out"):
 		with open("out/"+aresult) as resultfile:
 			result_lines = resultfile.readlines()

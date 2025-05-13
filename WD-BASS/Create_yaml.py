@@ -10,7 +10,20 @@ import matplotlib.pyplot as plt
 
 subdwarf=False
 ### Change the below lines to your desired setup. Can be as many or as little as you want
-if not subdwarf:
+
+if False: # custom info
+	desired_lines = [6562.79, 4861.35, 4340.472, 4101.734, 3970.075, 3889.064, 3835.397]
+	resolution_lines = [2108, 1247, 1113, 1052, 1018, 997, 983]
+	model_region = [[-70,70], [-70,70], [-60,60], [-50,50], [-40,40], [-22.5,22.5], [-15,15]]
+	norm_region = [[-70,70], [-70,70], [-60,60], [-50,50], [-40,40], [-22.5,22.5], [-15,15]]
+	cut_region = [[-80,80], [-80,80], [-70,70], [-55,55], [-45,45], [-27.5,27.5], [-20,20]]
+	RV_boundaries = [[-800,800], [-800,800], [-800,800], [-800,800], [-800,800], [-800,800], [-800,800]]
+	p0teff_min, p0teff_max = 12000, 20000
+	p0logg_min, p0logg_max = 6.5, 7
+	p0HoverHe_min, p0HoverHe_max = 0, 0
+	starType1, starType2 = "DA", "DA"
+	
+elif not subdwarf:
 	desired_lines = [6562.79, 4861.35, 4340.472, 4101.734, 3970.075]
 	resolution_lines = [6000, 4000, 3000, 2000, 1000, 1000]
 	model_region = [[-90,90], [-70,70], [-60,60], [-50,50], [-40,40]]
