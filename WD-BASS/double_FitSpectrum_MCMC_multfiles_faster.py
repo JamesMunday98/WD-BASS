@@ -1351,7 +1351,7 @@ elif (starType1.startswith("LL") or starType1.startswith("GG") or starType1.star
 
 elif starType1=="quadLorentz" and starType2=="quadLorentz":
     ndim = 0
-    p0range = np.array([]);   p0labels = np.array([])
+    p0range = np.array([]).reshape((0,2));   p0labels = np.array([])
     pos_min = np.array([]);   pos_max = np.array([])
     used_RV_boundaries = []
 
@@ -3637,7 +3637,8 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
                 
         except Exception as e: 
             print_exception_details(e)
-            rvfilename.append([in_fi, aHJD, "ERROR", "ERROR", "ERROR", "ERROR", "WTF"])
+            rvfilename.append([in_fi, aHJD, "ERROR", "ERROR", "ERROR", "ERROR"])
+    
     np.savetxt("RVfits/RVfit_results.dat", rvfilename, fmt="%s", delimiter="\t",header="Observed velocities. For relativistic correction to source velocities (~0.14kms-1 for 200kms-1),  vsource  =  vobs/np.sqrt((1+vobs/c) / (1-vobs/c) )")
     
     
