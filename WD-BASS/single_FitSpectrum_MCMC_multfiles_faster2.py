@@ -7,10 +7,7 @@ from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 from schwimmbad import MPIPool
 warnings.filterwarnings('ignore')
-from checkLocalStars import checkLocalStars
-from miscAstro import miscAstro
 from astropy.io import fits
-from astropy.coordinates import SkyCoord
 import astropy.units as u
 from astropy.time import Time
 from astropy.convolution import Gaussian1DKernel,convolve
@@ -70,6 +67,8 @@ RA=np.asarray([config_info["RA"]])[0]
 Dec=np.asarray([config_info["Dec"]])[0]
 try: high_RV_amp=bool(np.asarray([config_info["high_RV_amp"]])[0])
 except: high_RV_amp=False
+try: force_CO_MTR=bool(config_info["force_CO_MTR"])
+except: force_CO_MTR=False
 
 
 
@@ -122,6 +121,7 @@ try:  reddening_Ebv=float(np.asarray([config_info["reddening_Ebv"]])[0])
 except: reddening_Ebv=np.asarray([config_info["reddening_Ebv"]])[0]
 
 if reddening_Ebv=="lookup" or fit_phot_SED:
+	from miscAstro import miscAstro
 	if type(RA)==np.str_ and type(Dec)==np.str_:  RAdeg, Decdeg= miscAstro.ra_dec_hr_to_deg(RA,Dec)
 	elif type(RA)==float and type(Dec)==float:  RAdeg, Decdeg= RA, Dec;  RA, Dec = miscAstro.ra_dec_deg_to_hr(RAdeg,Decdeg)
 	else: print(type(RA), type(Dec));  raise ValueError
@@ -136,8 +136,10 @@ if reddening_Ebv=="lookup":
         star_plx=float(np.asarray(config_info["parallax"])) # in mas
         star_e_plx=float(np.asarray(config_info["parallax_uncertainty"])) # in mas
     except:
+        from checkLocalStars import checkLocalStars
         RAdeg, Decdeg, star_mag, star_plx, star_e_plx, warning = checkLocalStars.find_star_in_gaia_edr3(RAdeg, Decdeg, 10, predicted_Gmag=expected_Gmag)
         #print(star_mag.value[0], star_plx.value[0], star_e_plx.value[0], warning)
+    from astropy.coordinates import SkyCoord
     c = SkyCoord(ra=RAdeg*u.degree, dec=Decdeg*u.degree, frame='icrs')
     gal_coords= c.galactic
     gal_l=gal_coords.l.value; gal_b=gal_coords.b.value
@@ -172,6 +174,7 @@ if fit_phot_SED:
         plax_unc=float(np.asarray(config_info["parallax_uncertainty"])) # in mas
         found_parallax=True
     except:
+        from checkLocalStars import checkLocalStars
         RAdeg, Decdeg, star_mag, star_plx, star_e_plx, warning = checkLocalStars.find_star_in_gaia_edr3(RAdeg, Decdeg, 10, predicted_Gmag=expected_Gmag)
         try: star_mag, plax, plax_unc = star_mag.value, star_plx.value, star_e_plx.value
         except: star_mag, plax, plax_unc = star_mag, star_plx, star_e_plx
@@ -289,6 +292,7 @@ try: os.mkdir("out")
 except: None
 
 if fit_phot_SED:
+    from miscAstro import miscAstro
     if type(RA)==np.str_ and type(Dec)==np.str_:  RAdeg, Decdeg= miscAstro.ra_dec_hr_to_deg(RA,Dec)
     elif type(RA)==float and type(Dec)==float:  RAdeg, Decdeg= RA, Dec;  RA, Dec = miscAstro.ra_dec_deg_to_hr(RAdeg,Decdeg)
     else: print(type(RA), type(Dec));  raise ValueError
@@ -1978,7 +1982,7 @@ def lnlike(theta, arguments):
     
     if fit_phot_SED:
         if forced_Scaling=="WD" and starType1=="DA":
-            R1 = get_MTR(T1, logg=logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+            R1 = get_MTR(T1, logg=logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR)
             
             if np.isnan(R1): raise ValueError(T1, logg1)
         if forced_Scaling=="WD" and starType1=="DBA" or starType1=="DB" or starType1=="DC":
@@ -2588,10 +2592,10 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss":
         try: logg1_med
         except: logg1_med = forced_logg1
         
-        if found_out_scaling==False:
+        if found_out_scaling==False and fit_phot_SED:
             if forced_Scaling==False:    Scaling_med = Scaling_med
             elif forced_Scaling=="WD" and starType1=="DA":
-                R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+                R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR)
             elif forced_Scaling=="WD" and starType1=="DBA"  or starType1=="DB" or starType1=="DC":
                 R1 = get_MTR_DB(T1_med, logg=logg1_med)
             else: Scaling_med=forced_Scaling
@@ -3267,7 +3271,7 @@ elif sys.argv[1]=="ATM" or sys.argv[1]=="photometry_only":
     if fit_phot_SED: # no starType1.startswith("sd") yet
         if forced_Scaling==False:    Scaling_med = Scaling_med
         elif forced_Scaling=="WD" and starType1=="DA": 
-            R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+            R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR)
         elif forced_Scaling=="WD" and starType1=="DBA" or starType1=="DB" or starType1=="DC":
             R1 = get_MTR_DB(T1_med, logg=logg1_med)
         else: Scaling_med=forced_Scaling
@@ -3407,7 +3411,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly" or sys.argv[1] == "photometry_o
     if fit_phot_SED and (starType1.startswith("D") or starType1.startswith("sd")):
         if forced_Scaling==False:    Scaling_med = Scaling_med
         elif forced_Scaling=="WD": 
-            if starType1=="DA":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+            if starType1=="DA":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR)
             elif starType1=="DBA" or starType1=="DC"  or starType1=="DB":   R1 = get_MTR_DB(T1_med, logg=logg1_med)
         else: Scaling_med=forced_Scaling
     
@@ -3802,5 +3806,13 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly" or sys.argv[1] == "photometry_o
             plt.savefig("out/"+filename.split(".dat")[0]+"_all_shared_rvs"+".png", dpi=300)
             if plot_fit[0]!=False and unique_shared_rv in plot_fit and not False in plot_fit:   plt.show()
             plt.clf();   plt.close()
+
+
+
+
+
+# TO DO:
+# Replace polyfit deg=0 or deg=1 with njit function
+
 
 

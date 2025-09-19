@@ -9,9 +9,7 @@ from schwimmbad import MPIPool
 from importable_MTR_function import get_MTR, get_MTR_DB
 warnings.filterwarnings('ignore')
 from Fit_Photometric_SED import Fit_phot
-from checkLocalStars import checkLocalStars
 from astropy.io import fits
-from astropy.coordinates import SkyCoord
 import astropy.units as u
 from astropy.time import Time
 from astropy.convolution import Gaussian1DKernel,convolve
@@ -80,8 +78,14 @@ plot_fit=np.asarray([config_info["plot_fit"]])[0]
 fit_phot_SED=np.asarray([config_info["fit_phot_SED"]])
 RA=np.asarray([config_info["RA"]])[0]
 Dec=np.asarray([config_info["Dec"]])[0]
+try: force_CO_MTR=np.asarray(config_info["force_CO_MTR"]).astype(bool)
+except: force_CO_MTR=np.array([False, False])
 try: high_RV_amp=bool(np.asarray([config_info["high_RV_amp"]])[0])
 except: high_RV_amp=False
+try: continuum_normalisation=np.asarray(config_info["continuum_normalisation"]).astype(bool)
+except: continuum_normalisation=True
+try: input_vacuum_wl=np.asarray(config_info["input_vacuum_wl"]).astype(bool)
+except: input_vacuum_wl=False
 
 
 if "run_double_one_by_oneMCMC" in sys.argv:
@@ -132,9 +136,11 @@ if reddening_Ebv=="lookup":
         star_plx=float(np.asarray(config_info["parallax"])) # in mas
         star_e_plx=float(np.asarray(config_info["parallax_uncertainty"])) # in mas
     except:
+        from checkLocalStars import checkLocalStars
         RAdeg, Decdeg, star_mag, star_plx, star_e_plx, warning = checkLocalStars.find_star_in_gaia_edr3(RAdeg, Decdeg, 10, predicted_Gmag=expected_Gmag)
         #raise ValueError(star_mag)
         #print(star_mag.value[0], star_plx.value[0], star_e_plx.value[0], warning)
+    from astropy.coordinates import SkyCoord
     gal_coords = SkyCoord(ra=RAdeg*u.degree, dec=Decdeg*u.degree, frame='icrs').galactic
     gal_l=gal_coords.l.value; gal_b=gal_coords.b.value
     
@@ -164,12 +170,13 @@ try: plot_burnin=np.asarray(config_info["plot_burnin"])
 except: plot_burnin=False
 try: want_gaiadr3=np.asarray(config_info["want_gaiadr3"])
 except: want_gaiadr3=True
-if fit_phot_SED:
+if fit_phot_SED or continuum_normalisation==False:
     try:
         plax=float(np.asarray(config_info["parallax"])) # in mas
         plax_unc=float(np.asarray(config_info["parallax_uncertainty"])) # in mas
         found_parallax=True
     except:
+        from checkLocalStars import checkLocalStars
         RAdeg, Decdeg, star_mag, star_plx, star_e_plx, warning = checkLocalStars.find_star_in_gaia_edr3(RAdeg, Decdeg, 10, predicted_Gmag=expected_Gmag)
         try: star_mag, plax, plax_unc = star_mag.value, star_plx.value, star_e_plx.value
         except: star_mag, plax, plax_unc = star_mag, star_plx, star_e_plx
@@ -521,7 +528,8 @@ if fit_phot_SED:
 #theminww_loadgrid, themaxww_loadgrid = 3000, 11400
 
 
-
+if continuum_normalisation==False:
+    theminww_loadgrid = 1000 
 
 
 
@@ -532,7 +540,7 @@ if starType1.startswith("D") or starType2.startswith("D"):
     pier_or_antoine="mixed"#"pier3Dphot_antoine1Dspec"
 
     if (starType1=="DA" or starType2=="DA") and pier_or_antoine=="mixed":
-        if fit_phot_SED:         wl_all_synth, flux_all_synth, Teff_all_synth, Grav_all_synth = load_models.load_models_DA_3D_NLTE(minwl=theminww_loadgrid,maxwl=themaxww_loadgrid)
+        if fit_phot_SED or continuum_normalisation==False:         wl_all_synth, flux_all_synth, Teff_all_synth, Grav_all_synth = load_models.load_models_DA_3D_NLTE(minwl=theminww_loadgrid,maxwl=themaxww_loadgrid)
         else:                    wl_all_synth, flux_all_synth, Teff_all_synth, Grav_all_synth = load_models.load_models_DA_3D_NLTE(minwl=npamin(reference_wl)-150,maxwl=npamax(reference_wl)+250);   mask_wl_5100_6200 = ((wl_all_synth<=6200) & (wl_all_synth>=5100));   wl_all_synth, flux_all_synth, Teff_all_synth, Grav_all_synth = wl_all_synth[~mask_wl_5100_6200], flux_all_synth[~mask_wl_5100_6200], Teff_all_synth[~mask_wl_5100_6200], Grav_all_synth[~mask_wl_5100_6200]
         
         
@@ -714,6 +722,9 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
                 
                 #maybe instead of a gaussian it's better to just fit an e.g. 5order polynomial to everything?
             
+        if input_vacuum_wl==True: # convert to air  https://www.astro.uu.se/valdwiki/Air-to-vacuum%20conversion
+            s = 10**4/wl_data
+            wl_data = wl_data / (1 + 0.0000834254 + 0.02406147 / (130 - s**2) + 0.00015998 / (38.9 - s**2))
             
             
         args = np.argsort(wl_data)
@@ -734,6 +745,7 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
             
             RA, dec = header["RA"], header["DEC"]
             
+            from astropy.coordinates import SkyCoord
             c=SkyCoord(str(RA) + " " + str(dec), frame="icrs", unit=(u.deg,u.deg))
             ra=c.ra.deg; dec=c.dec.deg
             print(ra, dec)
@@ -781,53 +793,63 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
     
     
     if stack_spectra==False:
-        cut_limits_min, cut_limits_max = ref_wl+cut_Ha[0],  ref_wl+cut_Ha[1]
-        cut_limits_min_all.append(cut_limits_min);    cut_limits_max_all.append(cut_limits_max)
-        
-        
-        mask_out_Ha_min, mask_out_Ha_max = ref_wl+normaliseHa[0],  ref_wl+normaliseHa[1]
-        mask_out_Ha_min_all.append(mask_out_Ha_min);    mask_out_Ha_max_all.append(mask_out_Ha_max)
-        
-        if high_RV_amp:   mask_out = (wl_data>cut_limits_min-20) & (wl_data<cut_limits_max+20) #  if I want to allow high RV amps where the cuts are dynamic, extend the range that is snipped to allow for it. DO NOT INCLUDE THIS AS A NEW LIMIT THOUGH! (line above) I am not changing the yaml file limits globally. 20A is arbitrary
-        else:             mask_out = (wl_data>cut_limits_min) & (wl_data<cut_limits_max)
-        wl_data=wl_data[mask_out];   flux_data = flux_data[mask_out];   flux_e_data = flux_e_data[mask_out]
-        
-        mask_norm = (wl_data>cut_limits_min) & (wl_data<cut_limits_max) & ((wl_data<mask_out_Ha_min) | (wl_data>mask_out_Ha_max))
-        
-        
-        wl_data_normmask = wl_data[mask_norm]; flux_data_normmask = flux_data[mask_norm];   fluxe_data_normmask = flux_e_data[mask_norm]
-        
-        
-        
-        
-        good=flux_data_normmask==flux_data_normmask
-        num_its = 0
-        try:
-            while num_its<100:
-                current_length = len(flux_data_normmask[good])
-                m,c = polyfit(wl_data_normmask[good], flux_data_normmask[good], w=1/fluxe_data_normmask[good], deg=1)
-                
-                flux_norm_sigma_clip = flux_data_normmask - (m*wl_data_normmask+c)
-                
-                std = np.std(flux_data_normmask[good])
-                good = good & ((np.abs(flux_norm_sigma_clip)  < 1.5*np.abs(std)))
-                
-                if len(flux_data_normmask[good]) == current_length:
-                    break
-        except:
-            print(files)
-            print("The input wavelengths that I am selecting to normaliise the spectra are:")
-            print(mask_out_Ha_min, mask_out_Ha_max, cut_limits_min, cut_limits_max)
-            m,c = polyfit(wl_data_normmask, flux_data_normmask, w=1/fluxe_data_normmask, deg=1)
-            print("DIDN'T LIKE THE NORMALISTATION OF THE OBSERVED SPECTRA, NO CLIPPING ON NORMALISATION APPLIED")
+        if continuum_normalisation==True:
+            cut_limits_min, cut_limits_max = ref_wl+cut_Ha[0],  ref_wl+cut_Ha[1]
+            cut_limits_min_all.append(cut_limits_min);    cut_limits_max_all.append(cut_limits_max)
             
-        #plt.plot(wl_data[mask_norm], flux_data[mask_norm]);   plt.show();   plt.clf()
-        normalised_wl_grid = wl_data;    normalised_flux = flux_data/(m*wl_data+c);    normalised_err = flux_e_data/(m*wl_data+c)
+            
+            mask_out_Ha_min, mask_out_Ha_max = ref_wl+normaliseHa[0],  ref_wl+normaliseHa[1]
+            mask_out_Ha_min_all.append(mask_out_Ha_min);    mask_out_Ha_max_all.append(mask_out_Ha_max)
+            
+            if high_RV_amp:   mask_out = (wl_data>cut_limits_min-20) & (wl_data<cut_limits_max+20) #  if I want to allow high RV amps where the cuts are dynamic, extend the range that is snipped to allow for it. DO NOT INCLUDE THIS AS A NEW LIMIT THOUGH! (line above) I am not changing the yaml file limits globally. 20A is arbitrary
+            else:             mask_out = (wl_data>cut_limits_min) & (wl_data<cut_limits_max)
+            wl_data=wl_data[mask_out];   flux_data = flux_data[mask_out];   flux_e_data = flux_e_data[mask_out]
+            
+            mask_norm = (wl_data>cut_limits_min) & (wl_data<cut_limits_max) & ((wl_data<mask_out_Ha_min) | (wl_data>mask_out_Ha_max))
+            
+            
+            wl_data_normmask = wl_data[mask_norm]; flux_data_normmask = flux_data[mask_norm];   fluxe_data_normmask = flux_e_data[mask_norm]
+            
+            
+            
+            
+            good=flux_data_normmask==flux_data_normmask
+            num_its = 0
+            try:
+                while num_its<100:
+                    current_length = len(flux_data_normmask[good])
+                    m,c = polyfit(wl_data_normmask[good], flux_data_normmask[good], w=1/fluxe_data_normmask[good], deg=1)
+                    
+                    flux_norm_sigma_clip = flux_data_normmask - (m*wl_data_normmask+c)
+                    
+                    std = np.std(flux_data_normmask[good])
+                    good = good & ((np.abs(flux_norm_sigma_clip)  < 1.5*np.abs(std)))
+                    
+                    if len(flux_data_normmask[good]) == current_length:
+                        break
+            except:
+                print(files)
+                print("The input wavelengths that I am selecting to normaliise the spectra are:")
+                print(mask_out_Ha_min, mask_out_Ha_max, cut_limits_min, cut_limits_max)
+                m,c = polyfit(wl_data_normmask, flux_data_normmask, w=1/fluxe_data_normmask, deg=1)
+                print("DIDN'T LIKE THE NORMALISTATION OF THE OBSERVED SPECTRA, NO CLIPPING ON NORMALISATION APPLIED")
+                
+            #plt.plot(wl_data[mask_norm], flux_data[mask_norm]);   plt.show();   plt.clf()
+            normalised_wl_grid = wl_data;    normalised_flux = flux_data/(m*wl_data+c);    normalised_err = flux_e_data/(m*wl_data+c)
+        else:
+            normalised_wl_grid = wl_data;    normalised_flux = flux_data;    normalised_err = flux_e_data
+            mask_out_Ha_min_all.append(ref_wl+normaliseHa[0]);    mask_out_Ha_max_all.append(ref_wl+normaliseHa[1])
         list_norm_wl_grids.append(normalised_wl_grid);     list_normalised_flux.append(normalised_flux);     list_normalised_err.append(normalised_err)
     else:
         spec_wl.append(wl_data);  spec_fl.append(flux_data);  spec_fle.append(flux_e_data)  #  store the values pre normalisation, allow for stacking
 
 
+if continuum_normalisation==False:
+    min_cutHa, max_cutHa = float(np.amin(list_norm_wl_grids)-ref_wl), float(np.amax(list_norm_wl_grids)-ref_wl)
+    for i in range(len(cut_Ha_all)):
+        cut_Ha_all[i][0]=min_cutHa
+        cut_Ha_all[i][1]=max_cutHa
+    
 
 if "run_double_one_by_oneMCMC" in sys.argv and (starType1=="quadLorentz" and starType2=="quadLorentz"):
     argmax = np.argwhere(reference_wl==np.amax(reference_wl))[0][0]
@@ -1585,7 +1607,6 @@ def return_DAgrids(temperature_star, logg_star):
         
         Grav1_N = logg_all_synth[mask_logg];    wl_all1_N=wl_all_synth[mask_logg];    flux1_N=flux_all_synth[mask_logg];    Teff1_N=Teff_all_synth[mask_logg]
         
-        
         if len(npunique(Teff1_N))==3:
             un_teffs = npunique(Teff1_N)
             if temperature_star<un_teffs[1]:   newmask = (Teff1_N!=un_teffs[2])
@@ -1705,7 +1726,7 @@ def return_DCgrids(temperature_star, logg_star):
 
 
 
-@njit
+#@njit
 def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, temperature_star, logg_star):
     if ref_wl>6000:    excess_slack=10 # angstroms to allow variation with RV of star. Here, Halpha goes +-450kms-1. Increase this if RV diff larger
     else:  excess_slack=7.5 # angstroms to allow variation with RV of star. Here, Hbeta goes +-500kms-1. Increase this if RV diff larger
@@ -1959,13 +1980,13 @@ def lnlike(theta, arguments):
 
     
     if forced_Scaling=="WD" and inputScaling==None:
-        if starType1=="DA":     R1 = get_MTR(T1, logg=logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+        if starType1=="DA":     R1 = get_MTR(T1, logg=logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
         elif starType1=="DBA" or starType1=="DB" or starType1=="DC":
             R1 = get_MTR_DB(T1, logg=logg1)
             #### This only applies if Camisassa grid is being used
             #if logg1<7.7529337 or logg1>8.6700679: raise ValueError("logg1=", logg2, "Min/max Bounds of logg for DB scaling is 7.7796246 and 8.6700679. If your logg is close to this, consider restricting p0logg further or turning off WD scaling")
         
-        if starType2=="DA":     R2 = get_MTR(T2, logg=logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+        if starType2=="DA":     R2 = get_MTR(T2, logg=logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
         elif starType2=="DBA"  or starType2=="DB" or starType2=="DC":
             R2 = get_MTR_DB(T2, logg=logg2)
             #### This only applies if Camisassa grid is being used
@@ -2008,7 +2029,7 @@ def lnlike(theta, arguments):
         
         rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, return_points_for_phot_model=False)
         
-        #chisq_phot*=1000
+        #chisq_phot*=100
         
         if np.round(chisq_phot,11)==0:
             plt.plot(smeared_wl, smeared_flux);   plt.title(str(T1) + "  "+ str(logg1) + "  "+ str(T2) + "  "+ str(logg2) + "   " + "chisq=" +str(chisq_phot));   plt.show()
@@ -2025,6 +2046,7 @@ def lnlike(theta, arguments):
         no_need_to_recompute = npamin(smeared_wl) < npamin(the_unique_wavelengths)+npamin(cut_Ha_all.T) - 10 and npamax(smeared_wl) > npamax(the_unique_wavelengths)+npamax(cut_Ha_all.T) + 10
     else:   no_need_to_recompute = False
     
+    
     for ref_wl in the_unique_wavelengths:
         mask_ref_wl = reference_wl==ref_wl
         ref_wl_cut_lims_min, ref_wl_cut_lims_max = cut_Ha_all[mask_ref_wl].T
@@ -2040,6 +2062,7 @@ def lnlike(theta, arguments):
                 mask1 =  (spec1wl>ref_wl+cut_wl_min-10) & (spec1wl<ref_wl+cut_wl_max+10)
                 mask2 =  (spec2wl>ref_wl+cut_wl_min-10) & (spec2wl<ref_wl+cut_wl_max+10)
                 model_wl1, model_wl2, model_spectrum_star1, model_spectrum_star2 = spec1wl[mask1], spec2wl[mask2], spec1flux[mask1], star2flux[mask2]
+                
 
         
         else:
@@ -2048,8 +2071,6 @@ def lnlike(theta, arguments):
             
             if starType2=="DA" or starType2=="DC" or starType2=="DB":  model_wl2, model_spectrum_star2 = return_model_spectrum_DA(wl_all2_N, ref_wl, cut_wl_min, cut_wl_max, Grav2_N, flux2_N, Teff2_N, T2, logg2)
             elif starType2=="DBA": model_wl2, model_spectrum_star2 = return_model_spectrum_DBA(wl_all2_N, ref_wl, cut_wl_min, cut_wl_max, Grav2_N, flux2_N, Teff2_N, HoverHe2_N, T2, logg2, HoverHe2)
-        
-        
         
         
         
@@ -2087,13 +2108,26 @@ def lnlike(theta, arguments):
             normalised_wavelength = list_norm_wl_grids[ii];    normalised_flux = list_normalised_flux[ii];    normalised_err = list_normalised_err[ii];    inp_resolution = resolutions[ii]
             
             
+            
+            
+            
             dlam1 = ref_wl*mcmc_rv1/speed_of_light
             dlam2 = ref_wl*mcmc_rv2/speed_of_light
 
             if high_RV_amp: modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
             
             # interpolate the model onto the observation's wavelength grid
-            interparr = Scaling*interp(model_wl2, model_wl1+dlam1, model_spectrum_star1)    + interp(model_wl2, model_wl2+dlam2, model_spectrum_star2)
+            if continuum_normalisation==True:
+                interparr = Scaling*interp(model_wl2, model_wl1+dlam1, model_spectrum_star1)    + interp(model_wl2, model_wl2+dlam2, model_spectrum_star2)
+            else:
+                try:
+                    interparr = (R1*696340000)**2 / ((1000/mcmc_parallax)*3.085677581E16)**2  *interp(model_wl2, model_wl1+dlam1, model_spectrum_star1)    + (R2*696340000)**2 / ((1000/mcmc_parallax)*3.085677581E16)**2 * interp(model_wl2, model_wl2+dlam2, model_spectrum_star2)
+                    interparr *= 4*np.pi
+                except: 
+                    interparr = (R1*696340000)**2 / ((1000/plx)*3.085677581E16)**2  *interp(model_wl2, model_wl1+dlam1, model_spectrum_star1)    + (R2*696340000)**2 / ((1000/plx)*3.085677581E16)**2 * interp(model_wl2, model_wl2+dlam2, model_spectrum_star2)
+                    interparr *= 4*np.pi
+                
+                
             
             
             # Smear to the resolution desired
@@ -2102,29 +2136,33 @@ def lnlike(theta, arguments):
             
             
             interparr = interp(normalised_wavelength, model_wl2, interparr)
+            
+            
+            if continuum_normalisation==True:
+                mask = ((normalised_wavelength>ref_wl+cut_lim[0]) & (normalised_wavelength<ref_wl+norm_lim[0])) | ((normalised_wavelength>ref_wl+norm_lim[1])   & (normalised_wavelength<ref_wl+cut_lim[1]))
                 
+                
+                try:
+                    m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                    interparr /= (m*normalised_wavelength + c)
+                except: return -np_inf
+                
+                
+                if False:
+                    mask_rv=True
+                    lam_rv_remove = ref_wl*50/speed_of_light
+                    if mask_rv:   aaamask = (normalised_wavelength > ref_wl + dlam2 + lam_rv_remove) | (normalised_wavelength < ref_wl + dlam2 - lam_rv_remove)
+                    else:         aaamask = normalised_wavelength==normalised_wavelength
+                else:   aaamask = normalised_wavelength==normalised_wavelength
+                
+                
+                
+                desired_range = (normalised_wavelength>ref_wl+modha[0])  &  (normalised_wavelength<ref_wl+modha[1]) & aaamask
+            else:
+                desired_range = normalised_wavelength>1200  # not supporting LyA fitting
+                aaamask = normalised_wavelength==normalised_wavelength
             
             
-            
-            mask = ((normalised_wavelength>ref_wl+cut_lim[0]) & (normalised_wavelength<ref_wl+norm_lim[0])) | ((normalised_wavelength>ref_wl+norm_lim[1])   & (normalised_wavelength<ref_wl+cut_lim[1]))
-            
-            
-            try:
-                m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
-                interparr /= (m*normalised_wavelength + c)
-            except: return -np_inf
-            
-            
-            if False:
-                mask_rv=True
-                lam_rv_remove = ref_wl*50/speed_of_light
-                if mask_rv:   aaamask = (normalised_wavelength > ref_wl + dlam2 + lam_rv_remove) | (normalised_wavelength < ref_wl + dlam2 - lam_rv_remove)
-                else:         aaamask = normalised_wavelength==normalised_wavelength
-            else:   aaamask = normalised_wavelength==normalised_wavelength
-            
-            
-            
-            desired_range = (normalised_wavelength>ref_wl+modha[0])  &  (normalised_wavelength<ref_wl+modha[1]) & aaamask
             if sigclipspec!=-1:
                 resid = normalised_flux-(interparr)
                 resid_in_sig = resid/np.std(np.abs(resid[desired_range]))
@@ -2133,13 +2171,28 @@ def lnlike(theta, arguments):
             else: clip_mask=normalised_flux[desired_range]!=normalised_flux[desired_range]
             
             
+            if continuum_normalisation==True:
+                off = polyfit(normalised_wavelength[desired_range][~clip_mask], normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask], w=1/normalised_err[desired_range][~clip_mask], deg=0)[0]
+            else: off=0
             
-            off = polyfit(normalised_wavelength[desired_range][~clip_mask], normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask], w=1/normalised_err[desired_range][~clip_mask], deg=0)[0]
+            
             
 
             ## Now on to calculating chisq
             chisq_indiv = -0.5*npsum((np_square(normalised_flux[desired_range & aaamask][~clip_mask]-(off+interparr[desired_range & aaamask][~clip_mask])))/np_square(normalised_err[desired_range & aaamask][~clip_mask]))
             chisq_spec += chisq_indiv
+            
+            if np.isnan(chisq_indiv) or np.abs(chisq_indiv)==np.inf:
+                thing = (np_square(normalised_flux[desired_range & aaamask][~clip_mask]-(off+interparr[desired_range & aaamask][~clip_mask])))/np_square(normalised_err[desired_range & aaamask][~clip_mask])
+                plt.plot(normalised_wavelength[desired_range & aaamask][~clip_mask], normalised_flux[desired_range & aaamask][~clip_mask])
+                plt.plot(normalised_wavelength[desired_range & aaamask][~clip_mask], off+interparr[desired_range & aaamask][~clip_mask])
+                #plt.title(str(np.amin(thing)) + "   " + str(np.amax(thing)) + "    " +  str(np.median(thing)))
+                
+                arg = np.argwhere((thing==np.nan) | (thing==np.inf) | (thing==-np.inf))
+                aa, aa2 = normalised_wavelength[desired_range & aaamask][~clip_mask][arg],thing[arg]
+                raise ValueError(aa, normalised_flux[desired_range & aaamask][~clip_mask][arg], (off+interparr[desired_range & aaamask][~clip_mask])[arg])
+                #plt.title(str())
+                plt.show()
             
             
     
@@ -2413,7 +2466,7 @@ def lnlike_gauss_lorentz(theta, arguments):
             
             off = polyfit(normalised_wavelength[desired_range][~clip_mask], normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask], w=1/normalised_err[desired_range][~clip_mask], deg=0)[0]
             
-
+            
             ## Now on to calculating chisq
             chisq_indiv = -0.5*npsum((np_square(normalised_flux[desired_range & aaamask][~clip_mask]-(off+interparr[desired_range & aaamask][~clip_mask])))/np_square(normalised_err[desired_range & aaamask][~clip_mask]))
             chisq_spec += chisq_indiv
@@ -2785,10 +2838,10 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
         if found_out_scaling==False:
             if forced_Scaling==False:    Scaling_med = Scaling_med
             elif forced_Scaling=="WD":
-                if starType1=="DA":     R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+                if starType1=="DA":     R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
                 elif starType1=="DBA" or starType1=="DC" or starType1=="DB":  R1 = get_MTR_DB(T1_med, logg=logg1_med)
                 
-                if starType2=="DA":     R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+                if starType2=="DA":     R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
                 elif starType2=="DBA" or starType2=="DC" or starType2=="DB":  R2 = get_MTR_DB(T2_med, logg=logg2_med)
                 Scaling_med=(R1**2/R2**2)
             else: Scaling_med=forced_Scaling
@@ -3416,6 +3469,8 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
                     normalised_flux/=c_
                 except: 
                     normalised_flux/=c_
+            
+            else: RV1err=10; RV2err=10  #  guess that it'll be ~10kms-1
                 
                 
             
@@ -3658,8 +3713,8 @@ elif sys.argv[1]=="ATM":
             model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, 5000, -5000, 5000, Grav1_N, flux1_N, Teff1_N, forced_teff1, forced_logg1)
             model_wl2, model_spectrum_star2 = return_model_spectrum_DA(wl_all2_N, 5000, -5000, 5000, Grav2_N, flux2_N, Teff2_N, forced_teff2, forced_logg2)
             
-            R1 = get_MTR(forced_teff1, logg=forced_logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
-            R2 = get_MTR(forced_teff2, logg=forced_logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+            R1 = get_MTR(forced_teff1, logg=forced_logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
+            R2 = get_MTR(forced_teff2, logg=forced_logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
             inputScaling= (R1**2/R2**2)
             
             
@@ -3875,9 +3930,9 @@ elif sys.argv[1]=="ATM":
     # save just the median for individual epoch pngs with fit and observations
     if forced_Scaling==False:    Scaling_med = Scaling_med
     elif forced_Scaling=="WD": 
-        if starType1=="DA":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+        if starType1=="DA":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
         elif starType1=="DBA" or starType1=="DC" or starType1=="DB":   R1 = get_MTR_DB(T1_med, logg=logg1_med)
-        if starType2=="DA":      R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+        if starType2=="DA":      R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
         elif starType2=="DBA" or starType2=="DC" or starType2=="DB":   R2 = get_MTR_DB(T2_med, logg=logg2_med)
         Scaling_med=(R1**2/R2**2)
     else: Scaling_med=forced_Scaling
@@ -4075,13 +4130,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
         try: files_one_by_one.remove("result.out")
         except: None
         
-        biggest_num=-1
-        for ff in files_one_by_one:
-            num = int(ff.split("result")[-1].split(".out")[0])
-            if num>biggest_num:
-                biggest_num=num
-        
-        res = "result"+str(biggest_num)+".out"
+        res = "result"+str(int(sys.argv[-1])+1)+".out"
         
         result = open(os.getcwd()+"/out/"+res).readlines()
         
@@ -4112,9 +4161,9 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
     if starType1.startswith("D"):
         if forced_Scaling==False:    Scaling_med = Scaling_med
         elif forced_Scaling=="WD": 
-            if starType1=="DA":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+            if starType1=="DA":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
             elif starType1=="DBA" or starType1=="DC"  or starType1=="DB":   R1 = get_MTR_DB(T1_med, logg=logg1_med)
-            if starType2=="DA":      R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus)
+            if starType2=="DA":      R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
             elif starType2=="DBA" or starType2=="DC"  or starType2=="DB":   R2 = get_MTR_DB(T2_med, logg=logg2_med)
             Scaling_med=(R1**2/R2**2)  #(T1_med/T2_med)**4 * 
         else: Scaling_med=forced_Scaling
@@ -4184,10 +4233,6 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
 
 
 
-
-
-
-
     # go and plot the spectra with the fits, don't plot anything with a shared wavelength, unless it's the gaussian/lorentzian fits
     for ii, (in_fi, sh_rv, ref_wl, modha, cut_lim, norm_lim, mask_out_Ha_min, mask_out_Ha_max, aHJD, inp_resolution, sigclipspec) in enumerate(zip(input_files, share_rv, reference_wl, modelHa, cut_Ha_all, normaliseHa_all, mask_out_Ha_min_all, mask_out_Ha_max_all, HJD_values, resolutions, sigma_clip)):
         if ((starType1.startswith("GG") or starType1.startswith("LL") or starType1.startswith("GL")) and sh_rv==-1) or (sh_rv==-1 and not ii in share_rv):
@@ -4195,7 +4240,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
             cut_limits_min, cut_limits_max = cut_lim
             modelHa_min, modelHa_max = modha
             
-            if high_RV_amp: 
+            if high_RV_amp:
                 if sh_wl == -1:  rv_med1 = allRV1s[ii]
                 else:            rv_med1 = allRV1s[sh_wl]
                 dlam1 = ref_wl*rv_med1/speed_of_light
@@ -4230,7 +4275,6 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
             if sh_rv == -1:  rv_med1 = allRV1s[ii];  rv_med2 = allRV2s[ii]
             else:            rv_med1 = allRV1s[sh_rv];  rv_med2 =allRV2s[sh_rv]
             
-            
             filename = input_files[ii]
             if "/" in filename:    filename=filename.split("/")[-1]
             normalised_wavelength = list_norm_wl_grids[ii];    normalised_flux = list_normalised_flux[ii];    normalised_err = list_normalised_err[ii]
@@ -4240,7 +4284,9 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
             
             dlam1 = ref_wl*rv_med1/speed_of_light
             dlam2 = ref_wl*rv_med2/speed_of_light
-            desired_range = (normalised_wavelength>ref_wl+modelHa_min)  &  (normalised_wavelength<ref_wl+modelHa_max)
+            
+            if continuum_normalisation==True:   desired_range = (normalised_wavelength>ref_wl+modelHa_min)  &  (normalised_wavelength<ref_wl+modelHa_max)
+            else: desired_range = normalised_wavelength==normalised_wavelength
             
             
             
@@ -4249,7 +4295,34 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
             f1 = interp(model_wl2, model_wl1+dlam1, model_spectrum_star1)
             f2 = interp(model_wl2, model_wl2+dlam2, model_spectrum_star2)
             
-            interparr = Scaling_med*f1 + f2
+            if continuum_normalisation==True:   interparr = Scaling_med*f1 + f2
+            else:
+                if starType1=="DA":     R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
+                elif starType1=="DBA" or starType1=="DB" or starType1=="DC":
+                    R1 = get_MTR_DB(T1_med, logg=logg1_med)
+                    #### This only applies if Camisassa grid is being used
+                    #if logg1<7.7529337 or logg1>8.6700679: raise ValueError("logg1=", logg2, "Min/max Bounds of logg for DB scaling is 7.7796246 and 8.6700679. If your logg is close to this, consider restricting p0logg further or turning off WD scaling")
+                
+                if starType2=="DA":     R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
+                elif starType2=="DBA"  or starType2=="DB" or starType2=="DC":
+                    R2 = get_MTR_DB(T2_med, logg=logg2_med)
+                    #### This only applies if Camisassa grid is being used
+                    #if logg2<7.7529337 or logg2>8.6700679: raise ValueError("logg2=", logg2, "Min/max Bounds of logg for DB scaling is 7.7796246 and 8.6700679. If your logg is close to this, consider restricting p0logg further or turning off WD scaling")
+                Scaling= (R1**2/R2**2)
+                
+                if np.isnan(R1): raise ValueError(T1, logg1)
+                if np.isnan(R2): raise ValueError(T2, logg2)
+                
+                
+                
+                interparr_plot_star1 = (R1*696340000)**2 / ((1000/parallax_med)*3.085677581E16)**2  *interp(model_wl2, model_wl1+dlam1, model_spectrum_star1)
+                interparr_plot_star2 = (R2*696340000)**2 / ((1000/parallax_med)*3.085677581E16)**2 * interp(model_wl2, model_wl2+dlam2, model_spectrum_star2)
+                interparr = (R1*696340000)**2 / ((1000/parallax_med)*3.085677581E16)**2  *interp(model_wl2, model_wl1+dlam1, model_spectrum_star1)    + (R2*696340000)**2 / ((1000/parallax_med)*3.085677581E16)**2 * interp(model_wl2, model_wl2+dlam2, model_spectrum_star2)
+                interparr *= 4*np.pi
+                interparr_plot_star1 *= 4*np.pi
+                interparr_plot_star2 *= 4*np.pi
+            
+            
             
             if starType1=="GG" or starType1=="LL" or starType1=="GL" or starType2=="GG" or starType2=="LL" or starType2=="GL":   interparr += 1
             
@@ -4257,6 +4330,14 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
             interparr = convolve(interparr, Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])), boundary = 'extend')
             
             interparr = interp(normalised_wavelength, model_wl2, interparr)
+            
+            if continuum_normalisation==False:
+                interparr_plot_star1 = convolve(interparr_plot_star1, Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])), boundary = 'extend')
+                interparr_plot_star2 = convolve(interparr_plot_star2, Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])), boundary = 'extend')
+                
+                interparr_plot_star1 = interp(normalised_wavelength, model_wl2, interparr_plot_star1)
+                interparr_plot_star2 = interp(normalised_wavelength, model_wl2, interparr_plot_star2)
+        
         
             if starType1=="quadLorentz" and starType2=="quadLorentz":
                 
@@ -4281,22 +4362,23 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
                 interparr += quad
         
             
-            mask = ((normalised_wavelength>ref_wl+cut_limits_min) & (normalised_wavelength<ref_wl+norm_limits_min)) | ((normalised_wavelength>ref_wl+norm_limits_max)   & (normalised_wavelength<ref_wl+cut_limits_max))
+            if continuum_normalisation==True:
+                mask = ((normalised_wavelength>ref_wl+cut_limits_min) & (normalised_wavelength<ref_wl+norm_limits_min)) | ((normalised_wavelength>ref_wl+norm_limits_max)   & (normalised_wavelength<ref_wl+cut_limits_max))
+                    
+                try:   m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                except Exception as eee:
+                    print_exception_details(eee)
+                    plt.clf()
+                    plt.plot(normalised_wavelength, normalised_flux);    plt.plot(normalised_wavelength, interparr)
+                    plt.axvline(ref_wl+cut_limits_min, c='k');     plt.axvline(ref_wl+cut_limits_max, c='k')
+                    plt.axvline(ref_wl+norm_limits_min, c='r');    plt.axvline(ref_wl+norm_limits_max, c='r')
+                    plt.title(str() + in_fi + " " + str(ref_wl) + "    "+str(cut_limits_min) + "  " + str(norm_limits_min) + "  " + str(norm_limits_max) + "  " + str(cut_limits_max))
+                    plt.show();    plt.clf()
+                    m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
                 
-            try:   m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
-            except Exception as eee:
-                print_exception_details(eee)
-                plt.clf()
-                plt.plot(normalised_wavelength, normalised_flux);    plt.plot(normalised_wavelength, interparr)
-                plt.axvline(ref_wl+cut_limits_min, c='k');     plt.axvline(ref_wl+cut_limits_max, c='k')
-                plt.axvline(ref_wl+norm_limits_min, c='r');    plt.axvline(ref_wl+norm_limits_max, c='r')
-                plt.title(str() + in_fi + " " + str(ref_wl) + "    "+str(cut_limits_min) + "  " + str(norm_limits_min) + "  " + str(norm_limits_max) + "  " + str(cut_limits_max))
-                plt.show();    plt.clf()
-                m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
-            
-            
-            #plt.plot(normalised_wavelength, interparr);   plt.plot(nplinspace(6000, 7000, 1000), m*nplinspace(6000, 7000, 1000) + c);  plt.show()
-            interparr /= (m*normalised_wavelength + c)
+                
+                #plt.plot(normalised_wavelength, interparr);   plt.plot(nplinspace(6000, 7000, 1000), m*nplinspace(6000, 7000, 1000) + c);  plt.show()
+                interparr /= (m*normalised_wavelength + c)
             
             
             
@@ -4307,71 +4389,166 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
                 clip_mask = (np.abs(resid_in_sig)>sigclipspec) & desired_range & ((normalised_wavelength > ref_wl+5) | (normalised_wavelength < ref_wl-5))
             else: clip_mask=normalised_wavelength!=normalised_wavelength
             
-            off =  polyfit(normalised_wavelength[desired_range & ~clip_mask], normalised_flux[desired_range & ~clip_mask] - interparr[desired_range & ~clip_mask], w=1/normalised_err[desired_range & ~clip_mask], deg=0)[0]
-            interparr+=off
+            if continuum_normalisation==True:
+                off =  polyfit(normalised_wavelength[desired_range & ~clip_mask], normalised_flux[desired_range & ~clip_mask] - interparr[desired_range & ~clip_mask], w=1/normalised_err[desired_range & ~clip_mask], deg=0)[0]
+                interparr+=off
             
             
             
             
             
-            mask1 = (normalised_wavelength>ref_wl+cut_limits_min) & (normalised_wavelength<ref_wl+norm_limits_min)
-            mask2 = (normalised_wavelength>ref_wl+norm_limits_max) & (normalised_wavelength<ref_wl+cut_limits_max)
-            
-            if False:
-                plt.clf();   plt.plot(normalised_wavelength[mask1], interparr[mask1], c='g');   plt.plot(normalised_wavelength[mask2], interparr[mask2], c='r');   plt.show()
-            
-            
-            
-            normwl_to_rv = speed_of_light * (normalised_wavelength-ref_wl)/ref_wl 
+            if continuum_normalisation==True:
+                normwl_to_rv = speed_of_light * (normalised_wavelength-ref_wl)/ref_wl 
 
-            mask_norm = ((normalised_wavelength>ref_wl+cut_limits_min) & (normalised_wavelength<ref_wl+norm_limits_min) ) | (normalised_wavelength<ref_wl+cut_limits_max) & ((normalised_wavelength>ref_wl+norm_limits_max))
-            
-            try:  os.mkdir("out/forPlotting")
-            except: None
-            np.savetxt("out/forPlotting/fit_"+in_fi+"_"+str(ref_wl)+".dat", np.array([normalised_wavelength[desired_range] - ref_wl, interparr[desired_range]]).T)
-            np.savetxt("out/forPlotting/data_for_fit_"+in_fi+"_"+str(ref_wl)+".dat", np.array([normalised_wavelength - ref_wl, normalised_flux]).T)
+                mask_norm = ((normalised_wavelength>ref_wl+cut_limits_min) & (normalised_wavelength<ref_wl+norm_limits_min) ) | (normalised_wavelength<ref_wl+cut_limits_max) & ((normalised_wavelength>ref_wl+norm_limits_max))
                 
-            
-            ax.plot(normalised_wavelength - ref_wl,normalised_flux, c='k')
-            ax2.plot(speed_of_light * (normalised_wavelength - ref_wl)/ref_wl,normalised_flux, c='k')
-            x,y =normalised_wavelength[~desired_range],  interparr[~desired_range]
-            ax.plot(x[x<ref_wl] - ref_wl, y[x<ref_wl], c='b', label="_blue = Cont. model fit");    ax.plot(x[x>ref_wl] - ref_wl, y[x>ref_wl], c='b')
-            ax2.plot(speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl, y[x<ref_wl], c='b', label="_blue = Cont. model fit");    ax2.plot(speed_of_light * (x[x>ref_wl] - ref_wl)/ref_wl, y[x>ref_wl], c='b')
-            x, y = normalised_wavelength[mask_norm], normalised_flux[mask_norm]
-            ax.plot(x[x<ref_wl] - ref_wl, y[x<ref_wl], c='r', label="_red = For normalising");    ax.plot(x[x>ref_wl] - ref_wl, y[x>ref_wl], c='r')
-            ax2.plot(speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl, y[x<ref_wl], c='r', label="_red = For normalising");    ax2.plot(speed_of_light* (x[x>ref_wl] - ref_wl)/ref_wl, y[x>ref_wl], c='r',zorder=100)
-            ax.plot(normalised_wavelength[desired_range] - ref_wl, interparr[desired_range], c='orange');    ax.set_title(filename)
-            ax2.plot(speed_of_light * (normalised_wavelength[desired_range] - ref_wl)/ref_wl, interparr[desired_range], c='orange')
-            
-            if sigclipspec!=-1:
-                resid = normalised_flux-interparr
-                resid_in_sig = resid/np.std(np.abs(resid[desired_range]))
-                clip_mask = (np.abs(resid_in_sig)>sigclipspec) & desired_range & ((normalised_wavelength > ref_wl+5) | (normalised_wavelength < ref_wl-5))
-                ax.scatter(normalised_wavelength[clip_mask] - ref_wl, normalised_flux[clip_mask], c='r', s=4)
-                ax2.scatter(speed_of_light * (normalised_wavelength[clip_mask] - ref_wl)/ref_wl, normalised_flux[clip_mask], c='r', s=4)
+                try:  os.mkdir("out/forPlotting")
+                except: None
+                
+                if input_vacuum_wl==True: # convert back into vacuum wavelengths for plotting if needed
+                    normalised_wavelength = normalised_wavelength = list_norm_wl_grids[0]
+                
+                np.savetxt("out/forPlotting/fit_"+in_fi+"_"+str(ref_wl)+".dat", np.array([normalised_wavelength[desired_range] - ref_wl, interparr[desired_range]]).T)
+                np.savetxt("out/forPlotting/data_for_fit_"+in_fi+"_"+str(ref_wl)+".dat", np.array([normalised_wavelength - ref_wl, normalised_flux]).T)
+                    
+                
+                ax.plot(normalised_wavelength - ref_wl,normalised_flux, c='k')
+                ax2.plot(speed_of_light * (normalised_wavelength - ref_wl)/ref_wl,normalised_flux, c='k')
+                x,y =normalised_wavelength[~desired_range],  interparr[~desired_range]
+                ax.plot(x[x<ref_wl] - ref_wl, y[x<ref_wl], c='b', label="_blue = Cont. model fit");    ax.plot(x[x>ref_wl] - ref_wl, y[x>ref_wl], c='b')
+                ax2.plot(speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl, y[x<ref_wl], c='b', label="_blue = Cont. model fit");    ax2.plot(speed_of_light * (x[x>ref_wl] - ref_wl)/ref_wl, y[x>ref_wl], c='b')
+                x, y = normalised_wavelength[mask_norm], normalised_flux[mask_norm]
+                ax.plot(x[x<ref_wl] - ref_wl, y[x<ref_wl], c='r', label="_red = For normalising");    ax.plot(x[x>ref_wl] - ref_wl, y[x>ref_wl], c='r')
+                ax2.plot(speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl, y[x<ref_wl], c='r', label="_red = For normalising");    ax2.plot(speed_of_light* (x[x>ref_wl] - ref_wl)/ref_wl, y[x>ref_wl], c='r',zorder=100)
+                ax.plot(normalised_wavelength[desired_range] - ref_wl, interparr[desired_range], c='orange');    ax.set_title(filename)
+                ax2.plot(speed_of_light * (normalised_wavelength[desired_range] - ref_wl)/ref_wl, interparr[desired_range], c='orange')
+                
+                if sigclipspec!=-1:
+                    resid = normalised_flux-interparr
+                    resid_in_sig = resid/np.std(np.abs(resid[desired_range]))
+                    clip_mask = (np.abs(resid_in_sig)>sigclipspec) & desired_range & ((normalised_wavelength > ref_wl+5) | (normalised_wavelength < ref_wl-5))
+                    ax.scatter(normalised_wavelength[clip_mask] - ref_wl, normalised_flux[clip_mask], c='r', s=4)
+                    ax2.scatter(speed_of_light * (normalised_wavelength[clip_mask] - ref_wl)/ref_wl, normalised_flux[clip_mask], c='r', s=4)
 
-            if starType1=="DBA":    ax.scatter(0,1,alpha=0, label="H/He1 = " + str(HoverHe1_med)); ax2.scatter(0,1,alpha=0, label="H/He1 = " + str(HoverHe1_med))
-            if starType2=="DBA":    ax.scatter(0,1,alpha=0, label="H/He2 = " + str(HoverHe2_med)); ax2.scatter(0,1,alpha=0, label="H/He2 = " + str(HoverHe2_med))
+                if starType1=="DBA":    ax.scatter(0,1,alpha=0, label="H/He1 = " + str(HoverHe1_med)); ax2.scatter(0,1,alpha=0, label="H/He1 = " + str(HoverHe1_med))
+                if starType2=="DBA":    ax.scatter(0,1,alpha=0, label="H/He2 = " + str(HoverHe2_med)); ax2.scatter(0,1,alpha=0, label="H/He2 = " + str(HoverHe2_med))
+                
+                
+                ax.scatter(0,1,alpha=0, label="V1 = " + str(np.round(rv_med1,3)));        ax2.scatter(0,1,alpha=0, label="V1 = " + str(np.round(rv_med1,3)))
+                ax.scatter(0,1,alpha=0, label="V2 = " + str(np.round(rv_med2,3)));        ax2.scatter(0,1,alpha=0, label="V2 = " + str(np.round(rv_med2,3)))
+                ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl));                 ax2.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
+                if starType1.startswith("D"):
+                    ax.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)));          ax2.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)))
+                    ax.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)));    ax2.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)))
+                if starType2.startswith("D"):
+                    ax.scatter(0,1,alpha=0, label="T2 = " + str(np.round(T2_med,0)));          ax2.scatter(0,1,alpha=0, label="T2 = " + str(np.round(T2_med,0)))
+                    ax.scatter(0,1,alpha=0, label="Logg2 = " + str(np.round(logg2_med,3)));    ax2.scatter(0,1,alpha=0, label="Logg2 = " + str(np.round(logg2_med,3)))
+                ax2.set_xlabel("RV [kms-1]");
+                ax.legend(loc="lower right", handlelength=0)
+                #ax2.legend(loc="lower right", handlelength=0)
+                trim_plot2_xvals_min, trim_plot2_xvals_max = -2500, 2500
+                ax2.set_xlim(trim_plot2_xvals_min, trim_plot2_xvals_max)
+                ax.set_ylim(0.3,1.2);    ax2.set_ylim(0.35,1.1)
+                plt.savefig("out/"+filename.split(".dat")[0]+"_"+str(ref_wl)+".png", dpi=300)
+                if ii in plot_fit and not starType1=="quadLorentz":   plt.show()
+                plt.clf();    plt.close()
             
             
-            ax.scatter(0,1,alpha=0, label="V1 = " + str(np.round(rv_med1,3)));        ax2.scatter(0,1,alpha=0, label="V1 = " + str(np.round(rv_med1,3)))
-            ax.scatter(0,1,alpha=0, label="V2 = " + str(np.round(rv_med2,3)));        ax2.scatter(0,1,alpha=0, label="V2 = " + str(np.round(rv_med2,3)))
-            ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl));                 ax2.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
-            if starType1.startswith("D"):
-                ax.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)));          ax2.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)))
-                ax.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)));    ax2.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)))
-            if starType2.startswith("D"):
-                ax.scatter(0,1,alpha=0, label="T2 = " + str(np.round(T2_med,0)));          ax2.scatter(0,1,alpha=0, label="T2 = " + str(np.round(T2_med,0)))
-                ax.scatter(0,1,alpha=0, label="Logg2 = " + str(np.round(logg2_med,3)));    ax2.scatter(0,1,alpha=0, label="Logg2 = " + str(np.round(logg2_med,3)))
-            ax2.set_xlabel("RV [kms-1]");
-            ax.legend(loc="lower right", handlelength=0)
-            #ax2.legend(loc="lower right", handlelength=0)
-            trim_plot2_xvals_min, trim_plot2_xvals_max = -2500, 2500
-            ax2.set_xlim(trim_plot2_xvals_min, trim_plot2_xvals_max)
-            ax.set_ylim(0.3,1.2);    ax2.set_ylim(0.35,1.1)
-            plt.savefig("out/"+filename.split(".dat")[0]+"_"+str(ref_wl)+".png", dpi=300)
-            if ii in plot_fit and not starType1=="quadLorentz":   plt.show()
-            plt.clf();    plt.close()
+            else:
+                try:  os.mkdir("out/forPlotting")
+                except: None
+                import matplotlib
+                import matplotlib.pyplot as plt
+                matplotlib.rcParams['text.usetex'] = True
+                matplotlib.rcParams['mathtext.fontset'] = 'stix'
+                matplotlib.rcParams['font.family'] = 'STIXGeneral'
+                matplotlib.rcParams['pdf.fonttype'] = 42
+                matplotlib.rcParams['ps.fonttype'] = 42
+                plt.rcParams["xtick.direction"] = "in"
+                plt.rcParams["ytick.direction"] = "in"
+                plt.rcParams['xtick.top'] = True
+                plt.rcParams['ytick.right'] = True
+                matplotlib.rcParams["savefig.dpi"] = 100
+                matplotlib.rcParams["font.size"] = 14
+                plt.rcParams['xtick.minor.visible'] = True
+                plt.rcParams['ytick.minor.visible'] = True
+                    
+                plt.close()
+                
+                want_ergscm2AA=True
+                if want_ergscm2AA:
+                	FluxIn_Jy = 1E23 * normalised_flux
+                	FluxIn_ergcm2AA = 2.99792458E-05 * FluxIn_Jy / normalised_wavelength**2
+                	normalised_flux = FluxIn_ergcm2AA
+                	
+                	interparr = 2.99792458E-05 * 1E23 * interparr / normalised_wavelength**2
+                	interparr_plot_star1 = 2.99792458E-05 * 1E23 * interparr_plot_star1 / normalised_wavelength**2
+                	interparr_plot_star2 = 2.99792458E-05 * 1E23 * interparr_plot_star2 / normalised_wavelength**2
+                
+                
+                if input_vacuum_wl==True: # convert back into vacuum wavelengths for plotting if needed
+                    normalised_wavelength = list_norm_wl_grids[0]
+                
+                
+                
+                np.savetxt("out/forPlotting/fit_"+in_fi+"_"+str(ref_wl)+".dat", np.array([normalised_wavelength, interparr]).T)
+                np.savetxt("out/forPlotting/data_for_fit_"+in_fi+"_"+str(ref_wl)+".dat", np.array([normalised_wavelength, normalised_flux]).T)
+                
+                exponent_for_plotting = int(np.floor(np.log10(np.amax(normalised_flux))))
+                	
+                plt.plot(normalised_wavelength, normalised_flux/10**exponent_for_plotting, c='grey', alpha=0.5, label="Data (raw)")
+                
+                boxcar_kernel = np.ones(5) / 5
+                smoothed_data = np.convolve(normalised_flux, boxcar_kernel, mode='same')
+                
+                
+                
+                plt.plot(normalised_wavelength[5:-5], smoothed_data[5:-5]/10**exponent_for_plotting, c='k', label="Data (smoothened)")
+                
+                plt.plot(normalised_wavelength, interparr/10**exponent_for_plotting, c='r', label="Total")
+                ax.set_title(filename)
+                plt.plot(normalised_wavelength, interparr_plot_star1/10**exponent_for_plotting, c='b', ls='--', label="Star 1")
+                plt.plot(normalised_wavelength, interparr_plot_star2/10**exponent_for_plotting, c='g', ls='--', label="Star 2")
+                
+                np.savetxt("out/forPlotting/fit_star1"+filename.split(".dat")[0]+".dat", np.array([normalised_wavelength, interparr_plot_star1]).T)
+                np.savetxt("out/forPlotting/fit_star2"+filename.split(".dat")[0]+".dat", np.array([normalised_wavelength, interparr_plot_star2]).T)
+                
+                
+                plot_wl_mask = normalised_wavelength>1200
+                plt.ylim(0, np.amax(normalised_flux[desired_range & plot_wl_mask])/10**exponent_for_plotting + 0.25)
+                plt.xlim(np.amin(normalised_wavelength[plot_wl_mask]), np.amax(normalised_wavelength[plot_wl_mask]))
+                
+                if sigclipspec!=-1:
+                    resid = normalised_flux-interparr
+                    resid_in_sig = resid/np.std(np.abs(resid[desired_range]))
+                    clip_mask = (np.abs(resid_in_sig)>sigclipspec) & desired_range & ((normalised_wavelength > ref_wl+5) | (normalised_wavelength < ref_wl-5))
+                    plt.scatter(normalised_wavelength[clip_mask], normalised_flux[clip_mask]/10**exponent_for_plotting, c='r', s=4)
+
+                if starType1=="DBA":    plt.scatter(0,1,alpha=0, label="H/He1 = " + str(HoverHe1_med))
+                if starType2=="DBA":    plt.scatter(0,1,alpha=0, label="H/He2 = " + str(HoverHe2_med))
+                
+                
+                #if np.amin(normalised_wavelength)<2000:
+                #	plt.plot(normalised_wavelength[all_masked], interparr[all_masked]/1E-26,c='r')
+                
+                
+                plt.xlabel(r"Wavelength [\AA]")
+                plt.ylabel(r"Flux [10$^{" +str(exponent_for_plotting) + "}$ erg/cm$^2$/s/Hz]")
+                plt.legend()
+                
+                #plt.scatter(0,1,alpha=0, label="V1 = " + str(np.round(rv_med1,3)))
+                #plt.scatter(0,1,alpha=0, label="V2 = " + str(np.round(rv_med2,3)))
+                #plt.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
+                #if starType1.startswith("D"):
+                #    plt.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)))
+                #    plt.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)))
+                #if starType2.startswith("D"):
+                #    plt.scatter(0,1,alpha=0, label="T2 = " + str(np.round(T2_med,0)))
+                #    plt.scatter(0,1,alpha=0, label="Logg2 = " + str(np.round(logg2_med,3)))
+                #plt.legend(loc="lower right", handlelength=0)
+                #ax2.legend(loc="lower right", handlelength=0)
+                plt.savefig("out/"+filename.split(".dat")[0]+"_"+str(ref_wl)+".png", dpi=300)
+                plt.clf();    plt.close()
 
 
 
@@ -4757,5 +4934,6 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
 
 
 
-
+# TO DO:
+# Replace polyfit deg=0 or deg=1 with njit function
 
