@@ -1,0 +1,40 @@
+spectraHa: [J015437+374145 red_1.dat, J015437+374145 red_2.dat, J015437+374145 red_3.dat, blue_J015437+374145 blu_1.dat, blue_J015437+374145 blu_2.dat, blue_J015437+374145 blu_3.dat, blue_J015437+374145 blu_1.dat, blue_J015437+374145 blu_2.dat, blue_J015437+374145 blu_3.dat, blue_J015437+374145 blu_1.dat, blue_J015437+374145 blu_2.dat, blue_J015437+374145 blu_3.dat, blue_J015437+374145 blu_1.dat, blue_J015437+374145 blu_2.dat, blue_J015437+374145 blu_3.dat]
+spectra_source_type: 'wl_flux_fluxerr' # need to INSERT your source type here. Options are 'wl_flux_fluxerr', 'Xshooter'. Default is 'wl_flux_fluxerr' 
+modelHa: [[-90,90], [-90,90], [-90,90], [-70,70], [-70,70], [-70,70], [-60,60], [-60,60], [-60,60], [-50,50], [-50,50], [-50,50], [-40,40], [-40,40], [-40,40]]  # in angstroms
+normaliseHa: [[-90,90], [-90,90], [-90,90], [-70,70], [-70,70], [-70,70], [-60,60], [-60,60], [-60,60], [-50,50], [-50,50], [-50,50], [-40,40], [-40,40], [-40,40]]  # in angstroms
+cut_Ha_max: [[-100,100], [-100,100], [-100,100], [-80,80], [-80,80], [-80,80], [-70,70], [-70,70], [-70,70], [-60,60], [-60,60], [-60,60], [-50,50], [-50,50], [-50,50]]  # in angstroms
+resolutions: [6000, 6000, 6000, 4000, 4000, 4000, 3000, 3000, 3000, 2000, 2000, 2000, 1000, 1000, 1000] # R=lambda/dlambda
+refwave: [6562.79, 6562.79, 6562.79, 4861.35, 4861.35, 4861.35, 4340.472, 4340.472, 4340.472, 4101.734, 4101.734, 4101.734, 3970.075, 3970.075, 3970.075]
+share_rv: [-1, -1, -1, -1, -1, -1, 3, 4, 5, 3, 4, 5, 3, 4, 5]  # 0 indexed!  needs all shared rvs to be at the end of the line, otherwise won't work properly!!!!!!
+starType: ['DA'] # 'DA' or 'DBA
+RV_boundaries1: [[-200,200], [-200,200], [-200,200], [-200,200], [-200,200], [-200,200], [-200,200], [-200,200], [-200,200], [-200,200], [-200,200], [-200,200], [-200,200], [-200,200], [-200,200]] # in kms-1
+HJD_Values: [2458364.737372235, 2458366.6631007204, 2458366.6840581843, 2458364.7373633683, 2458366.6630920856, 2458366.6840494564, 2458364.7373633683, 2458366.6630920856, 2458366.6840494564, 2458364.7373633683, 2458366.6630920856, 2458366.6840494564, 2458364.7373633683, 2458366.6630920856, 2458366.6840494564]
+forced_teff: [0]   # number or 0
+p0teff: [[5000,15000]]   # number
+forced_logg: [0]   # number or 0
+p0logg: [[7,9]]   # number
+forced_HoverHe: [0] # only used if DBA is in starType. number or 0
+p0HoverHe: [[0,0]]   # number
+forced_scaling: ['WD'] # False, 'WD' or float. If false, will be added to the mcmc parameters
+plot_corner: False # True or False
+forced_ephemeris: [False] # expects [False] or [T0, P0]  (in days)
+forced_K1: [False] # in kms-1. Options [False], [float], ['Fit']
+K1_boundaries: [-300,300] # in kms-1
+forced_Vgamma1: [False] # in kms-1. Options [float], ['Fit']
+Vgamma1_boundaries: [-100,100] # in kms-1
+plot_fit: [False] # [False] or e.g. [0, 1, 4] for spectra 1 2 5
+fit_phot_SED: False
+RA: "1:54:37.53"  # only used when fit_phot_SED is True. Hexadesimal string or a float. Set to None if not necessary
+Dec: "37:41:44.8" # only used when fit_phot_SED is True. Hexadesimal string or a float. Set to None if not necessary
+expected_Gmag: 15 # only used when fit_phot_SED is True. Integer/float/None
+nwalkers: 20 # num walkers in mcmc
+nburnin: 100 # num burnin steps in mcmc
+nsteps: 50 # num post-burnin steps in mcmc
+reddening_Ebv: 0 # "lookup" or number
+file_ignore: []
+sigma_clip: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+parallax: "A" # parallax in mas
+parallax_uncertainty: "A" # parallax uncertainty in mas
+phot_min_val: 0 # if you have photometry included, trim off points with a flux below this value
+plot_phot_spectrum: False # plot the input photometry if desired
+want_gaiadr3: False # include gaia dr3 in the photometric fitting
