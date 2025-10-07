@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import interp, polyfit
-import os, sys, yaml, emcee, corner, warnings
+import os, sys, yaml, corner, warnings
+from emcee import EnsembleSampler
 sys.path.append(os.environ['WD_BASS_INSTALL_DIR']+"/scripts")
 from load_All_Models import load_models
 from scipy.interpolate import griddata
@@ -9,24 +10,23 @@ from schwimmbad import MPIPool
 from importable_MTR_function import get_MTR, get_MTR_DB
 warnings.filterwarnings('ignore')
 from Fit_Photometric_SED import Fit_phot
-from astropy.io import fits
 import astropy.units as u
-from astropy.time import Time
 from astropy.convolution import Gaussian1DKernel,convolve
 from numba import njit, jit
 from scipy.optimize import curve_fit
 from numpy import amin as npamin, amax as npamax, unique as npunique, argwhere as npargwhere, loadtxt as nploadtxt, linspace as nplinspace, pi as np_pi, inf as np_inf, sin as np_sin, square as np_square, sqrt as npsqrt, mean as npmean, power as np_power, sum as npsum
 from dust_extinction.parameter_averages import G23
-from mpi4py import MPI
+from mpi4py.MPI import COMM_WORLD
 from functools import partial
 
 
-if sys.argv[1]=="ATM" or sys.argv[1]=="photometry_only":
-    comm = MPI.COMM_WORLD
+sys_args = sys.argv
+
+if sys_args[1]=="ATM" or sys_args[1]=="photometry_only":
+    comm = COMM_WORLD
     rank = comm.Get_rank()
 else: rank=1
 
-sys_args = sys.argv
 
 def print_exception_details(e):
     exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -66,14 +66,14 @@ forced_K1=config_info["forced_K1"][0]
 if not forced_K1==False and not forced_K1=="Fit":  forced_K1=float(forced_K1)
 forced_K2=config_info["forced_K2"][0]
 if not forced_K2==False and not forced_K2=="Fit":  forced_K2=float(forced_K2)
-K1_boundaries=np.asarray(config_info["K1_boundaries"]);             p0K1=np.array([float(K1_boundaries[0]), float(K1_boundaries[1])])
-K2_boundaries=np.asarray(config_info["K2_boundaries"]);             p0K2=np.array([float(K2_boundaries[0]), float(K2_boundaries[1])])
+p0K1 = np.array(config_info["K1_boundaries"], dtype=float)
+p0K2 = np.array(config_info["K2_boundaries"], dtype=float)
 forced_Vgamma1=config_info["forced_Vgamma1"][0]
 if not forced_Vgamma1=="Fit":  forced_Vgamma1=float(forced_Vgamma1)
-Vgamma1_boundaries=np.asarray(config_info["Vgamma1_boundaries"]);   p0Vgamma1=np.array([float(Vgamma1_boundaries[0]), float(Vgamma1_boundaries[1])])
+p0Vgamma1 = np.array(config_info["Vgamma1_boundaries"], dtype=float)
 forced_Vgamma2=config_info["forced_Vgamma2"][0]
 if not forced_Vgamma2=="Fit":  forced_Vgamma2=float(forced_Vgamma2)
-Vgamma2_boundaries=np.asarray(config_info["Vgamma2_boundaries"]);   p0Vgamma2=np.array([float(Vgamma2_boundaries[0]), float(Vgamma2_boundaries[1])])
+p0Vgamma2 = np.array(config_info["Vgamma2_boundaries"], dtype=float)
 plot_fit=np.asarray([config_info["plot_fit"]])[0]
 fit_phot_SED=np.asarray([config_info["fit_phot_SED"]])
 RA=np.asarray([config_info["RA"]])[0]
@@ -88,7 +88,14 @@ try: input_vacuum_wl=np.asarray(config_info["input_vacuum_wl"]).astype(bool)
 except: input_vacuum_wl=False
 
 
-if "run_double_one_by_oneMCMC" in sys.argv:
+if np.asarray(config_info["plot_phot_spectrum"])==False and plot_fit[0]==False:
+	import matplotlib
+	matplotlib.use("Agg")  # non-interactive backend for speed
+import matplotlib.pyplot as plt
+
+
+
+if "run_double_one_by_oneMCMC" in sys_args:
     file_ignore=np.array([])
 
 
@@ -169,7 +176,7 @@ except: sigma_clip=np.full((len(modelHa),),-1)
 try: plot_burnin=np.asarray(config_info["plot_burnin"])
 except: plot_burnin=False
 try: want_gaiadr3=np.asarray(config_info["want_gaiadr3"])
-except: want_gaiadr3=True
+except: want_gaiadr3=False
 if fit_phot_SED or continuum_normalisation==False:
     try:
         plax=float(np.asarray(config_info["parallax"])) # in mas
@@ -203,10 +210,10 @@ else: found_parallax=False
 
 
 
-if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
+if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
 
     
-    if "run_double_one_by_oneMCMC" in sys.argv:   file_ignore=np.array([])
+    if "run_double_one_by_oneMCMC" in sys_args:   file_ignore=np.array([])
     else:   file_ignore=np.asarray([config_info["file_ignore"]])[0]
     
 
@@ -214,7 +221,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
     else: dowhile=False
     
     
-    if "run_double_one_by_oneMCMC" in sys.argv:
+    if "run_double_one_by_oneMCMC" in sys_args:
         list_indexes=[]
         for i in range(len(share_rv)):
             list_indexes.append(i)
@@ -233,7 +240,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
                 if aaa_sharerv>=original_file_index:
                     share_rv[zcnt]-=1
                 
-                if aaa_sharerv>=original_file_index and "run_double_one_by_oneMCMC" in sys.argv:    list_indexes[zcnt]-=1
+                if aaa_sharerv>=original_file_index and "run_double_one_by_oneMCMC" in sys_args:    list_indexes[zcnt]-=1
             
             
             mask_ignore_files = input_files!=aaaa
@@ -250,7 +257,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
             
             
             sigma_clip=sigma_clip[mask_ignore_files]
-            if "run_double_one_by_oneMCMC" in sys.argv:
+            if "run_double_one_by_oneMCMC" in sys_args:
                 list_indexes=list_indexes[mask_ignore_files]
                 removed_minus1_pos = npargwhere(mask_ignore_files==False)[0][0]
                 list_indexes[removed_minus1_pos:]-=1
@@ -264,8 +271,8 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
         if stopwhile: dowhile=False
 
     
-    if "run_double_one_by_oneMCMC" in sys.argv:
-        wanted_index = (share_rv==int(sys.argv[3])) | (list_indexes==int(sys.argv[3]))
+    if "run_double_one_by_oneMCMC" in sys_args:
+        wanted_index = (share_rv==int(sys_args[3])) | (list_indexes==int(sys_args[3]))
         modelHa = modelHa[wanted_index]
         normaliseHa_all=normaliseHa_all[wanted_index]
         cut_Ha_all=cut_Ha_all[wanted_index]
@@ -279,7 +286,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
         sigma_clip=sigma_clip[wanted_index]
         
 
-if "run_double_one_by_oneMCMC" in sys.argv:
+if "run_double_one_by_oneMCMC" in sys_args:
     while True:
         try: # need a try here for the times where there is only 1 spectrum for one by one which of course has share_rv=-1
             if npamin(share_rv[share_rv!=-1])!=0:   share_rv[share_rv!=-1]-=1
@@ -549,17 +556,22 @@ if starType1.startswith("D") or starType2.startswith("D"):
                 # Trim the grid to only include the values within p0Teff and p0logg
                 min_p0T = npamin(np.array([p0T1[0], p0T1[1], p0T2[0], p0T2[1]]));    max_p0T = npamax(np.array([p0T1[0], p0T1[1], p0T2[0], p0T2[1]]))
                 
-                mask_TEFF = (npunique(Teff_all_synth) >= min_p0T)  &  (npunique(Teff_all_synth) <= max_p0T)
+                
+                unique_Teff_all_synth=npunique(Teff_all_synth)
+                unique_Grav_all_synth=npunique(Grav_all_synth)
+                
+                
+                mask_TEFF = (unique_Teff_all_synth >= min_p0T)  &  (unique_Teff_all_synth <= max_p0T)
                 mask_TEFF[npamin(npargwhere(mask_TEFF==True)) - 1] = True;      mask_TEFF[npamax(npargwhere(mask_TEFF==True)) + 1] = True
                 
                 min_p0logg = npamin(np.array([p0logg1[0], p0logg1[1], p0logg2[0], p0logg2[1]]));    max_p0logg = npamax(np.array([p0logg1[0], p0logg1[1], p0logg2[0], p0logg2[1]]))
                 
-                mask_LOGG = (npunique(Grav_all_synth) >= min_p0logg)  &  (npunique(Grav_all_synth) <= max_p0logg)
+                mask_LOGG = (unique_Grav_all_synth >= min_p0logg)  &  (unique_Grav_all_synth <= max_p0logg)
                 mask_LOGG[npamin(npargwhere(mask_LOGG==True)) - 1] = True;    mask_LOGG[npamax(npargwhere(mask_LOGG==True)) + 1] = True
                 
                 
-                newMinT, newMaxT = npamin(npunique(Teff_all_synth)[mask_TEFF]), npamax(npunique(Teff_all_synth)[mask_TEFF])
-                newMinLogg, newMaxLogg = npamin(npunique(Grav_all_synth)[mask_LOGG]), npamax(npunique(Grav_all_synth)[mask_LOGG])
+                newMinT, newMaxT = npamin(unique_Teff_all_synth[mask_TEFF]), npamax(unique_Teff_all_synth[mask_TEFF])
+                newMinLogg, newMaxLogg = npamin(unique_Grav_all_synth[mask_LOGG]), npamax(unique_Grav_all_synth[mask_LOGG])
                 
                 
                 mask_atm_grid = (Teff_all_synth <= newMaxT) & (Teff_all_synth >= newMinT)  &  (Grav_all_synth <= newMaxLogg) & (Grav_all_synth >= newMinLogg)
@@ -582,7 +594,11 @@ if starType1.startswith("D") or starType2.startswith("D"):
                 # Trim the grid to only include the values within p0Teff and p0logg
                 min_p0T = npamin(np.array([p0T1[0], p0T1[1], p0T2[0], p0T2[1]]));    max_p0T = npamax(np.array([p0T1[0], p0T1[1], p0T2[0], p0T2[1]]))
                 
-                mask_TEFF = (npunique(Teff_all) >= min_p0T)  &  (npunique(Teff_all) <= max_p0T)
+                
+                unique_Teff_all=npunique(Teff_all)
+                unique_Grav_all=npunique(Grav_all)
+                
+                mask_TEFF = (unique_Teff_all >= min_p0T)  &  (unique_Teff_all <= max_p0T)
                 try: mask_TEFF[npamin(npargwhere(mask_TEFF==True)) - 1] = True
                 except: None
                 try:  mask_TEFF[npamax(npargwhere(mask_TEFF==True)) + 1] = True
@@ -590,15 +606,15 @@ if starType1.startswith("D") or starType2.startswith("D"):
                 
                 min_p0logg = npamin(np.array([p0logg1[0], p0logg1[1], p0logg2[0], p0logg2[1]]));    max_p0logg = npamax(np.array([p0logg1[0], p0logg1[1], p0logg2[0], p0logg2[1]]))
                 
-                mask_LOGG = (npunique(Grav_all) >= min_p0logg)  &  (npunique(Grav_all) <= max_p0logg)
+                mask_LOGG = (unique_Grav_all >= min_p0logg)  &  (unique_Grav_all <= max_p0logg)
                 try: mask_LOGG[npamin(npargwhere(mask_LOGG==True)) - 1] = True
                 except: None
                 try: mask_LOGG[npamax(npargwhere(mask_LOGG==True)) + 1] = True
                 except: None
                 
                 
-                newMinT, newMaxT = npamin(npunique(Teff_all)[mask_TEFF]), npamax(npunique(Teff_all)[mask_TEFF])
-                newMinLogg, newMaxLogg = npamin(npunique(Grav_all)[mask_LOGG]), npamax(npunique(Grav_all)[mask_LOGG])
+                newMinT, newMaxT = npamin(unique_Teff_all[mask_TEFF]), npamax(unique_Teff_all[mask_TEFF])
+                newMinLogg, newMaxLogg = npamin(unique_Grav_all[mask_LOGG]), npamax(unique_Grav_all[mask_LOGG])
                 
                 
                 mask_atm_grid = (Teff_all <= newMaxT) & (Teff_all >= newMinT)  &  (Grav_all <= newMaxLogg) & (Grav_all >= newMinLogg)
@@ -634,17 +650,20 @@ if starType1.startswith("D") or starType2.startswith("D"):
                 # Trim the grid to only include the values within p0Teff and p0logg
                 min_p0T = npamin(np.array([p0T1[0], p0T1[1], p0T2[0], p0T2[1]]));    max_p0T = npamax(np.array([p0T1[0], p0T1[1], p0T2[0], p0T2[1]]))
                 
-                mask_TEFF = (npunique(Teff_all) >= min_p0T)  &  (npunique(Teff_all) <= max_p0T)
+                unique_Teff_all=npunique(Teff_all)
+                unique_Grav_all=npunique(Grav_all)
+                
+                mask_TEFF = (unique_Teff_all >= min_p0T)  &  (unique_Teff_all <= max_p0T)
                 mask_TEFF[npamin(npargwhere(mask_TEFF==True)) - 1] = True;      mask_TEFF[npamax(npargwhere(mask_TEFF==True)) + 1] = True
                 
                 min_p0logg = npamin(np.array([p0logg1[0], p0logg1[1], p0logg2[0], p0logg2[1]]));    max_p0logg = npamax(np.array([p0logg1[0], p0logg1[1], p0logg2[0], p0logg2[1]]))
                 
-                mask_LOGG = (npunique(Grav_all) >= min_p0logg)  &  (npunique(Grav_all) <= max_p0logg)
+                mask_LOGG = (unique_Grav_all >= min_p0logg)  &  (unique_Grav_all <= max_p0logg)
                 mask_LOGG[npamin(npargwhere(mask_LOGG==True)) - 1] = True;    mask_LOGG[npamax(npargwhere(mask_LOGG==True)) + 1] = True
                 
                 
-                newMinT, newMaxT = npamin(npunique(Teff_all)[mask_TEFF]), npamax(npunique(Teff_all)[mask_TEFF])
-                newMinLogg, newMaxLogg = npamin(npunique(Grav_all)[mask_LOGG]), npamax(npunique(Grav_all)[mask_LOGG])
+                newMinT, newMaxT = npamin(unique_Teff_all[mask_TEFF]), npamax(unique_Teff_all[mask_TEFF])
+                newMinLogg, newMaxLogg = npamin(unique_Grav_all[mask_LOGG]), npamax(unique_Grav_all[mask_LOGG])
                 
                 
                 mask_atm_grid = (Teff_all <= newMaxT) & (Teff_all >= newMinT)  &  (Grav_all <= newMaxLogg) & (Grav_all >= newMinLogg)
@@ -670,6 +689,41 @@ mask_out_Ha_min_all, mask_out_Ha_max_all, cut_limits_min_all, cut_limits_max_all
 min_wl_all_files, max_wl_all_files = 9E9, 0
 spec_wl, spec_fl, spec_fle = [], [], []
 
+
+
+@njit
+def linear_fit_weighted(x, y, yerr):
+    """
+    Weighted linear regression (handles y errors).
+    Returns slope (m), intercept (b).
+    
+    Parameters
+    ----------
+    x : 1D array
+        Independent variable
+    y : 1D array
+        Dependent variable
+    yerr : 1D array
+        Errors on y (must be > 0)
+    """
+    w = 1.0 / (yerr * yerr)  # weights
+
+    sw = npsum(w)
+    swx = npsum(w * x)
+    swy = npsum(w * y)
+    swxx = npsum(w * x * x)
+    swxy = npsum(w * x * y)
+
+    denom = sw * swxx - swx * swx
+    if denom == 0:
+        return 0.0, 0.0
+
+    m = (sw * swxy - swx * swy) / denom
+    b = (swy - m * swx) / sw
+    return m, b
+
+
+
 # Normalise the input data
 @njit
 def gauss_if_no_flux_error(x, a, mu, sigma, b):
@@ -679,9 +733,20 @@ def gauss_if_no_flux_error(x, a, mu, sigma, b):
 try:    stack_spectra=np.asarray(config_info["stack_spectra"]).astype(bool)
 except: stack_spectra=False
 
+ext = G23(Rv=3.1)
 for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_Ha_all, reference_wl):
     if spectra_source_type=="wl_flux_fluxerr":
-        try:  wl_data, flux_data, flux_e_data = nploadtxt(os.getcwd()+"/"+files, skiprows=1, unpack=True)  #  if you have flux errors, files are loaded in normally. Great.
+        try:  
+            if files.startswith("DESI_"):
+                wl_data, flux_data, ivar_data = nploadtxt(os.getcwd()+"/"+files, skiprows=1, usecols=(0,1,2),unpack=True)  #  if you have flux errors, files are loaded in normally. Great.
+                snr = flux_data * np.sqrt(ivar_data)
+                
+                    
+                flux_data*=1E-17
+                flux_data = 3.33564095E+04 * flux_data * np_square(wl_data) / 1E23   # convert to  erg/cm^2/s/Hz
+                flux_e_data = flux_data/snr
+            else:
+                wl_data, flux_data, flux_e_data = nploadtxt(os.getcwd()+"/"+files, skiprows=1,unpack=True)  #  if you have flux errors, files are loaded in normally. Great.
         except:
             ##### this part of the code is for when you do not have flux errors. I do my best to guess the SNR of the data given an expected continuum SNR under the assumption that your spectral line follows a gaussian profile. In the "gauss" function below, mmm and ccc are included to fit the general trend of the continuum as a linear fit. 
             
@@ -732,6 +797,7 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
         flux_data=flux_data[args]
         flux_e_data=flux_e_data[args]
     elif spectra_source_type=="Xshooter":
+        from astropy.io import fits
         hdul=fits.open(files)
         header=hdul[0].header
         #plt.title(header["SPEC_RES"])
@@ -749,6 +815,7 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
             c=SkyCoord(str(RA) + " " + str(dec), frame="icrs", unit=(u.deg,u.deg))
             ra=c.ra.deg; dec=c.dec.deg
             print(ra, dec)
+            from astropy.time import Time
             jd=Time(MJDmid,format='mjd',scale='utc',location=VLT)
             
             
@@ -777,7 +844,7 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
     
     # I deredden the observed spectra (spectra, not flux calibrated photometry - this is modelled with a reddened synthetic spectrum) so that the synthetic spectra do not need to be redenned every iteration. This may become an issue if you have very low resolution (R<100) data, but otherwise it's not something to worry about
     
-    ext = G23(Rv=3.1)
+    
     flux_data /= ext.extinguish(wl_data*u.AA, Ebv=reddening_Ebv)
     flux_e_data /= ext.extinguish(wl_data*u.AA, Ebv=reddening_Ebv)
     
@@ -793,7 +860,7 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
     
     
     if stack_spectra==False:
-        if continuum_normalisation==True:
+        if continuum_normalisation:
             cut_limits_min, cut_limits_max = ref_wl+cut_Ha[0],  ref_wl+cut_Ha[1]
             cut_limits_min_all.append(cut_limits_min);    cut_limits_max_all.append(cut_limits_max)
             
@@ -818,7 +885,8 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
             try:
                 while num_its<100:
                     current_length = len(flux_data_normmask[good])
-                    m,c = polyfit(wl_data_normmask[good], flux_data_normmask[good], w=1/fluxe_data_normmask[good], deg=1)
+                    #m,c = polyfit(wl_data_normmask[good], flux_data_normmask[good], w=1/fluxe_data_normmask[good], deg=1)
+                    m,c = linear_fit_weighted(wl_data_normmask[good], flux_data_normmask[good], fluxe_data_normmask[good])
                     
                     flux_norm_sigma_clip = flux_data_normmask - (m*wl_data_normmask+c)
                     
@@ -831,7 +899,8 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
                 print(files)
                 print("The input wavelengths that I am selecting to normaliise the spectra are:")
                 print(mask_out_Ha_min, mask_out_Ha_max, cut_limits_min, cut_limits_max)
-                m,c = polyfit(wl_data_normmask, flux_data_normmask, w=1/fluxe_data_normmask, deg=1)
+                #m,c = polyfit(wl_data_normmask, flux_data_normmask, w=1/fluxe_data_normmask, deg=1)
+                m,c = linear_fit_weighted(wl_data_normmask, flux_data_normmask, fluxe_data_normmask)
                 print("DIDN'T LIKE THE NORMALISTATION OF THE OBSERVED SPECTRA, NO CLIPPING ON NORMALISATION APPLIED")
                 
             #plt.plot(wl_data[mask_norm], flux_data[mask_norm]);   plt.show();   plt.clf()
@@ -851,7 +920,7 @@ if continuum_normalisation==False:
         cut_Ha_all[i][1]=max_cutHa
     
 
-if "run_double_one_by_oneMCMC" in sys.argv and (starType1=="quadLorentz" and starType2=="quadLorentz"):
+if "run_double_one_by_oneMCMC" in sys_args and (starType1=="quadLorentz" and starType2=="quadLorentz"):
     argmax = np.argwhere(reference_wl==np.amax(reference_wl))[0][0]
     input_files, share_rv, modelHa, cut_Ha_all, normaliseHa_all, HJD_values, sigma_clip, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, RV_boundaries1, RV_boundaries2, reference_wl = input_files[argmax], share_rv[argmax], modelHa[argmax], cut_Ha_all[argmax], normaliseHa_all[argmax], HJD_values[argmax], sigma_clip[argmax], list_norm_wl_grids[argmax], list_normalised_flux[argmax], list_normalised_err[argmax],  resolutions[argmax], RV_boundaries1[argmax], RV_boundaries2[argmax], reference_wl[argmax]
     
@@ -1000,7 +1069,8 @@ if stack_spectra:
                 good=flux_data_normmask==flux_data_normmask
                 while True:
                     current_length = len(flux_data_normmask[good])
-                    m,c = polyfit(wl_data_normmask[good], flux_data_normmask[good], w=1/fluxe_data_normmask[good], deg=1)
+                    #m,c = polyfit(wl_data_normmask[good], flux_data_normmask[good], w=1/fluxe_data_normmask[good], deg=1)
+                    m,c = linear_fit_weighted(wl_data_normmask[good], flux_data_normmask[good], fluxe_data_normmask[good])
                     
                     flux_norm_sigma_clip = flux_data_normmask - (m*wl_data_normmask+c)
                     
@@ -1088,7 +1158,7 @@ if starType1.startswith("D") and starType2.startswith("D"):
 
 
 
-    if sys.argv[1] == "ATM":
+    if sys_args[1] == "ATM":
 
         for cn, (fteff, flogg, fHHe, starType) in enumerate(zip([forced_teff1, forced_teff2], [forced_logg1, forced_logg2], [forced_HoverHe1, forced_HoverHe2], [starType1, starType2])):
             if fteff == 0 and flogg == 0:
@@ -1236,7 +1306,7 @@ if starType1.startswith("D") and starType2.startswith("D"):
 
 
 
-    if sys.argv[1] == "ATM":
+    if sys_args[1] == "ATM":
         if found_parallax:
             ndim+=1
             pos_min = np.append(pos_min, p0parallax[0]);   pos_max = np.append(pos_max, p0parallax[1])
@@ -1258,7 +1328,7 @@ elif (starType1.startswith("LL") or starType1.startswith("GG") or starType1.star
     used_RV_boundaries = []
 
 
-    if sys.argv[1] == "ATM" and not "run_double_one_by_oneMCMC" in sys.argv:
+    if sys_args[1] == "ATM" and not "run_double_one_by_oneMCMC" in sys_args:
         ndim+=8
         p0range = np.array([A1_1_boundaries, sigma1_1_boundaries, A1_2_boundaries, sigma1_2_boundaries, A2_1_boundaries, sigma2_1_boundaries, A2_2_boundaries, sigma2_2_boundaries]);   p0labels = np.array(["A1_1", "sig1_1", "A1_2", "sig1_2", "A2_1", "sig2_1", "A2_2", "sig2_2"])
         pos_min = np.array([A1_1_boundaries[0], sigma1_1_boundaries[0], A1_2_boundaries[0], sigma1_2_boundaries[0], A2_1_boundaries[0], sigma2_1_boundaries[0], A2_2_boundaries[0], sigma2_2_boundaries[0]])
@@ -1378,7 +1448,7 @@ elif starType1=="quadLorentz" and starType2=="quadLorentz":
     used_RV_boundaries = []
 
 
-    if sys.argv[1] == "ATM"  and not "run_double_one_by_oneMCMC" in sys.argv:
+    if sys_args[1] == "ATM"  and not "run_double_one_by_oneMCMC" in sys_args:
         ndim+=4
         p0range = np.array([A1_1_boundaries, sigma1_1_boundaries, A2_1_boundaries, sigma2_1_boundaries]);   p0labels = np.array(["A1_1", "sig1_1", "A2_1", "sig2_1"])
         pos_min = np.array([A1_1_boundaries[0], sigma1_1_boundaries[0], A2_1_boundaries[0], sigma2_1_boundaries[0]])
@@ -1657,71 +1727,72 @@ def return_DBAgrids(temperature_star, logg_star, HoverHestar):
 
 
 
+if starType1=="DB" or starType2=="DB":
+    @njit
+    def return_DBgrids(temperature_star, logg_star):
+        # find nearest Teff in models in the DA/DBA/DC grid, then take the two for interpolation limits
+        minval=10000;   maxval=-10000
+        if logg_star>=7.5 and logg_star<8: minval=7.5; maxval=8
+        elif logg_star>=8 and logg_star<8.5: minval=8; maxval=8.5
+        elif logg_star>=8.5 and logg_star<=9: minval=8.5; maxval=9
+        elif logg_star<7.5: raise ValueError("Minimum logg for grid is 7.5. You attempted with " + str(logg_star))
+        else: print(logg_star); print(logg_star); print(logg_star);  raise ValueError
+    
+    
+    
+        mask_logg = (logg_all_logg<=maxval) & (logg_all_logg>=minval)
+        Grav_N = logg_all_logg[mask_logg];    wl_all_N=wl_all_logg[mask_logg];    flux_N=flux_all_logg[mask_logg];    Teff_N=Teff_all_logg[mask_logg]
+    
+    
+        unique_Teffs_DC=npunique(Teff_N)
+    
+        temdiff = temperature_star - unique_Teffs_DC
+        Teff_min=unique_Teffs_DC[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
+        Teff_max=unique_Teffs_DC[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
+    
+    
+        mask_logg_then_T = (Teff_N<=Teff_max) & (Teff_N>=Teff_min)
+    
+    
+        if len(Grav_N[mask_logg_then_T])==0:
+            raise ValueError("ERROR - Grid of DBA/DB/DC")
+    
+        Grav1_N = Grav_N[mask_logg_then_T];    wl_all1_N=wl_all_N[mask_logg_then_T];    flux1_N=flux_N[mask_logg_then_T];    Teff1_N=Teff_N[mask_logg_then_T]
+        return Grav1_N, wl_all1_N, flux1_N, Teff1_N
 
-@njit
-def return_DBgrids(temperature_star, logg_star):
-    # find nearest Teff in models in the DA/DBA/DC grid, then take the two for interpolation limits
-    minval=10000;   maxval=-10000
-    if logg_star>=7.5 and logg_star<8: minval=7.5; maxval=8
-    elif logg_star>=8 and logg_star<8.5: minval=8; maxval=8.5
-    elif logg_star>=8.5 and logg_star<=9: minval=8.5; maxval=9
-    elif logg_star<7.5: raise ValueError("Minimum logg for grid is 7.5. You attempted with " + str(logg_star))
-    else: print(logg_star); print(logg_star); print(logg_star);  raise ValueError
-    
-    
-    
-    mask_logg = (logg_all_logg<=maxval) & (logg_all_logg>=minval)
-    Grav_N = logg_all_logg[mask_logg];    wl_all_N=wl_all_logg[mask_logg];    flux_N=flux_all_logg[mask_logg];    Teff_N=Teff_all_logg[mask_logg]
-    
-    
-    unique_Teffs_DC=npunique(Teff_N)
-    
-    temdiff = temperature_star - unique_Teffs_DC
-    Teff_min=unique_Teffs_DC[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
-    Teff_max=unique_Teffs_DC[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
-    
-    
-    mask_logg_then_T = (Teff_N<=Teff_max) & (Teff_N>=Teff_min)
-    
-    
-    if len(Grav_N[mask_logg_then_T])==0:
-        raise ValueError("ERROR - Grid of DBA/DB/DC")
-    
-    Grav1_N = Grav_N[mask_logg_then_T];    wl_all1_N=wl_all_N[mask_logg_then_T];    flux1_N=flux_N[mask_logg_then_T];    Teff1_N=Teff_N[mask_logg_then_T]
-    return Grav1_N, wl_all1_N, flux1_N, Teff1_N
 
-
-@njit
-def return_DCgrids(temperature_star, logg_star):
-    # find nearest Teff in models in the DA/DBA/DC grid, then take the two for interpolation limits
-    minval=10000;   maxval=-10000
-    if logg_star>=7.5 and logg_star<8: minval=7.5; maxval=8
-    elif logg_star>=8 and logg_star<8.5: minval=8; maxval=8.5
-    elif logg_star>=8.5 and logg_star<=9: minval=8.5; maxval=9
-    elif logg_star<7.5: raise ValueError("Minimum logg for grid is 7.5. You attempted with " + str(logg_star))
-    else: print(logg_star); print(logg_star); print(logg_star);  raise ValueError
+if starType1=="DC" or starType2=="DC":
+    @njit
+    def return_DCgrids(temperature_star, logg_star):
+        # find nearest Teff in models in the DA/DBA/DC grid, then take the two for interpolation limits
+        minval=10000;   maxval=-10000
+        if logg_star>=7.5 and logg_star<8: minval=7.5; maxval=8
+        elif logg_star>=8 and logg_star<8.5: minval=8; maxval=8.5
+        elif logg_star>=8.5 and logg_star<=9: minval=8.5; maxval=9
+        elif logg_star<7.5: raise ValueError("Minimum logg for grid is 7.5. You attempted with " + str(logg_star))
+        else: print(logg_star); print(logg_star); print(logg_star);  raise ValueError
     
     
     
-    mask_logg = (logg_all_logg<=maxval) & (logg_all_logg>=minval)
-    Grav_N = logg_all_logg[mask_logg];    wl_all_N=wl_all_logg[mask_logg];    flux_N=flux_all_logg[mask_logg];    Teff_N=Teff_all_logg[mask_logg]
+        mask_logg = (logg_all_logg<=maxval) & (logg_all_logg>=minval)
+        Grav_N = logg_all_logg[mask_logg];    wl_all_N=wl_all_logg[mask_logg];    flux_N=flux_all_logg[mask_logg];    Teff_N=Teff_all_logg[mask_logg]
     
     
-    unique_Teffs_DC=npunique(Teff_N)
+        unique_Teffs_DC=npunique(Teff_N)
     
-    temdiff = temperature_star - unique_Teffs_DC
-    Teff_min=unique_Teffs_DC[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
-    Teff_max=unique_Teffs_DC[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
-    
-    
-    mask_logg_then_T = (Teff_N<=Teff_max) & (Teff_N>=Teff_min)
+        temdiff = temperature_star - unique_Teffs_DC
+        Teff_min=unique_Teffs_DC[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
+        Teff_max=unique_Teffs_DC[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
     
     
-    if len(Grav_N[mask_logg_then_T])==0:
-        raise ValueError("ERROR - Grid of DBA/DB/DC")
+        mask_logg_then_T = (Teff_N<=Teff_max) & (Teff_N>=Teff_min)
     
-    Grav1_N = Grav_N[mask_logg_then_T];    wl_all1_N=wl_all_N[mask_logg_then_T];    flux1_N=flux_N[mask_logg_then_T];    Teff1_N=Teff_N[mask_logg_then_T]
-    return Grav1_N, wl_all1_N, flux1_N, Teff1_N
+    
+        if len(Grav_N[mask_logg_then_T])==0:
+            raise ValueError("ERROR - Grid of DBA/DB/DC")
+    
+        Grav1_N = Grav_N[mask_logg_then_T];    wl_all1_N=wl_all_N[mask_logg_then_T];    flux1_N=flux_N[mask_logg_then_T];    Teff1_N=Teff_N[mask_logg_then_T]
+        return Grav1_N, wl_all1_N, flux1_N, Teff1_N
 
 
 
@@ -1805,19 +1876,39 @@ if forced_HoverHe2==0 and starType2=="DBA": checkHoverHe2=True
 if forced_Scaling==False: checkscaling=True
 
 
-
+param_index = {label: i for i, label in enumerate(p0labels)}
 
 #Test that next step falls within boundaries allowed by the priors
 def lnprior(theta, arguments):
     input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, normalised_wavelength, normalised_flux, normalised_err,  inp_resolution, used_RV_boundaries, HJD_values, sigma_clip, the_unique_wavelengths, spec1wl, spec1flux, spec2wl, spec2flux, inputScaling = arguments
-    if "T1" in p0labels:            args = npargwhere(p0labels=="T1")[0][0];          T1 = theta[args]
-    else: T1=forced_teff1
-    if "logg1" in p0labels:         args = npargwhere(p0labels=="logg1")[0][0];       logg1 = theta[args]
-    else: logg1=forced_logg1
-    if "T2" in p0labels:            args = npargwhere(p0labels=="T2")[0][0];          T2 = theta[args]
-    else: T2=forced_teff2
-    if "logg2" in p0labels:         args = npargwhere(p0labels=="logg2")[0][0];       logg2 = theta[args]
-    else: logg2=forced_logg2
+    
+    T1 = theta[param_index["T1"]] if "T1" in param_index else forced_teff1
+    logg1 = theta[param_index["logg1"]] if "logg1" in param_index else forced_logg1
+    T2 = theta[param_index["T2"]] if "T2" in param_index else forced_teff2
+    logg2 = theta[param_index["logg2"]] if "logg2" in param_index else forced_logg2
+    #HoverHe1 = theta[param_index["H/He1"]] if "H/He1" in param_index else forced_HoverHe1
+    #HoverHe2 = theta[param_index["H/He2"]] if "H/He2" in param_index else forced_HoverHe2
+    mcmc_K1 = theta[param_index["K1"]] if "K1" in param_index else None
+    mcmc_K2 = theta[param_index["K2"]] if "K2" in param_index else None
+    mcmc_Vgamma1 = theta[param_index["Vg1"]] if "Vg1" in param_index else None
+    mcmc_Vgamma2 = theta[param_index["Vg2"]] if "Vg2" in param_index else None
+    Scaling = theta[param_index["Scaling"]] if "Scaling" in param_index else None
+    mcmc_parallax = theta[param_index["Parallax"]] if "Parallax" in param_index else None
+    mcmc_R = theta[param_index["R"]] if "R" in param_index else None
+    mcmc_Dummy = theta[param_index["Dummy"]] if "Dummy" in param_index else None
+    mcmc_BBT = theta[param_index["BBT"]] if "BBT" in param_index else None
+    mcmc_BBR = theta[param_index["BBR"]] if "BBR" in param_index else None
+    
+    
+    
+    #if "T1" in p0labels:            args = npargwhere(p0labels=="T1")[0][0];          T1 = theta[args]
+    #else: T1=forced_teff1
+    #if "logg1" in p0labels:         args = npargwhere(p0labels=="logg1")[0][0];       logg1 = theta[args]
+    #else: logg1=forced_logg1
+    #if "T2" in p0labels:            args = npargwhere(p0labels=="T2")[0][0];          T2 = theta[args]
+    #else: T2=forced_teff2
+    #if "logg2" in p0labels:         args = npargwhere(p0labels=="logg2")[0][0];       logg2 = theta[args]
+    #else: logg2=forced_logg2
     if "H/He1" in p0labels:         args = npargwhere(p0labels=="H/He1")[0][0];       HoverHe1 = theta[args]
     else:
         try: HoverHe1 = forced_HoverHe1
@@ -1826,17 +1917,17 @@ def lnprior(theta, arguments):
     else:
         try: HoverHe2 = forced_HoverHe2
         except: None
-    if "K1" in p0labels:            args = npargwhere(p0labels=="K1")[0][0];          mcmc_K1 = theta[args]
-    if "K2" in p0labels:            args = npargwhere(p0labels=="K2")[0][0];          mcmc_K2 = theta[args]
-    if "Vg1" in p0labels:           args = npargwhere(p0labels=="Vg1")[0][0];         mcmc_Vgamma1 = theta[args]
-    if "Vg2" in p0labels:           args = npargwhere(p0labels=="Vg2")[0][0];         mcmc_Vgamma2 = theta[args]
-    if "Scaling" in p0labels:       args = npargwhere(p0labels=="Scaling")[0][0];     Scaling = theta[args]
+    #if "K1" in p0labels:            args = npargwhere(p0labels=="K1")[0][0];          mcmc_K1 = theta[args]
+    #if "K2" in p0labels:            args = npargwhere(p0labels=="K2")[0][0];          mcmc_K2 = theta[args]
+    #if "Vg1" in p0labels:           args = npargwhere(p0labels=="Vg1")[0][0];         mcmc_Vgamma1 = theta[args]
+    #if "Vg2" in p0labels:           args = npargwhere(p0labels=="Vg2")[0][0];         mcmc_Vgamma2 = theta[args]
+    #if "Scaling" in p0labels:       args = npargwhere(p0labels=="Scaling")[0][0];     Scaling = theta[args]
     if "RV1_0" in p0labels:         num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0]
     elif "RV1_1" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_1")[0][0]
     elif "RV1_2" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_2")[0][0]
     elif "RV1_3" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_3")[0][0]
     elif "RV1_4" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_4")[0][0]
-    if "Parallax" in p0labels:      args = npargwhere(p0labels=="Parallax")[0][0];     mcmc_parallax = theta[args]
+    #if "Parallax" in p0labels:      args = npargwhere(p0labels=="Parallax")[0][0];     mcmc_parallax = theta[args]
     
     
     if T1<T2:
@@ -1852,26 +1943,21 @@ def lnprior(theta, arguments):
     
 
     
-    if checkT1:
-        if not p0T1[0]<T1<p0T1[1]: passed = False
-    if checklogg1:  
-        if not p0logg1[0]<logg1<p0logg1[1]: passed = False
-    if checkT2:  
-        if not p0T2[0]<T2<p0T2[1]: passed = False
-    if checklogg2:  
-        if not p0logg2[0]<logg2<p0logg2[1]: passed = False
-    if checkHoverHe1:  
-        if not p0HoverHe1[0]<HoverHe1<p0HoverHe1[1]: passed = False
-    if checkHoverHe2:  
-        if not p0HoverHe2[0]<HoverHe2<p0HoverHe2[1]: passed = False
-    if checkscaling:
-        if not p0scaling[0]<Scaling<p0scaling[1]: passed = False
+    if checkT1 and not p0T1[0]<T1<p0T1[1]: passed = False
+    if checklogg1 and not p0logg1[0]<logg1<p0logg1[1]: passed = False
+    if checkT2 and not p0T2[0]<T2<p0T2[1]: passed = False
+    if checklogg2 and not p0logg2[0]<logg2<p0logg2[1]: passed = False
+    if checkHoverHe1 and not p0HoverHe1[0]<HoverHe1<p0HoverHe1[1]: passed = False
+    if checkHoverHe2 and not p0HoverHe2[0]<HoverHe2<p0HoverHe2[1]: passed = False
+    if checkscaling and not p0scaling[0]<Scaling<p0scaling[1]: passed = False
     if passed==False:  return -np_inf
     
-    
+    #used_RV_boundaries=np.asarray(used_RV_boundaries)
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
         for anRV, anRVbound in zip(RV,used_RV_boundaries):  # go through all individual RVs and make sure they are in boundaries
             if not anRVbound[0] < anRV < anRVbound[1]:        return -np_inf
+        #if np.any(RV < used_RV_boundaries[:,0]) or np.any(RV > used_RV_boundaries[:,1]):
+        #    return -np.inf
     else:
         if forced_K1=="Fit" and forced_K2=="Fit":
             if forced_Vgamma1=="Fit" and forced_Vgamma2=="Fit":
@@ -1898,7 +1984,7 @@ def lnprior(theta, arguments):
             if not p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]:    return -np_inf
     
     if "Parallax" in p0labels: 
-        parallax_prior = np.log(1.0/(npsqrt(2*np_pi)*plax_unc))-0.5*(mcmc_parallax-plax)**2/plax_unc**2 + np.log(1.0/(npsqrt(2*np_pi)*plax_unc))-0.5*(mcmc_parallax-plax)**2/plax_unc**2
+        parallax_prior = np.log(1.0/(npsqrt(2*np_pi)*plax_unc))-0.5*(mcmc_parallax-plax)**2/plax_unc**2
         return parallax_prior
     return 0.0
     
@@ -1910,17 +1996,17 @@ def lnlike(theta, arguments):
     if type(input_files)==np.str_:
         input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, normalised_wavelength, normalised_flux, normalised_err,  inp_resolution, used_RV_boundaries, HJD_values, sigma_clip = [input_files], [share_rv], [reference_wl], [cut_Ha_all], [normaliseHa_all], [normalised_wavelength], [normalised_flux], [normalised_err],  [inp_resolution], [used_RV_boundaries], [HJD_values], [sigma_clip]
     
-    if "T1" in p0labels:            args = npargwhere(p0labels=="T1")[0][0];          T1 = theta[args]
-    else:                           T1 = forced_teff1
+    #if "T1" in p0labels:            args = npargwhere(p0labels=="T1")[0][0];          T1 = theta[args]
+    #else:                           T1 = forced_teff1
     
-    if "logg1" in p0labels:         args = npargwhere(p0labels=="logg1")[0][0];       logg1 = theta[args]
-    else:                           logg1 = forced_logg1
+    #if "logg1" in p0labels:         args = npargwhere(p0labels=="logg1")[0][0];       logg1 = theta[args]
+    #else:                           logg1 = forced_logg1
     
-    if "T2" in p0labels:            args = npargwhere(p0labels=="T2")[0][0];          T2 = theta[args]
-    else:                           T2 = forced_teff2
+    #if "T2" in p0labels:            args = npargwhere(p0labels=="T2")[0][0];          T2 = theta[args]
+    #else:                           T2 = forced_teff2
     
-    if "logg2" in p0labels:         args = npargwhere(p0labels=="logg2")[0][0];       logg2 = theta[args]
-    else:                           logg2 = forced_logg2
+    #if "logg2" in p0labels:         args = npargwhere(p0labels=="logg2")[0][0];       logg2 = theta[args]
+    #else:                           logg2 = forced_logg2
     
     if "H/He1" in p0labels:         args = npargwhere(p0labels=="H/He1")[0][0];       HoverHe1 = theta[args]
     else:
@@ -1932,24 +2018,48 @@ def lnlike(theta, arguments):
         try:    HoverHe2 = forced_HoverHe2
         except: None
     
-    if "K1" in p0labels:            args = npargwhere(p0labels=="K1")[0][0];          mcmc_K1 = theta[args]
-    else:                           mcmc_K1 = forced_K1
+    #if "K1" in p0labels:            args = npargwhere(p0labels=="K1")[0][0];          mcmc_K1 = theta[args]
+    #else:                           mcmc_K1 = forced_K1
     
-    if "K2" in p0labels:            args = npargwhere(p0labels=="K2")[0][0];          mcmc_K2 = theta[args]
-    else:                           mcmc_K2 = forced_K2
+    #if "K2" in p0labels:            args = npargwhere(p0labels=="K2")[0][0];          mcmc_K2 = theta[args]
+    #else:                           mcmc_K2 = forced_K2
     
-    if "Vg1" in p0labels:           args = npargwhere(p0labels=="Vg1")[0][0];         mcmc_Vgamma1 = theta[args]
-    else:                           mcmc_Vgamma1 = forced_Vgamma1
+    #if "Vg1" in p0labels:           args = npargwhere(p0labels=="Vg1")[0][0];         mcmc_Vgamma1 = theta[args]
+    #else:                           mcmc_Vgamma1 = forced_Vgamma1
     
-    if "Vg2" in p0labels:           args = npargwhere(p0labels=="Vg2")[0][0];         mcmc_Vgamma2 = theta[args]
-    else:                           mcmc_Vgamma2 = forced_Vgamma2
+    #if "Vg2" in p0labels:           args = npargwhere(p0labels=="Vg2")[0][0];         mcmc_Vgamma2 = theta[args]
+    #else:                           mcmc_Vgamma2 = forced_Vgamma2
     
-    if "Parallax" in p0labels:      args = npargwhere(p0labels=="Parallax")[0][0];    mcmc_parallax = theta[args]
+    #if "Parallax" in p0labels:      args = npargwhere(p0labels=="Parallax")[0][0];    mcmc_parallax = theta[args]
     
-    if "Scaling" in p0labels:       args = npargwhere(p0labels=="Scaling")[0][0];     Scaling = theta[args]
-    else:                           Scaling = forced_Scaling
+    #if "Scaling" in p0labels:       args = npargwhere(p0labels=="Scaling")[0][0];     Scaling = theta[args]
+    #else:                           Scaling = forced_Scaling
     
     if "RV1_0" in p0labels:         num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0]
+    
+    
+    
+    T1 = theta[param_index["T1"]] if "T1" in param_index else forced_teff1
+    logg1 = theta[param_index["logg1"]] if "logg1" in param_index else forced_logg1
+    T2 = theta[param_index["T2"]] if "T2" in param_index else forced_teff2
+    logg2 = theta[param_index["logg2"]] if "logg2" in param_index else forced_logg2
+    #HoverHe1 = theta[param_index["H/He1"]] if "H/He1" in param_index else None
+    #HoverHe2 = theta[param_index["H/He2"]] if "H/He2" in param_index else None
+    mcmc_K1 = theta[param_index["K1"]] if "K1" in param_index else forced_K1
+    mcmc_K2 = theta[param_index["K2"]] if "K2" in param_index else forced_K2
+    mcmc_Vgamma1 = theta[param_index["Vg1"]] if "Vg1" in param_index else forced_Vgamma1
+    mcmc_Vgamma2 = theta[param_index["Vg2"]] if "Vg2" in param_index else forced_Vgamma2
+    Scaling = theta[param_index["Scaling"]] if "Scaling" in param_index else forced_Scaling
+    mcmc_parallax = theta[param_index["Parallax"]] if "Parallax" in param_index else None
+    #mcmc_R = theta[param_index["R"]] if "R" in param_index else None
+    #mcmc_Dummy = theta[param_index["Dummy"]] if "Dummy" in param_index else None
+    #mcmc_BBT = theta[param_index["BBT"]] if "BBT" in param_index else None
+    #mcmc_BBR = theta[param_index["BBR"]] if "BBR" in param_index else None
+    
+    
+    
+    
+    
 
     
     for starcnt, starType in enumerate([starType1, starType2]):
@@ -2117,7 +2227,7 @@ def lnlike(theta, arguments):
             if high_RV_amp: modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
             
             # interpolate the model onto the observation's wavelength grid
-            if continuum_normalisation==True:
+            if continuum_normalisation:
                 interparr = Scaling*interp(model_wl2, model_wl1+dlam1, model_spectrum_star1)    + interp(model_wl2, model_wl2+dlam2, model_spectrum_star2)
             else:
                 try:
@@ -2138,12 +2248,13 @@ def lnlike(theta, arguments):
             interparr = interp(normalised_wavelength, model_wl2, interparr)
             
             
-            if continuum_normalisation==True:
+            if continuum_normalisation:
                 mask = ((normalised_wavelength>ref_wl+cut_lim[0]) & (normalised_wavelength<ref_wl+norm_lim[0])) | ((normalised_wavelength>ref_wl+norm_lim[1])   & (normalised_wavelength<ref_wl+cut_lim[1]))
                 
                 
                 try:
-                    m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                    #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                    m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
                     interparr /= (m*normalised_wavelength + c)
                 except: return -np_inf
                 
@@ -2171,8 +2282,10 @@ def lnlike(theta, arguments):
             else: clip_mask=normalised_flux[desired_range]!=normalised_flux[desired_range]
             
             
-            if continuum_normalisation==True:
-                off = polyfit(normalised_wavelength[desired_range][~clip_mask], normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask], w=1/normalised_err[desired_range][~clip_mask], deg=0)[0]
+            if continuum_normalisation:
+                #off = polyfit(normalised_wavelength[desired_range][~clip_mask], normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask], w=1/normalised_err[desired_range][~clip_mask], deg=0)[0]
+                w_=1/np.square(normalised_err[desired_range][~clip_mask])
+                off = np.sum(w_ * (normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask])) / np.sum(w_)
             else: off=0
             
             
@@ -2198,12 +2311,12 @@ def lnlike(theta, arguments):
     
     if fit_phot_SED:
         #if np.isnan(chisq_spec): plt.plot(normalised_wavelength, interparr1); plt.plot(normalised_wavelength, interparr2); plt.title(str(T1) + "  "+ str(logg1)+"  "+ str(T2)+"  "+ str(logg2));  plt.show()
-        if np.isnan(chisq_spec) == True or np.isnan(chisq_phot) == True:    return -np_inf
+        if np.isnan(chisq_spec) or np.isnan(chisq_phot):    return -np_inf
         else:  
             if rank==1: print(chisq_spec,chisq_phot)
             return chisq_spec + chisq_phot
     else:
-        if np.isnan(chisq_spec) == True :    return -np_inf
+        if np.isnan(chisq_spec):    return -np_inf
         else:   return chisq_spec
         
         
@@ -2269,10 +2382,12 @@ def lnprior_gauss_lorentz(theta, arguments):
         RV=theta[num_start_RVs:]
         
         
-    
+    #used_RV_boundaries=np.asarray(used_RV_boundaries)
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
         for anRV, anRVbound in zip(RV,used_RV_boundaries):  # go through all individual RVs and make sure they are in boundaries
             if not anRVbound[0] < anRV < anRVbound[1]:        return -np_inf
+        #if np.any(RV < used_RV_boundaries[:,0]) or np.any(RV > used_RV_boundaries[:,1]):
+        #    return -np.inf
     else:
         if forced_K1=="Fit" and forced_K2=="Fit":
             if forced_Vgamma1=="Fit" and forced_Vgamma2=="Fit":
@@ -2440,7 +2555,8 @@ def lnlike_gauss_lorentz(theta, arguments):
             
             
             try:
-                m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
                 interparr /= (m*normalised_wavelength + c)
             except: return -np_inf
             
@@ -2464,7 +2580,9 @@ def lnlike_gauss_lorentz(theta, arguments):
             
             
             
-            off = polyfit(normalised_wavelength[desired_range][~clip_mask], normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask], w=1/normalised_err[desired_range][~clip_mask], deg=0)[0]
+            #off = polyfit(normalised_wavelength[desired_range][~clip_mask], normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask], w=1/normalised_err[desired_range][~clip_mask], deg=0)[0]
+            w_=1/np.square(normalised_err[desired_range][~clip_mask])
+            off = np.sum(w_ * (normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask])) / np.sum(w_)
             
             
             ## Now on to calculating chisq
@@ -2474,7 +2592,7 @@ def lnlike_gauss_lorentz(theta, arguments):
             
     
     
-    if np.isnan(chisq_spec) == True :    return -np_inf
+    if np.isnan(chisq_spec):    return -np_inf
     else:   return chisq_spec
         
         
@@ -2511,7 +2629,7 @@ def lnprior_quad_lorentz(theta, arguments):
     elif "RV1_4" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_4")[0][0]
     
     
-    if not "run_double_one_by_oneMCMC" in sys.argv:
+    if not "run_double_one_by_oneMCMC" in sys_args:
         args = npargwhere(p0labels=="A1_1")[0][0];   gaussLorentz1_A1 = theta[args]
         args = npargwhere(p0labels=="A2_1")[0][0];   gaussLorentz2_A1 = theta[args]
         args = npargwhere(p0labels=="sig1_1")[0][0];   gaussLorentz1_sigma1 = theta[args]
@@ -2545,10 +2663,12 @@ def lnprior_quad_lorentz(theta, arguments):
         RV=theta[num_start_RVs:]
         
         
-    
+    #used_RV_boundaries=np.asarray(used_RV_boundaries)
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
         for anRV, anRVbound in zip(RV,used_RV_boundaries):  # go through all individual RVs and make sure they are in boundaries
             if not anRVbound[0] < anRV < anRVbound[1]:        return -np_inf
+        #if np.any(RV < used_RV_boundaries[:,0]) or np.any(RV > used_RV_boundaries[:,1]):
+        #    return -np.inf
     else:
         if forced_K1=="Fit" and forced_K2=="Fit":
             if forced_Vgamma1=="Fit" and forced_Vgamma2=="Fit":
@@ -2583,7 +2703,7 @@ def lnlike_quad_lorentz(theta, arguments):
         input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, normalised_wavelength, normalised_flux, normalised_err,  inp_resolution, used_RV_boundaries, HJD_values, sigma_clip = [input_files], [share_rv], [reference_wl], [cut_Ha_all], [normaliseHa_all], [normalised_wavelength], [normalised_flux], [normalised_err],  [inp_resolution], [used_RV_boundaries], [HJD_values], [sigma_clip]
     
     
-    if not "run_double_one_by_oneMCMC" in sys.argv:
+    if not "run_double_one_by_oneMCMC" in sys_args:
         args = npargwhere(p0labels=="A1_1")[0][0];   gaussLorentz1_A1 = theta[args]
         args = npargwhere(p0labels=="A2_1")[0][0];   gaussLorentz2_A1 = theta[args]
         args = npargwhere(p0labels=="sig1_1")[0][0];   gaussLorentz1_sigma1 = theta[args]
@@ -2754,7 +2874,9 @@ def lnlike_quad_lorentz(theta, arguments):
             
             
             
-            off = polyfit(normalised_wavelength[desired_range][~clip_mask], normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask], w=1/normalised_err[desired_range][~clip_mask], deg=0)[0]
+            #off = polyfit(normalised_wavelength[desired_range][~clip_mask], normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask], w=1/normalised_err[desired_range][~clip_mask], deg=0)[0]
+            w_=1/np.square(normalised_err[desired_range][~clip_mask])
+            off = np.sum(w_ * (normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask])) / np.sum(w_)
             
 
             ## Now on to calculating chisq
@@ -2764,7 +2886,7 @@ def lnlike_quad_lorentz(theta, arguments):
             
     
     
-    if np.isnan(chisq_spec) == True :    return -np_inf
+    if np.isnan(chisq_spec):    return -np_inf
     else:   return chisq_spec
         
         
@@ -2783,7 +2905,7 @@ def lnprob_quad_lorentz(theta, arguments):
 
 
 
-if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commonRV12":
+if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commonRV12":
     desired_wl=6562.81
     # load in atmospheric result
     found_out_scaling=False
@@ -2908,7 +3030,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
     from scipy.optimize import least_squares
     
     
-    if sys.argv[1]=="RV_gauss":
+    if sys_args[1]=="RV_gauss":
         desired_refwl = npamax(reference_wl)
         mask_ref_wl = reference_wl==desired_refwl
         
@@ -2916,7 +3038,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
         ###################################
         ##### ADD EXTRA GAUSSIAN IF DESIRED
         ###################################
-        if "run_double_one_by_oneMCMC" in sys.argv:
+        if "run_double_one_by_oneMCMC" in sys_args:
             file_ignore=np.array([])
         else:
             try: file_ignore = np.asarray([config_info["file_ignore"]])[0]
@@ -3002,7 +3124,8 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
                 
                 mask = ((wl1>desired_refwl+cut_limits_min) & (wl1<desired_refwl+norm_limits_min)) | ((wl1>desired_refwl+norm_limits_max)   & (wl1<desired_refwl+cut_limits_max))
                 
-                m,c =  polyfit(wl1[mask], interparr[mask], deg=1)
+                #m,c =  polyfit(wl1[mask], interparr[mask], deg=1)
+                m,c = linear_fit_weighted(wl1[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
                 interparr /= (m*wl1 + c)
                 interparr = interp(normalised_wavelength, wl1, interparr)
                 
@@ -3052,7 +3175,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
         
         
         
-        if "run_double_one_by_oneMCMC" in sys.argv:   file_ignore=np.array([])
+        if "run_double_one_by_oneMCMC" in sys_args:   file_ignore=np.array([])
         else:   file_ignore=np.asarray([config_info["file_ignore"]])[0]
         
         process_gauss_inpf, process_gauss_rwl, process_gauss_cHa, process_gauss_nHa, process_gauss_normwl, process_gauss_normfl, process_gauss_normerr, process_gauss_res, process_gauss_rvbound = [], [], [], [], [], [], [], [], []
@@ -3073,8 +3196,8 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
         process_gauss_normerr = np.asarray(process_gauss_normerr); process_gauss_res = np.asarray(process_gauss_res);         process_gauss_rvbound = np.asarray(process_gauss_rvbound)
         
         
-        #sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_gauss, pool=pool, args=[[input_files, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, model_wl1, model_spectrum_star1, model_wl2, model_spectrum_star2, desired_refwl]])
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_gauss, pool=pool, args=[[process_gauss_inpf, process_gauss_rwl, process_gauss_cHa, process_gauss_nHa, process_gauss_normwl, process_gauss_normfl, process_gauss_normerr,  process_gauss_res, process_gauss_rvbound, model_wl1, model_spectrum_star1, model_wl2, model_spectrum_star2, desired_refwl]])
+        #sampler = EnsembleSampler(nwalkers, ndim, lnprob_gauss, pool=pool, args=[[input_files, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, model_wl1, model_spectrum_star1, model_wl2, model_spectrum_star2, desired_refwl]])
+        sampler = EnsembleSampler(nwalkers, ndim, lnprob_gauss, pool=pool, args=[[process_gauss_inpf, process_gauss_rwl, process_gauss_cHa, process_gauss_nHa, process_gauss_normwl, process_gauss_normfl, process_gauss_normerr,  process_gauss_res, process_gauss_rvbound, model_wl1, model_spectrum_star1, model_wl2, model_spectrum_star2, desired_refwl]])
         pos, prob, state = sampler.run_mcmc(p0,burnin,progress=True)
         samples = sampler.flatchain
         np.savetxt("RVfits/Gauss_MCMC_samples_burnin.dat",samples)
@@ -3112,7 +3235,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
         #    fig2 = corner.corner(samples, labels=p0labels, range=p0range, bins=30,smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
         #    fig2.savefig("RVfits/Gauss_corner.pdf")
         #    del fig2
-        #plt.close();  plt.clf()
+        #plt.close()
         
         
         
@@ -3133,7 +3256,8 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
         mask = ((x>desired_refwl+cut_limits_min) & (x<desired_refwl+norm_limits_min)) | ((x>desired_refwl+norm_limits_max)   & (x<desired_refwl+cut_limits_max))
         
         if not (starType1=="quadLorentz" and starType2=="quadLorentz"):
-            m,c =  polyfit(x[mask], interparr[mask], deg=1)	
+            #m,c =  polyfit(x[mask], interparr[mask], deg=1)	
+            m,c = linear_fit_weighted(x[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
             interparr /= (m*x + c)
 
         
@@ -3351,7 +3475,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
     except: None
     
     
-    if sys.argv[1]=="RV_double_commonRV12":  commonRV_1_2=True
+    if sys_args[1]=="RV_double_commonRV12":  commonRV_1_2=True
     else: commonRV_1_2=False
     
         
@@ -3386,7 +3510,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
             
             
             
-            if sys.argv[1]=="RV_gauss":
+            if sys_args[1]=="RV_gauss":
                 gauss1 = agauss(model_wl1, A1_med, desired_wl, std_dev1_med)
                 gauss2 = agauss(model_wl2, A2_med, desired_wl, std_dev2_med)
                 
@@ -3402,7 +3526,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
             RV1, RV2 = npmean(rvbound1), npmean(rvbound2)   # this is the initial guess for the bootstrap
             if Low_SNR:
                 # First try to improve the accuracy of the normalisation using the model and the full wavelength range supplied
-                if sys.argv[1]=="RV_gauss":
+                if sys_args[1]=="RV_gauss":
                     if not (starType1=="quadLorentz" and starType2=="quadLorentz"):
                         returnvars = fit_bootstrap([RV1, RV2, 1, 1],  normalised_wavelength,  normalised_flux,  normalised_err, bounds=[rvbound1[0], rvbound1[1], rvbound2[0], rvbound2[1], -1,1, -20, 20], num_its=10, wl1=model_wl1, spec1=smear_model_spectrum_star1, wl2=model_wl2, spec2=smear_model_spectrum_star2, gauss1=smear_gauss1, gauss2=smear_gauss2, Common_RV_both_stars=commonRV_1_2)
                     else:
@@ -3433,7 +3557,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
                 
                 ######===============================
                 # Try to improve the accuracy of the normalisation again with the full wavelength range, this time with the bad points sigma clipped
-                if sys.argv[1]=="RV_gauss":
+                if sys_args[1]=="RV_gauss":
                     returnvars = fit_bootstrap([RV1, RV2, extra_norm, coff],  normalised_wavelength[clip_mask],  normalised_flux[clip_mask],  normalised_err[clip_mask], bounds=[rvbound1[0], rvbound1[1], rvbound2[0], rvbound2[1], -1,1, -20, 20], num_its=100, wl1=model_wl1, spec1=smear_model_spectrum_star1, wl2=model_wl2, spec2=smear_model_spectrum_star2, gauss1=smear_gauss1, gauss2=smear_gauss2, Common_RV_both_stars=commonRV_1_2)
                 else:
                     try:
@@ -3461,11 +3585,13 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
                     normalised_flux*=(normalised_wavelength*extra_norm + coff)
                 mask = ((normalised_wavelength>desired_refwl+cut_limits_min) & (normalised_wavelength<desired_refwl+norm_limits_min)) | ((normalised_wavelength>desired_refwl+norm_limits_max)   & (normalised_wavelength<desired_refwl+cut_limits_max))
                 # and lastly make the spectrum normalised to 1 again using the desired region with 1 sigma clipping iteration to the normalisation region
-                m_, c_ = polyfit(normalised_wavelength[mask]-desired_refwl, normalised_flux[mask], deg=1)
+                #m_, c_ = polyfit(normalised_wavelength[mask]-desired_refwl, normalised_flux[mask], deg=1)
+                m_,c_ = linear_fit_weighted(normalised_wavelength[mask]-desired_refwl, normalised_flux[mask], np.full((len(normalised_flux[mask]),), 1))
                 resid=normalised_flux[mask] - (normalised_wavelength[mask]*m_ + c)
                 try:
                     mask2=np.abs(resid)<2.5
-                    m_, c_ = polyfit(normalised_wavelength[mask][mask2]-desired_refwl, normalised_flux[mask][mask2], deg=1)
+                    #m_, c_ = polyfit(normalised_wavelength[mask][mask2]-desired_refwl, normalised_flux[mask][mask2], deg=1)
+                    m_, c_ = linear_fit_weighted(normalised_wavelength[mask][mask2]-desired_refwl, normalised_flux[mask][mask2], np.full((len(normalised_flux[mask][mask2]),), 1))
                     normalised_flux/=c_
                 except: 
                     normalised_flux/=c_
@@ -3661,12 +3787,12 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
                 plt.subplots_adjust(wspace=.0)
                 #fine_grid = nplinspace(npamin(normalised_wavelength[clip_mask]), npamax(normalised_wavelength[clip_mask]), 100000)
                 fine_grid = normalised_wavelength
-                if sys.argv[1]=="RV_gauss":
+                if sys_args[1]=="RV_gauss":
                     ax.plot(normalised_wavelength,  normalised_flux,c='k');    ax.plot(fine_grid, WDmodel(fine_grid, RV1, RV2, wl1=model_wl1, spec1=smear_model_spectrum_star1, wl2=model_wl2, spec2=smear_model_spectrum_star2, gauss1=smear_gauss1, gauss2=smear_gauss2) + off, c='orange'); ax.scatter(normalised_wavelength[~clip_mask],  normalised_flux[~clip_mask],c='pink'); ax.scatter(normalised_wavelength[mask_narrow][~clip_mask2],  normalised_flux[mask_narrow][~clip_mask2],c='r')
                 else:
                     ax.plot(normalised_wavelength,  normalised_flux,c='k');    ax.plot(fine_grid, WDmodel(fine_grid, RV1, RV2, wl1=model_wl1, spec1=smear_model_spectrum_star1, wl2=model_wl2, spec2=smear_model_spectrum_star2) + off, c='orange'); ax.scatter(normalised_wavelength[~clip_mask],  normalised_flux[~clip_mask],c='pink'); ax.scatter(normalised_wavelength[mask_narrow][~clip_mask2],  normalised_flux[mask_narrow][~clip_mask2],c='r')
                 mask_small_region = (normalised_wavelength>desired_refwl-17) & (normalised_wavelength<desired_refwl+17)
-                if sys.argv[1]=="RV_gauss":
+                if sys_args[1]=="RV_gauss":
                     ax2.plot(speed_of_light*(normalised_wavelength[mask_small_region]-desired_refwl)/desired_refwl,  normalised_flux[mask_small_region],c='k');    ax2.plot(speed_of_light*(fine_grid[mask_small_region]-desired_refwl)/desired_refwl, WDmodel(fine_grid, RV1, RV2, wl1=model_wl1, spec1=smear_model_spectrum_star1, wl2=model_wl2, spec2=smear_model_spectrum_star2, gauss1=smear_gauss1, gauss2=smear_gauss2)[mask_small_region] + off, c='orange')
                 else:
                     ax2.plot(speed_of_light*(normalised_wavelength[mask_small_region]-desired_refwl)/desired_refwl,  normalised_flux[mask_small_region],c='k');    ax2.plot(speed_of_light*(fine_grid[mask_small_region]-desired_refwl)/desired_refwl, WDmodel(fine_grid, RV1, RV2, wl1=model_wl1, spec1=smear_model_spectrum_star1, wl2=model_wl2, spec2=smear_model_spectrum_star2)[mask_small_region]  + off, c='orange')
@@ -3675,7 +3801,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
                 ax2.axvline(100,c='grey', ls='dotted')
                 
 
-                if sys.argv[1]=="RV_double_commonRV12":
+                if sys_args[1]=="RV_double_commonRV12":
                     rvfilename.append([in_fi, aHJD, RV1, RV1err])
                     ax.set_title("V1=" + str(np.round(RV1,1)) + " " + str(np.round(RV1err,1)));  ax2.set_title("R=" + str(inp_resolution) + "  " + str(rvbound1))
                 else:
@@ -3688,7 +3814,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
                 #np.savetxt("RVfits/plot/"+str(in_fi)+"fit2.dat", np.array([model_wl2, smear_model_spectrum_star2]).T, header=str(off))
                 
                 plt.savefig("RVfits/"+str(in_fi)+".png", dpi=300) # plt.show()
-                plt.clf(); plt.close()
+                plt.close()
                 
         except Exception as e: 
             print_exception_details(e)
@@ -3699,7 +3825,7 @@ if sys.argv[1]=="RV" or sys.argv[1]=="RV_gauss" or sys.argv[1]=="RV_double_commo
     
     
 
-elif sys.argv[1]=="ATM":
+elif sys_args[1]=="ATM":
     pool = MPIPool()
     if not pool.is_master():
         pool.wait()
@@ -3718,39 +3844,41 @@ elif sys.argv[1]=="ATM":
             inputScaling= (R1**2/R2**2)
             
             
-            sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, pool=pool, args=[[input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, HJD_values, sigma_clip, npunique(reference_wl), model_wl1, model_spectrum_star1, model_wl2, model_spectrum_star2, inputScaling]])
+            sampler = EnsembleSampler(nwalkers, ndim, lnprob, pool=pool, args=[[input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, HJD_values, sigma_clip, npunique(reference_wl), model_wl1, model_spectrum_star1, model_wl2, model_spectrum_star2, inputScaling]])
             
             
         else:
-            sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, pool=pool, args=[[input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, HJD_values, sigma_clip, npunique(reference_wl), None, None, None, None, None]])
+            sampler = EnsembleSampler(nwalkers, ndim, lnprob, pool=pool, args=[[input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, HJD_values, sigma_clip, npunique(reference_wl), None, None, None, None, None]])
     
     elif starType1=="quadLorentz" and starType2=="quadLorentz":
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_quad_lorentz, pool=pool, args=[[input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, HJD_values, sigma_clip, npunique(reference_wl), None, None, None, None, None]])
+        sampler = EnsembleSampler(nwalkers, ndim, lnprob_quad_lorentz, pool=pool, args=[[input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, HJD_values, sigma_clip, npunique(reference_wl), None, None, None, None, None]])
     
     else:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob_gauss_lorentz, pool=pool, args=[[input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, HJD_values, sigma_clip, npunique(reference_wl), None, None, None, None, None]])
+        sampler = EnsembleSampler(nwalkers, ndim, lnprob_gauss_lorentz, pool=pool, args=[[input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, HJD_values, sigma_clip, npunique(reference_wl), None, None, None, None, None]])
         
         
     if nwalkers/ndim<2:   raise ValueError("Your number of walkers is less than twice the size of the number of dimensions. Num dimensions = ", ndim, " nwalkers = ", nwalkers)
     
     pos, prob, state = sampler.run_mcmc(p0,burnin,progress=True)
     samples = sampler.flatchain
-    np.savetxt("out/MCMC_samples_burnin.dat",samples)
+    if plot_burnin:
+        np.savetxt("out/MCMC_samples_burnin.dat",samples)
     np.savetxt("out/MCMC_burninpos.dat",pos)
     print("Finished burn-in")
 
 
 
     #Make a corner plot which shows values
-    samples=nploadtxt("out/MCMC_samples_burnin.dat")
+    if plot_burnin:
+        samples=nploadtxt("out/MCMC_samples_burnin.dat")
     
-    if not "run_double_one_by_oneMCMC" in sys.argv:
+    if not "run_double_one_by_oneMCMC" in sys_args:
 
         if plot_burnin:
             fig = corner.corner(samples, labels=p0labels, range=p0range, bins=30,smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
             fig.savefig("out/corner_burnin.pdf")
             del fig
-    plt.close();  plt.clf()
+    plt.close()
 
     sampler.reset()
     pos=nploadtxt("out/MCMC_burninpos.dat")
@@ -3760,17 +3888,17 @@ elif sys.argv[1]=="ATM":
     print("MCMC completed")
     pool.close()
 
-    if not "run_double_one_by_oneMCMC" in sys.argv:
-        samples = sampler.flatchain
-        np.savetxt("out/MCMC_samples.dat",samples)
-
-        #Make a corner plot which shows values
-        samples=nploadtxt("out/MCMC_samples.dat")
+    samples = sampler.flatchain
+    if not "run_double_one_by_oneMCMC" in sys_args:
         if plot_corner:
+            np.savetxt("out/MCMC_samples.dat",samples)
+            
+            #Make a corner plot which shows values
+            samples=nploadtxt("out/MCMC_samples.dat")
             fig2 = corner.corner(samples, labels=p0labels, range=p0range, bins=30,smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
             fig2.savefig("out/corner.pdf")
             del fig2
-    plt.close();  plt.clf()
+    plt.close()
     
     
     
@@ -3974,8 +4102,8 @@ elif sys.argv[1]=="ATM":
     except: None
     
     
-    if "run_double_one_by_oneMCMC" in sys.argv:  
-        with open("out/result"+str(int(sys.argv[-1])+1)+".out", 'w') as output_file:
+    if "run_double_one_by_oneMCMC" in sys_args:  
+        with open("out/result"+str(int(sys_args[-1])+1)+".out", 'w') as output_file:
             for aline in lines_to_write:
                 output_file.write(aline)
     else:
@@ -3990,7 +4118,7 @@ elif sys.argv[1]=="ATM":
     
     
     
-if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
+if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
     result = open(os.getcwd()+"/out/result.out").readlines()
     allRV1s, allRV2s = [], []
     allRV1sminus, allRV2sminus =[], []
@@ -4117,7 +4245,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
     if forced_HoverHe1!=0: HoverHe1_med=forced_HoverHe1
     if forced_HoverHe2!=0: HoverHe2_med=forced_HoverHe2
     
-    if "run_double_one_by_oneMCMC" in sys.argv:
+    if "run_double_one_by_oneMCMC" in sys_args:
         filesout = os.listdir(os.getcwd()+"/out")
         files_one_by_one = []
         for ff in filesout:
@@ -4130,7 +4258,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
         try: files_one_by_one.remove("result.out")
         except: None
         
-        res = "result"+str(int(sys.argv[-1])+1)+".out"
+        res = "result"+str(int(sys_args[-1])+1)+".out"
         
         result = open(os.getcwd()+"/out/"+res).readlines()
         
@@ -4285,7 +4413,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
             dlam1 = ref_wl*rv_med1/speed_of_light
             dlam2 = ref_wl*rv_med2/speed_of_light
             
-            if continuum_normalisation==True:   desired_range = (normalised_wavelength>ref_wl+modelHa_min)  &  (normalised_wavelength<ref_wl+modelHa_max)
+            if continuum_normalisation:   desired_range = (normalised_wavelength>ref_wl+modelHa_min)  &  (normalised_wavelength<ref_wl+modelHa_max)
             else: desired_range = normalised_wavelength==normalised_wavelength
             
             
@@ -4295,7 +4423,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
             f1 = interp(model_wl2, model_wl1+dlam1, model_spectrum_star1)
             f2 = interp(model_wl2, model_wl2+dlam2, model_spectrum_star2)
             
-            if continuum_normalisation==True:   interparr = Scaling_med*f1 + f2
+            if continuum_normalisation:   interparr = Scaling_med*f1 + f2
             else:
                 if starType1=="DA":     R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
                 elif starType1=="DBA" or starType1=="DB" or starType1=="DC":
@@ -4362,10 +4490,12 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
                 interparr += quad
         
             
-            if continuum_normalisation==True:
+            if continuum_normalisation:
                 mask = ((normalised_wavelength>ref_wl+cut_limits_min) & (normalised_wavelength<ref_wl+norm_limits_min)) | ((normalised_wavelength>ref_wl+norm_limits_max)   & (normalised_wavelength<ref_wl+cut_limits_max))
                     
-                try:   m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                try:   
+                    #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                    m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
                 except Exception as eee:
                     print_exception_details(eee)
                     plt.clf()
@@ -4374,7 +4504,8 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
                     plt.axvline(ref_wl+norm_limits_min, c='r');    plt.axvline(ref_wl+norm_limits_max, c='r')
                     plt.title(str() + in_fi + " " + str(ref_wl) + "    "+str(cut_limits_min) + "  " + str(norm_limits_min) + "  " + str(norm_limits_max) + "  " + str(cut_limits_max))
                     plt.show();    plt.clf()
-                    m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                    #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                    m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
                 
                 
                 #plt.plot(normalised_wavelength, interparr);   plt.plot(nplinspace(6000, 7000, 1000), m*nplinspace(6000, 7000, 1000) + c);  plt.show()
@@ -4389,15 +4520,17 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
                 clip_mask = (np.abs(resid_in_sig)>sigclipspec) & desired_range & ((normalised_wavelength > ref_wl+5) | (normalised_wavelength < ref_wl-5))
             else: clip_mask=normalised_wavelength!=normalised_wavelength
             
-            if continuum_normalisation==True:
-                off =  polyfit(normalised_wavelength[desired_range & ~clip_mask], normalised_flux[desired_range & ~clip_mask] - interparr[desired_range & ~clip_mask], w=1/normalised_err[desired_range & ~clip_mask], deg=0)[0]
+            if continuum_normalisation:
+                #off =  polyfit(normalised_wavelength[desired_range & ~clip_mask], normalised_flux[desired_range & ~clip_mask] - interparr[desired_range & ~clip_mask], w=1/normalised_err[desired_range & ~clip_mask], deg=0)[0]
+                w_=1/np.square(normalised_err[desired_range & ~clip_mask])
+                off = np.sum(w_ * (normalised_flux[desired_range & ~clip_mask] - interparr[desired_range & ~clip_mask])) / np.sum(w_)
                 interparr+=off
             
             
             
             
             
-            if continuum_normalisation==True:
+            if continuum_normalisation:
                 normwl_to_rv = speed_of_light * (normalised_wavelength-ref_wl)/ref_wl 
 
                 mask_norm = ((normalised_wavelength>ref_wl+cut_limits_min) & (normalised_wavelength<ref_wl+norm_limits_min) ) | (normalised_wavelength<ref_wl+cut_limits_max) & ((normalised_wavelength>ref_wl+norm_limits_max))
@@ -4451,7 +4584,7 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
                 ax.set_ylim(0.3,1.2);    ax2.set_ylim(0.35,1.1)
                 plt.savefig("out/"+filename.split(".dat")[0]+"_"+str(ref_wl)+".png", dpi=300)
                 if ii in plot_fit and not starType1=="quadLorentz":   plt.show()
-                plt.clf();    plt.close()
+                plt.close()
             
             
             else:
@@ -4548,14 +4681,14 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
                 #plt.legend(loc="lower right", handlelength=0)
                 #ax2.legend(loc="lower right", handlelength=0)
                 plt.savefig("out/"+filename.split(".dat")[0]+"_"+str(ref_wl)+".png", dpi=300)
-                plt.clf();    plt.close()
+                plt.close()
 
 
 
 
 
     plot_fancy=False
-    if plot_fancy==True:
+    if plot_fancy:
         minstored=np_inf
         maxstored=-np_inf
         import matplotlib
@@ -4687,7 +4820,8 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
             
             
             try:
-                m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
             except Exception as eee:
                 print_exception_details(eee)
                 print(eee)
@@ -4702,7 +4836,8 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
                 plt.show()
                 plt.clf()
                 
-                m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
+                m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
             
             interparr /= (m*normalised_wavelength + c)
             
@@ -4713,7 +4848,9 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
                 clip_mask = (np.abs(resid_in_sig)>sigclipspec) & desired_range & ((normalised_wavelength > ref_wl+5) | (normalised_wavelength < ref_wl-5))
             else: clip_mask=normalised_wavelength!=normalised_wavelength
             
-            off =  polyfit(normalised_wavelength[desired_range & ~clip_mask], normalised_flux[desired_range & ~clip_mask] - interparr[desired_range & ~clip_mask], w=1/normalised_err[desired_range & ~clip_mask], deg=0)[0]
+            #off =  polyfit(normalised_wavelength[desired_range & ~clip_mask], normalised_flux[desired_range & ~clip_mask] - interparr[desired_range & ~clip_mask], w=1/normalised_err[desired_range & ~clip_mask], deg=0)[0]
+            w_=1/np.square(normalised_err[desired_range & ~clip_mask])
+            off = np.sum(w_ * (normalised_flux[desired_range & ~clip_mask] - interparr[desired_range & ~clip_mask])) / np.sum(w_)
             interparr+=off
             
 
@@ -4930,10 +5067,9 @@ if sys.argv[1]=="ATM" or sys.argv[1]=="plotOnly":
             
             plt.savefig("out/"+filename.split(".dat")[0]+"_all_shared_rvs_fancy"+".pdf", dpi=300)
         if plot_fit[0]!=False and unique_shared_rv in plot_fit and not starType1=="quadLorentz":   raise ValueError(unique_shared_rv,plot_fit); plt.show()
-        plt.clf();   plt.close()
+        plt.close()
 
 
 
 # TO DO:
-# Replace polyfit deg=0 or deg=1 with njit function
 
