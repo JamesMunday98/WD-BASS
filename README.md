@@ -47,4 +47,4 @@ DB/DBA/DC (helium-rich atmosphere): Cukanovaite et al 2021
 
 20250514:  Fixed incorrect scaling for spectroscopic data - (R1/R2)^2 was applied to star2 not star1. 
 
-20251007:  Small bug fixes for input file combinations that would raise an error. Performance improvements (~30-40%)
+20251007:  Small bug fixes for input file combinations that would raise an error. Performance improvements (~40%)
