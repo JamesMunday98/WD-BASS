@@ -595,7 +595,26 @@ if fit_phot_SED:
 
 
 
+#Uniform priors over which the variables will be allowed to vary
+p0T1=np.asarray(config_info["p0teff"])[0].astype(float)  # max teff is 14000 for DA
+p0logg1=np.asarray(config_info["p0logg"])[0].astype(float)
+p0HoverHe1=np.asarray(config_info["p0HoverHe"])[0].astype(float)
+try:  p0scaling=np.asarray(config_info["p0scaling"])[0].astype(float)
+except: p0scaling = None
 
+if found_parallax:
+    if dojplus:
+        p0parallax=[plax-6*plax_unc, plax+6*plax_unc]  # only used for plotting. gaussian prior
+        if p0parallax[0]<0: p0parallax[0]=0.0001
+    else:
+        p0parallax=[plax-8*plax_unc, plax+8*plax_unc]  # only used for plotting. gaussian prior
+        if p0parallax[0]<0: p0parallax[0]=0.0001
+if starType1.startswith("sd") and fit_phot_SED:
+    want_R=True
+    Dguess = 3.086E16 * 1000/plax
+    try: p0R = np.asarray(config_info["p0R"])[0].astype(float)
+    except: p0R = np.array([0.1,0.3])
+else:    want_R=False
 
 
 
@@ -1167,26 +1186,6 @@ if stack_spectra:
 
 
 
-#Uniform priors over which the variables will be allowed to vary
-p0T1=np.asarray(config_info["p0teff"])[0].astype(float)  # max teff is 14000 for DA
-p0logg1=np.asarray(config_info["p0logg"])[0].astype(float)
-p0HoverHe1=np.asarray(config_info["p0HoverHe"])[0].astype(float)
-try:  p0scaling=np.asarray(config_info["p0scaling"])[0].astype(float)
-except: p0scaling = None
-
-if found_parallax:
-    if dojplus:
-        p0parallax=[plax-6*plax_unc, plax+6*plax_unc]  # only used for plotting. gaussian prior
-        if p0parallax[0]<0: p0parallax[0]=0.0001
-    else:
-        p0parallax=[plax-8*plax_unc, plax+8*plax_unc]  # only used for plotting. gaussian prior
-        if p0parallax[0]<0: p0parallax[0]=0.0001
-if starType1.startswith("sd") and fit_phot_SED:
-    want_R=True
-    Dguess = 3.086E16 * 1000/plax
-    try: p0R = np.asarray(config_info["p0R"])[0].astype(float)
-    except: p0R = np.array([0.1,0.3])
-else:    want_R=False
 
 
 ndim, num_DBA = 0, 0

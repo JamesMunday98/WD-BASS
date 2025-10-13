@@ -541,6 +541,21 @@ if continuum_normalisation==False:
 
 
 
+#Uniform priors over which the variables will be allowed to vary
+p0T1=np.asarray(config_info["p0teff"])[0].astype(float)  # max teff is 14000 for DA
+p0T2=np.asarray(config_info["p0teff"])[1].astype(float)  # max teff is 14000 for DA
+p0logg1=np.asarray(config_info["p0logg"])[0].astype(float)
+p0logg2=np.asarray(config_info["p0logg"])[1].astype(float)
+p0HoverHe1=np.asarray(config_info["p0HoverHe"])[0].astype(float)
+p0HoverHe2=np.asarray(config_info["p0HoverHe"])[1].astype(float)
+if forced_Scaling==False:  p0scaling=np.asarray(config_info["p0scaling"])[0].astype(float)
+if found_parallax:
+	p0parallax=[plax-10*plax_unc, plax+10*plax_unc]  # only used for plotting. gaussian prior
+	if p0parallax[0]<0: p0parallax[0]=0.0001
+
+
+
+
 ## Now loading the atmospheric grids if necessary
 if starType1.startswith("D") or starType2.startswith("D"):
 
@@ -1139,17 +1154,6 @@ if stack_spectra:
 
 # now initiate the MCMC parameters
 if starType1.startswith("D") and starType2.startswith("D"):
-    #Uniform priors over which the variables will be allowed to vary
-    p0T1=np.asarray(config_info["p0teff"])[0].astype(float)  # max teff is 14000 for DA
-    p0T2=np.asarray(config_info["p0teff"])[1].astype(float)  # max teff is 14000 for DA
-    p0logg1=np.asarray(config_info["p0logg"])[0].astype(float)
-    p0logg2=np.asarray(config_info["p0logg"])[1].astype(float)
-    p0HoverHe1=np.asarray(config_info["p0HoverHe"])[0].astype(float)
-    p0HoverHe2=np.asarray(config_info["p0HoverHe"])[1].astype(float)
-    if forced_Scaling==False:  p0scaling=np.asarray(config_info["p0scaling"])[0].astype(float)
-    if found_parallax:
-        p0parallax=[plax-10*plax_unc, plax+10*plax_unc]  # only used for plotting. gaussian prior
-        if p0parallax[0]<0: p0parallax[0]=0.0001
 
     ndim, num_DBA = 0, 0
     p0range = np.array([]).reshape((0,2));   p0labels = np.array([])
