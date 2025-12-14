@@ -17,7 +17,7 @@ def save_tables_output_DA():
 
 	for files in os.listdir(directory):
 		filename = os.fsdecode(files)
-		if filename.startswith("Table_Mass") and not ("0.2" in filename or "0.3" in filename):
+		if filename.startswith("Table_Mass") and not ("0.2" in filename):# or "0.3" in filename):
 			try: fi = np.loadtxt(dir_str+str(filename), unpack=True, dtype=np.str_, skiprows=2, max_rows=61)
 			except: fi = np.loadtxt(dir_str+str(filename), unpack=True, dtype=np.str_, skiprows=2, max_rows=43)
 
@@ -174,7 +174,7 @@ def save_tables_output_DB():
 	np.save(install_path + "/saved_grids_npy/tableBedardDB", np.array([all_tempsDB, all_loggDB, all_radiusDB]))  # K, logg, solR
 
 
-def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, return_M=False, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]):
+def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, return_M=False, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[], force_CO_MTR=False):
 	
 	#print(np.amin(all_radiusHe), np.amax(all_radiusHe), np.amin(all_tempsHe), np.amax(all_tempsHe))
 
@@ -197,7 +197,7 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 			return rad_He, rad_CO
 	elif return_R_from_T_logg==True:
 		try:
-			if logg>7.71: raise ValueError  #  Althaus has a maximum logg of 7.7, Istrate 7.62
+			if logg>7.71 or force_CO_MTR: raise ValueError  #  Althaus has a maximum logg of 7.7, Istrate 7.62
 			
 			if Althaus_or_Istrate=="Althaus":# or corresponding_mass_CO>0.392:
 				#all_tempsHe, all_loggHe, all_massHe, all_radiusHe = np.loadtxt("/home/james/python_scripts_path/dwd_fit_package/saved_MTR/table_valuesHe.dat", unpack=True)
@@ -264,13 +264,19 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 						else:  raise ValueError
 			return radius_He	
 		except:
+			if logg<7.45: raise ValueError("ERROR: Out of logg range, edit the lower boundary of p0logg to be above 7.45")
+			
 			#all_tempsCO, all_loggCO, all_massCO, all_radiusCO = np.loadtxt("/home/james/python_scripts_path/dwd_fit_package/saved_MTR/table_valuesCO.dat", unpack=True)
 			if len(loaded_CO)==0: all_tempsCO, all_loggCO, all_massCO, all_radiusCO = load(install_path + "/saved_MTR/table_valuesCO.npy")
 			else:  all_tempsCO, all_loggCO, all_massCO, all_radiusCO  =  loaded_CO
+			
 			#mask = all_tempsCO==all_tempsCO
 			mask=(all_tempsCO>=4500)  &  (all_tempsCO>=T-5000)  &  (all_tempsCO<=T+5000)  &  (all_loggCO<logg+0.5)  &  (all_loggCO>logg-0.5)
+			
 			radius_CO = float(griddata(np.array([all_tempsCO[mask],all_loggCO[mask]]).T,all_radiusCO[mask],np.array([T, logg]).T, method='linear')[0])
 			#print("CO")
+			
+			#if np.isnan(radius_CO): raise ValueError(T, logg, np.amin(all_loggCO[mask]), np.amax(all_loggCO[mask]))
 			return radius_CO
 			
 		if False:
@@ -682,10 +688,10 @@ def get_age(T, M):
 #save_tables_output_DA()
 
 if False:
-	teff1=21300;  teff1err=300
-	teff2=11200;  teff2err=500
-	logg1=7.86;   logg1err=0.04
-	logg2=8.19;   logg2err=0.05
+	teff1=19400;  teff1err=210
+	teff2=13300;  teff2err=190
+	logg1=8.06;   logg1err=0.05
+	logg2=7.87;   logg2err=0.04
 
 	medmass1=np.asarray(get_MTR(teff1, logg=logg1, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
 	mask=np.isnan(medmass1)
