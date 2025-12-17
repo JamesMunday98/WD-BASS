@@ -14,13 +14,41 @@ from dust_extinction.parameter_averages import G23
 import astropy.units as u
 
 class Fit_phot(object):
+	#def air_wl_to_vacuum_wl(lambda_air):
+	#	""" convert air to vacuum wavelengths"""
+	#	
+	#	s = 10**4 / lambda_air
+	#	n = 1 + 0.00008336624212083 + 0.02408926869968 / (130.1065924522 - np.square(s)) + 0.0001599740894897 / (38.92568793293 - np.square(s))
+	#	lambda_vac = lambda_air *  n
+	#	return lambda_vac
+	
+	
 	def air_wl_to_vacuum_wl(lambda_air):
-		""" convert air to vacuum wavelengths"""
-		
-		s = 10**4 / lambda_air
-		n = 1 + 0.00008336624212083 + 0.02408926869968 / (130.1065924522 - np.square(s)) + 0.0001599740894897 / (38.92568793293 - np.square(s))
-		lambda_vac = lambda_air *  n
-		return lambda_vac
+		from decimal import Decimal, getcontext
+		lambda_vac=[]
+		for alambda in lambda_air:
+			alambda=Decimal(alambda)
+	
+			# Set the desired precision (can be increased if needed)
+			getcontext().prec = 28
+			
+			"""Convert air to vacuum wavelength using high precision."""
+			
+			# Ensure lambda_air is a Decimal
+			
+			s = Decimal('10000') / alambda
+			
+			# Rewriting the refractive index n calculation with Decimals
+			n = (
+			Decimal('1')
+			+ Decimal('0.00008336624212083')
+			+ Decimal('0.02408926869968') / (Decimal('130.1065924522') - s**2)
+			+ Decimal('0.0001599740894897') / (Decimal('38.92568793293') - s**2)
+			)
+			
+			lambda_vac.append(float(alambda * n))
+		return np.asarray(lambda_vac)
+
 
 
 	
@@ -219,7 +247,7 @@ class Fit_phot(object):
 		""" scale one spectrum and reden the model to fit photometry """
 		if not isinstance(R1, list):
 			mask_logg_wl_1 = (wl_all1_N > min_wl) & (wl_all1_N < max_wl)
-			if starType1=="DA" or starType1=="DB" or starType1=="DC":
+			if starType1=="DA" or starType1=="DB" or starType1=="DC" or starType1=="ELM":
 				Grav1_N, wl_all1_N, flux1_N, Teff1_N = Grav1_N[mask_logg_wl_1], wl_all1_N[mask_logg_wl_1], flux1_N[mask_logg_wl_1], Teff1_N[mask_logg_wl_1]
 				model_wl1, model_spectrum_star1 = Fit_phot.return_model_spectrum_DA(wl_all1_N, 0, 0, 0, Grav1_N, flux1_N, Teff1_N, T1, logg1)
 
@@ -460,8 +488,8 @@ class Fit_phot(object):
 				#ax.plot(model_wl, specStar1/1E-15,c='g', ls='--', label="star1 fit");   ax.plot(model_wl, specStar2/1E-15,c='r', ls='--', label="star2 fit")
 				ax.plot(model_wl, specStar1*1000,c='g', ls='--', label="star1 fit")
 				ax.plot(model_wl, specStar2*1000,c='r', ls='--', label="star2 fit")
-				np.savetxt("out/forPlotting/photometry_star1.dat", np.array([model_wl, specStar1*1000]).T)
-				np.savetxt("out/forPlotting/photometry_star2.dat", np.array([model_wl, specStar2*1000]).T)
+				np.savetxt("out/forPlotting/fit_photometry_star1.dat", np.array([model_wl, specStar1*1000]).T)
+				np.savetxt("out/forPlotting/fit_photometry_star2.dat", np.array([model_wl, specStar2*1000]).T)
 				
 			#ax.scatter(list_wl_bpass, list_flux_bpass/1E-15, marker="x", c='orange', label='integrated flux',linewidths=2)
 			#ax.errorbar(list_wl_bpass, list_flux_sed/1E-15, yerr=list_fluxe/1E-15, fmt='.k', label='cds data')

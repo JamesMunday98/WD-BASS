@@ -826,7 +826,6 @@ class load_models(object):
 	def load_models_DA_3D_NLTE(minwl=3000,maxwl=8000, toConvolve=True):
 		install_path = os.environ['WD_BASS_INSTALL_DIR']
 		try: 
-			#raise ValueError
 			wl_all, flux, Teff, Grav = np.load(install_path + "/saved_grids_npy/DA_3D_NLTE.npy")
 			maskwl = (wl_all<maxwl) & (wl_all>minwl)
 			return wl_all[maskwl], flux[maskwl], Teff[maskwl], Grav[maskwl]
@@ -990,6 +989,7 @@ class load_models(object):
 			
 			
 			#raise ValueError(wl_all_3Dp.shape, flux_3Dp.shape, Teff_3Dp.shape, Grav_3Dp.shape)
+			
 			
 			return wl_all_3Dp, flux_3Dp, Teff_3Dp, Grav_3Dp
 		
@@ -1505,6 +1505,71 @@ class load_models(object):
 		return wl_all[mask_wl_all], flux[mask_wl_all], Teff[mask_wl_all], Grav[mask_wl_all]
 	
 	
+	def load_models_Pier_DA_ELM(minwl=3000,maxwl=8000):
+		# get wavelengths
+		trigger_wl=True
+		flux, Teff, Grav, wl_all=[], [], [], []
+		workingdir="/home/james/Documents/grid_elm_new/"
+		for filename in os.listdir(workingdir):
+			Effective_counter=0
+			if not filename.endswith(".py") and not filename.endswith(".tar"):
+				trigger_wl=True
+				wl=[]
+				f = open(workingdir+filename).readlines()
+				for count, line in enumerate(f):
+					if not count == 0:
+						a = (f[count].split(" "))
+						if "Effective" in f[count]:
+							Effective_counter+=1
+							trigger_wl=False
+							thing=True
+							while thing==True:
+								thing=False
+								for j in range(len(a)):
+									if a[j] == "":
+										a.pop(j)
+										thing=True
+										break
+							for k in range(len(a)):
+								if a[k] == "temperature":
+									teff=float(a[k+2])
+								if a[k] == "gravity":
+									grav = float(a[k+2])
+				    
+				    
+				    
+						else:
+							for i in range(len(a)):
+								if not a[i] == "":
+									if "\n" in a[i] :
+										a[i]=a[i][:-1]
+										#print(a[i], a[0])
+									if trigger_wl==True:
+										wl.append(float(a[i]))
+									else:
+										if "-1" in a[i] and not "E-1" in a[i]:
+											a[i] = (a[i][:-4]+"E"+a[i][-4:])
+										flux.append(float(a[i]))
+										Teff.append(teff)
+										Grav.append(grav)
+				                
+				repeated_wls = np.tile(wl, Effective_counter)
+				for l in range(len(repeated_wls)):
+					wl_all.append(repeated_wls[l])
+				
+			
+			
+		# grav is always the same, teff changes
+		mask_wl = (np.asarray(wl_all) > minwl) & (np.asarray(wl_all) <= maxwl)
+			
+		ret_Teff=np.asarray(Teff)[mask_wl]
+		ret_grav=np.asarray(Grav)[mask_wl]
+		ret_wl_all=np.asarray(wl_all)[mask_wl]
+		ret_flux=np.asarray(flux)[mask_wl]
+
+		return ret_wl_all, ret_flux, ret_Teff, np.round(np.log10(ret_grav),3)
+	
+	
 	
 	def load_models_DBA(minwl=3000,maxwl=8000):
 		# get wavelengths
@@ -1804,48 +1869,57 @@ class load_models(object):
 		#	raise ValueError("Not liked input: subdwarfs", qq)
 	
 	
+	
+	
 
-# https://www.aanda.org/articles/aa/olm/2013/11/aa22318-13/aa22318-13.html
-def ML18_to_3D_dTeff(Teff,logg):
-	# JM: NOT TESTED
-	A1=1.0947335E-03
-	A2=-1.8716231E-01
-	A3=1.9350009E-02
-	A4=6.4821613E-01
-	A5=-2.2863187E-01
-	A6=5.8699232E-01
-	A7=-1.0729871E-01
-	A8=1.1009070E-01
-	
-	Teff0=(Teff-10000.0)/1000.00
-	logg0=(logg-8.00000)
-	
-	
-	Shift=A1+(A2+A7*Teff0+A8*logg0)*np.exp(-(A3+A5*Teff0+A6*logg0)**2*((Teff0-A4)**2))
-	
-	return Shift*1000.00
 
-# https://www.aanda.org/articles/aa/olm/2013/11/aa22318-13/aa22318-13.html
-def ML18_to_3D_dlogg(Teff,logg):
-	# JM: NOT TESTED
-	A1=7.5209868E-04
-	A2=-9.2086619E-01
-	A3=3.1253746E-01
-	A4=-1.0348176E+01
-	A5=6.5854716E-01
-	A6=4.2849862E-01
-	A7=-8.8982873E-02
-	A8=1.0199718E+01
-	A9=4.9277883E-02
-	A10=-8.6543477E-01
-	A11=3.6232756E-03
-	A12=-5.8729354E-02
-	
-	Teff0=(Teff-10000.0)/1000.00
-	logg0=(logg-8.00000)
-	ML18_to_3D_dlogg=(A1+A5*np.exp(-A6*((Teff0-A7)**2)))+A2*np.exp(-A3*((Teff0-(A4+A8*np.exp(-(A9+A11*Teff0+A12*logg0)**2*((Teff0-A10)**2))))**2))
-	
-	return ML18_to_3D_dlogg
+## https://www.aanda.org/articles/aa/olm/2013/11/aa22318-13/aa22318-13.html
+#def ML18_to_3D_dTeff(Teff,logg):
+#	# JM: NOT TESTED
+#	A1=1.0947335E-03
+#	A2=-1.8716231E-01
+#	A3=1.9350009E-02
+#	A4=6.4821613E-01
+#	A5=-2.2863187E-01
+#	A6=5.8699232E-01
+#	A7=-1.0729871E-01
+#	A8=1.1009070E-01
+#	
+#	Teff0=(Teff-10000.0)/1000.00
+#	logg0=(logg-8.00000)
+#	
+#	
+#	Shift=A1+(A2+A7*Teff0+A8*logg0)*np.exp(-(A3+A5*Teff0+A6*logg0)**2*((Teff0-A4)**2))
+#	
+#	return Shift*1000.00
+#
+## https://www.aanda.org/articles/aa/olm/2013/11/aa22318-13/aa22318-13.html
+#def ML18_to_3D_dlogg(Teff,logg):
+#	# JM: NOT TESTED
+#	A1=7.5209868E-04
+#	A2=-9.2086619E-01
+#	A3=3.1253746E-01
+#	A4=-1.0348176E+01
+#	A5=6.5854716E-01
+#	A6=4.2849862E-01
+#	A7=-8.8982873E-02
+#	A8=1.0199718E+01
+#	A9=4.9277883E-02
+#	A10=-8.6543477E-01
+#	A11=3.6232756E-03
+#	A12=-5.8729354E-02
+#	
+#	Teff0=(Teff-10000.0)/1000.00
+#	logg0=(logg-8.00000)
+#	ML18_to_3D_dlogg=(A1+A5*np.exp(-A6*((Teff0-A7)**2)))+A2*np.exp(-A3*((Teff0-(A4+A8*np.exp(-(A9+A11*Teff0+A12*logg0)**2*((Teff0-A10)**2))))**2))
+#	
+#	return ML18_to_3D_dlogg
+
+
+
+
+
+
 
 # check convolution works 
 #=============#=============#=============#=============#=============#=============#=============#=============#=============#=============#=============
@@ -1859,7 +1933,7 @@ def ML18_to_3D_dlogg(Teff,logg):
 #wl_all_3Dp2, flux_3Dp2, Teff_3Dp2, Grav_3Dp2 = wl_all_3Dp2[maskG8], flux_3Dp2[maskG8], Teff_3Dp2[maskG8], Grav_3Dp2[maskG8]
 
 #for TT in np.unique(Teff_3Dp1):
-#	mask=Teff_3Dp1==TT
+#	mask=(Teff_3Dp1==TT) & ((wl_all_3Dp1>3500) & (wl_all_3Dp1<7000))
 #	plt.plot(wl_all_3Dp2[mask], flux_3Dp2[mask],c='r');  plt.plot(wl_all_3Dp1[mask], flux_3Dp1[mask], c='g')
 #	plt.title(str(TT));  plt.show()
 #=============#=============#=============#=============#=============#=============#=============#=============#=============#=============#=============
@@ -1873,4 +1947,53 @@ def ML18_to_3D_dlogg(Teff,logg):
 
 #wl_all, flux, Teff, Grav, HoverHe  =  load_models.load_models_DBA(minwl=3000,maxwl=8000)
 #print(np.unique(Grav))
+
+
+
+if False:
+	wl, fl, teff, logg = load_models.load_models_Pier_DA_ELM(minwl=3500,maxwl=7000)
+
+	import matplotlib.pyplot as plt
+	for i in np.unique(teff):
+		for j in np.unique(logg):
+			plt.figure(figsize=(16,10))
+			mask = (teff==i) & (logg==j)
+			plt.plot(wl[mask], fl[mask],c='k')
+			plt.xlabel("wl")
+			plt.ylabel("fl")
+			plt.title(str(i) + "   " + str(j))
+			plt.show()
+
+	print(np.unique(teff), np.unique(logg))
+
+if False:
+	import matplotlib.pyplot as plt
+	import sys
+	sys.path.append("/home/james/PostDocPierMachineLearning")
+	from normalise_Spectra import normalise_spectra
+
+
+	wl_all, flux, Teff, Grav, HoverHe = load_models.load_models_DBA(minwl=3700,maxwl=4300)
+	for i in np.unique(Teff):
+		if i<10000 or i%1000!=0: continue
+		for j in np.unique(Grav):
+			for k in np.unique(HoverHe):
+				if float(k) == 2.0: continue
+				plt.figure(figsize=(16,10))
+				mask = (Teff==i) & (Grav==j) & (HoverHe==k)
+				
+				#flux_norm = normalise_spectra.normalise_spectra(np.array([wl_all[mask]]), np.array([0]), np.array([flux[mask]]), np.array([np.full((len(flux[mask]),),1)]), np.array(["DB"]))
+				
+				plt.plot(wl_all[mask], flux[mask],c='k')
+				plt.title("Teff="+str(i) + "   logg=" + str(j) + "   HoverHe" + str(k))
+				plt.show()
+		
+		
+		
+		
+		
+		
+		
+		
+		
 

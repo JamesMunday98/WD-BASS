@@ -174,10 +174,10 @@ def save_tables_output_DB():
 	np.save(install_path + "/saved_grids_npy/tableBedardDB", np.array([all_tempsDB, all_loggDB, all_radiusDB]))  # K, logg, solR
 
 
-def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, return_M=False, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[], force_CO_MTR=False):
+def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, return_M=False, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[], force_CO_MTR=False, ELM=False):
 	
 	#print(np.amin(all_radiusHe), np.amax(all_radiusHe), np.amin(all_tempsHe), np.amax(all_tempsHe))
-
+	
 	if return_R==True:
 		#all_tempsCO, all_loggCO, all_massCO, all_radiusCO = np.loadtxt("/home/james/python_scripts_path/dwd_fit_package/saved_MTR/table_valuesCO.dat", unpack=True)
 		all_tempsCO, all_loggCO, all_massCO, all_radiusCO = load(install_path + "/saved_MTR/table_valuesCO.npy")
@@ -196,6 +196,25 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 		else:
 			return rad_He, rad_CO
 	elif return_R_from_T_logg==True:
+		if ELM:
+		    if logg<7.6:
+		        if len(loaded_Althaus)==0:  all_tempsHe, all_loggHe, all_radiusHe  =  load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
+		        else:      all_tempsHe, all_loggHe, all_radiusHe = loaded_Althaus
+		        radius_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_radiusHe,np.array([T, logg]).T, method='linear')[0])
+		        return radius_He
+		    else:
+		        if len(loaded_CO)==0: all_tempsCO, all_loggCO, all_massCO, all_radiusCO = load(install_path + "/saved_MTR/table_valuesCO.npy")
+		        else:  all_tempsCO, all_loggCO, all_massCO, all_radiusCO  =  loaded_CO
+		        
+		        #mask = all_tempsCO==all_tempsCO
+		        mask=(all_tempsCO>=4500)  &  (all_tempsCO>=T-5000)  &  (all_tempsCO<=T+5000)  &  (all_loggCO<logg+0.5)  &  (all_loggCO>logg-0.5)
+		        
+		        radius_CO = float(griddata(np.array([all_tempsCO[mask],all_loggCO[mask]]).T,all_radiusCO[mask],np.array([T, logg]).T, method='linear')[0])
+		        #print("CO")
+		        
+		        #if np.isnan(radius_CO): raise ValueError(T, logg, np.amin(all_loggCO[mask]), np.amax(all_loggCO[mask]))
+		        return radius_CO
+			    
 		try:
 			if logg>7.71 or force_CO_MTR: raise ValueError  #  Althaus has a maximum logg of 7.7, Istrate 7.62
 			
@@ -203,8 +222,8 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 				#all_tempsHe, all_loggHe, all_massHe, all_radiusHe = np.loadtxt("/home/james/python_scripts_path/dwd_fit_package/saved_MTR/table_valuesHe.dat", unpack=True)
 				if False:   all_tempsHe, all_loggHe, all_massHe, all_radiusHe = load(install_path + "/saved_MTR/table_valuesHe.npy")
 				else: 
-					if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe  =  loaded_Althaus
-					else:  all_tempsHe, all_loggHe, all_radiusHe = load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
+					if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe  =  load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
+					else:  all_tempsHe, all_loggHe, all_radiusHe = loaded_Althaus
 				
 				
 				radius_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_radiusHe,np.array([T, logg]).T, method='linear')[0])
@@ -368,8 +387,8 @@ def get_MR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, ret
 			#all_tempsHe, all_loggHe, all_massHe, all_radiusHe = np.loadtxt("/home/james/python_scripts_path/dwd_fit_package/saved_MTR/table_valuesHe.dat", unpack=True)
 			if False:   all_tempsHe, all_loggHe, all_massHe, all_radiusHe = load(install_path + "/saved_MTR/table_valuesHe.npy")
 			else: 
-				if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe  =  loaded_Althaus
-				else:  all_tempsHe, all_loggHe, all_radiusHe = load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
+				if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe  =  load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
+				else:  all_tempsHe, all_loggHe, all_radiusHe = loaded_Althaus
 			
 			
 			masked=(all_tempsHe>20000)
