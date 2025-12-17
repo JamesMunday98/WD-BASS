@@ -45,7 +45,7 @@ forced_logg1 = np.asarray(config_info["forced_logg"])
 forced_HoverHe1 = np.asarray(config_info["forced_HoverHe"])
 plot_corner=np.asarray(config_info["plot_corner"])
 forced_Scaling=np.asarray(config_info["forced_scaling"])[0]
-if forced_Scaling!=False and (forced_Scaling!="WD" and forced_Scaling!="sd"): forced_Scaling=float(forced_Scaling)
+if forced_Scaling!=False and (forced_Scaling!="WD" and forced_Scaling!="sd" and forced_Scaling!="ELM"): forced_Scaling=float(forced_Scaling)
 forced_ephemeris=np.asarray(config_info["forced_ephemeris"]) # expects False or [T0, P0]
 if forced_ephemeris[0]==False:  forced_ephemeris=forced_ephemeris[0];  forced_T0=None;  forced_P0=None
 else: forced_T0=float(forced_ephemeris[0]);  forced_P0=float(forced_ephemeris[1])
@@ -85,7 +85,7 @@ if len(sys_args)>2 and "one_by_oneMCMC" in sys_args[2]:
     with open("out/result.out") as resultfile:
         result_lines = resultfile.readlines()
         for iii, lll in enumerate(result_lines):
-            if starType1.startswith("D") or starType1.startswith("sd"):
+            if starType1.startswith("D") or starType1.startswith("sd") or starType1=="ELM":
                 if "Teff1:" in lll:       
                     T1_med=float(result_lines[iii+1].split("\t")[0])
                     if forced_teff1==0:      forced_teff1=[T1_med]
@@ -206,7 +206,6 @@ if fit_phot_SED:
         
         
 else: found_parallax=False
-
 
 
 
@@ -598,9 +597,15 @@ if fit_phot_SED:
 #Uniform priors over which the variables will be allowed to vary
 p0T1=np.asarray(config_info["p0teff"])[0].astype(float)  # max teff is 14000 for DA
 p0logg1=np.asarray(config_info["p0logg"])[0].astype(float)
+if forced_Scaling=="ELM" and np.amax(p0logg1)>8.3: raise ValueError("For the ELM grid, Althaus mass-temperature-radius relationships do not cover logg>8.5. Decrease the maximum logg")
 p0HoverHe1=np.asarray(config_info["p0HoverHe"])[0].astype(float)
-try:  p0scaling=np.asarray(config_info["p0scaling"])[0].astype(float)
-except: p0scaling = None
+try:  p0scaling=np.asarray(config_info["p0scaling"]).astype(float)
+except: 
+	p0scaling = None
+	if forced_Scaling==False:
+		raise ValueError("Need to add the bounds 'p0scaling: [X,Y]' into your yaml file")
+
+
 
 if found_parallax:
     if dojplus:
@@ -806,6 +811,48 @@ elif starType1=="sd":
     unique_Teff=npunique(Teff_all_logg)
     unique_logg=npunique(logg_all_logg)
     unique_HoverHe=npunique(HoverHe_all_logg)
+
+elif starType1=="ELM":
+
+    if fit_phot_SED:         wl_all, flux_all, Teff_all, Grav_all = load_models.load_models_Pier_DA_ELM(minwl=theminww_loadgrid,maxwl=themaxww_loadgrid)
+    else:                    wl_all, flux_all, Teff_all, Grav_all = load_models.load_models_Pier_DA_ELM(minwl=npamin(reference_wl)-150,maxwl=npamax(reference_wl)+250)
+    
+    if True:
+        if forced_teff1==0 and forced_logg1==0:
+            # Trim the grid to only include the values within p0Teff and p0logg
+            min_p0T = npamin(np.array([p0T1[0], p0T1[1]]));    max_p0T = npamax(np.array([p0T1[0], p0T1[1]]))
+            
+            unique_Teff_all=npunique(Teff_all)
+            unique_Grav_all=npunique(Grav_all)
+            
+            mask_TEFF = (unique_Teff_all >= min_p0T)  &  (unique_Teff_all <= max_p0T)
+            try: mask_TEFF[npamin(npargwhere(mask_TEFF==True)) - 1] = True
+            except: None
+            try: mask_TEFF[npamax(npargwhere(mask_TEFF==True)) + 1] = True
+            except: None
+            
+            min_p0logg = npamin(np.array([p0logg1[0], p0logg1[1]]));    max_p0logg = npamax(np.array([p0logg1[0], p0logg1[1]]))
+            mask_LOGG = (unique_Grav_all >= min_p0logg)  &  (unique_Grav_all <= max_p0logg)
+            try: mask_LOGG[npamin(npargwhere(mask_LOGG==True)) - 1] = True
+            except: None
+            try: mask_LOGG[npamax(npargwhere(mask_LOGG==True)) + 1] = True
+            except: None
+            
+            
+            newMinT, newMaxT = npamin(unique_Teff_all[mask_TEFF]), npamax(unique_Teff_all[mask_TEFF])
+            newMinLogg, newMaxLogg = npamin(unique_Grav_all[mask_LOGG]), npamax(unique_Grav_all[mask_LOGG])
+            
+            
+            mask_atm_grid = (Teff_all <= newMaxT) & (Teff_all >= newMinT)  &  (Grav_all <= newMaxLogg) & (Grav_all >= newMinLogg)
+            
+            wl_all, flux_all, Teff_all, Grav_all = wl_all[mask_atm_grid], flux_all[mask_atm_grid], Teff_all[mask_atm_grid], Grav_all[mask_atm_grid]
+        
+        
+
+    Teff_all_logg = Teff_all;   wl_all_logg = wl_all;     flux_all_logg = flux_all;      logg_all_logg = Grav_all
+    unique_Teff=npunique(Teff_all_logg)
+    unique_logg=npunique(logg_all_logg)
+
     
     
     
@@ -1194,7 +1241,7 @@ pos_min = np.array([]);   pos_max = np.array([])
 used_RV_boundaries, star_DBA = [], []
 
 
-if starType1.startswith("D") or starType1.startswith("sd"):
+if starType1.startswith("D") or starType1.startswith("sd") or starType1=="ELM":
     if sys_args[1] == "ATM" or sys_args[1] == "photometry_only":
 
         for cn, (fteff, flogg, fHHe, starType) in enumerate(zip([forced_teff1], [forced_logg1], [forced_HoverHe1], [starType1])):
@@ -1263,7 +1310,6 @@ if starType1.startswith("D") or starType1.startswith("sd"):
         else: raise ValueError
 
 
-
     if sys_args[1] == "ATM" and fit_phot_SED:
         if found_parallax:
             ndim+=1
@@ -1282,6 +1328,12 @@ if starType1.startswith("D") or starType1.startswith("sd"):
             pos_min = np.append(pos_min, p0R[0]);   pos_max = np.append(pos_max, p0R[1])
             p0range = np.concatenate((p0range, np.array([p0R])))
             p0labels = np.append(p0labels,"R")
+    elif sys_args[1] == "ATM":
+        if forced_Scaling==False:
+            ndim+=1
+            pos_min = np.append(pos_min, p0scaling[0]);   pos_max = np.append(pos_max, p0scaling[1])
+            p0range = np.concatenate((p0range, np.array([p0scaling])))
+            p0labels = np.append(p0labels,"Scaling")
     
     
     if sys_args[1] == "photometry_only" and fit_phot_SED:
@@ -1303,6 +1355,12 @@ if starType1.startswith("D") or starType1.startswith("sd"):
             pos_min = np.append(pos_min, p0R[0]);   pos_max = np.append(pos_max, p0R[1])
             p0range = np.concatenate((p0range, np.array([p0R])))
             p0labels = np.append(p0labels,"R")
+    elif sys_args[1] == "ATM":
+        if forced_Scaling==False:
+            ndim+=1
+            pos_min = np.append(pos_min, p0scaling[0]);   pos_max = np.append(pos_max, p0scaling[1])
+            p0range = np.concatenate((p0range, np.array([p0scaling])))
+            p0labels = np.append(p0labels,"Scaling")
 
 elif (starType1.startswith("LL") or starType1.startswith("GG") or starType1.startswith("GL")):
     #Uniform priors over which the variables will be allowed to vary
@@ -1554,6 +1612,42 @@ def return_DAgrids(temperature_star, logg_star):
         
         return Grav1_N, wl_all1_N, flux1_N, Teff1_N
 
+@njit
+def return_ELMgrids(temperature_star, logg_star):
+    minval=10000;   maxval=-10000
+    if logg_star>=4:
+        Teff_all = Teff_all_logg;    wl_all = wl_all_logg;    flux_all = flux_all_logg;    logg_all = logg_all_logg
+            
+        temdiff = temperature_star - unique_Teff
+        Teff_min=unique_Teff[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
+        Teff_max=unique_Teff[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
+            
+    else: raise ValueError
+            
+            
+    # then find the nearest 2 loggs
+    list_search = [4.0, 4.25, 4.5, 4.75, 5, 5.25, 5.5, 5.75, 6, 6.25, 6.5, 6.75, 7, 7.25, 7.5, 7.75, 8, 8.25, 8.5, 8.75, 9, 9.25, 9.5]
+        
+    for logg_opts in list_search:
+        if logg_opts-logg_star<np.abs(logg_opts-maxval):    maxval = logg_opts
+        if logg_star-logg_opts>0:   minval = logg_opts
+        
+        
+    mask_logg = (logg_all<=maxval) & (logg_all>=minval) & (Teff_all<=Teff_max) & (Teff_all>=Teff_min)
+        
+        
+    Grav1_N = logg_all[mask_logg];    wl_all1_N=wl_all[mask_logg];    flux1_N=flux_all[mask_logg];    Teff1_N=Teff_all[mask_logg]
+        
+        
+    if len(npunique(Teff1_N))==3:
+        un_teffs = npunique(Teff1_N)
+        if temperature_star<un_teffs[1]:   newmask = (Teff1_N!=un_teffs[2])
+        else:   newmask = (Teff1_N!=un_teffs[0])
+            
+        Grav1_N, wl_all1_N, flux1_N, Teff1_N = Grav1_N[newmask], wl_all1_N[newmask], flux1_N[newmask], Teff1_N[newmask]
+        
+    return Grav1_N, wl_all1_N, flux1_N, Teff1_N
+
 
 if starType1=="DB":
     @njit
@@ -1793,7 +1887,7 @@ def trilinear_interpolation(wavelengths_model, temps_model, loggs_model, HoverHe
 
 
 #@njit
-# temperature grid for DBs is irregular. Don't try to speed it up and accept the griddata way
+# temperature grid for DBs is irregular. __________DON'T try to speed it up and accept the griddata way___________
 def return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, temperature_star, logg_star, HoverHe_star):
     if ref_wl>6000:    excess_slack=10 # angstroms to allow variation with RV of star. Here, Halpha goes +-450kms-1. Increase this if RV diff larger
     else:  excess_slack=7.5 # angstroms to allow variation with RV of star. Here, Hbeta goes +-500kms-1. Increase this if RV diff larger
@@ -1806,6 +1900,8 @@ def return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max,
     
     # interpolate for a model at the reference wavelength with this mcmc interation    
     wl_grid, unique_Ts, unique_Gs, unique_HoverHes = npunique(wl_all_N_N), npunique(Teff_N_N), npunique(Grav_N_N), npunique(HoverHe_N_N)
+    
+    
     model_spectrum=griddata(np.array([Teff_N_N, wl_all_N_N, Grav_N_N, HoverHe_N_N]).T, flux_N_N, np.array([np.full((len(wl_grid),),temperature_star), wl_grid, np.full((len(wl_grid),),logg_star), np.full((len(wl_grid),),HoverHe_star)]).T, method="linear")
     
     if ref_wl>6500:     fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*10)) # 0.1AA spacing
@@ -1883,11 +1979,17 @@ def return_model_spectrum_subdwarf(wl_all1_N, ref_wl, cut_limits_min, cut_limits
 
 
 
-if forced_Scaling=="WD" and fit_phot_SED:
+if (forced_Scaling=="WD" or forced_Scaling=="ELM") and fit_phot_SED:
     install_path = os.environ['WD_BASS_INSTALL_DIR']
     loaded_Althaus = np.load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
     loaded_Istrate = np.load(install_path + "/saved_MTR/Istrate_Z0p02_diffusion_nomasses.npy")
     loaded_CO = np.load(install_path + "/saved_MTR/table_valuesCO.npy")
+
+    if forced_Scaling=="ELM":
+        temp_all_logg = np.round(loaded_Althaus[1]/4,1)*4
+        
+        if np.amin(p0logg1)<np.amin(temp_all_logg): raise ValueError("For ELM with the Althaus grid, the logg is too low. Minimum logg is", np.amin(temp_all_logg))
+
 
 
 checkT1, checklogg1, checkHoverHe1, checkscaling, checkR, checkDummy, checkBBT, checkBBR = False, False, False, False, False, False, False, False
@@ -1901,6 +2003,7 @@ if "Dummy" in p0labels: checkDummy=True
 
 
 param_index = {label: i for i, label in enumerate(p0labels)}
+
 
 #Test that next step falls within boundaries allowed by the priors
 def lnprior(theta, arguments):
@@ -1922,6 +2025,12 @@ def lnprior(theta, arguments):
     elif "RV1_2" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_2")[0][0]
     elif "RV1_3" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_3")[0][0]
     elif "RV1_4" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_4")[0][0]
+    
+    for cn, i in enumerate(p0labels):
+        if cn>num_start_RVs and not "RV" in i:
+            num_end_RVs = cn
+            break
+            
     
     
     ggg = param_index.get  # local alias — avoids global lookup overhead
@@ -1973,14 +2082,15 @@ def lnprior(theta, arguments):
     
     if sys_args[1] != "photometry_only":
         if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
-            if forced_Scaling==False: RV=theta[num_start_RVs:-1];  Scaling=theta[-1]
-            else:                     RV=theta[num_start_RVs:]
+            if forced_Scaling==False: RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
+            else:                     RV=theta[num_start_RVs:num_end_RVs]
     
     
         used_RV_boundaries=np.asarray(used_RV_boundaries)
         if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
             #for anRV, anRVbound in zip(RV,used_RV_boundaries):  # go through all individual RVs and make sure they are in boundaries
             #    if not anRVbound[0] < anRV < anRVbound[1]:        return -np_inf
+            
             if np.any(RV < used_RV_boundaries[:,0]) or np.any(RV > used_RV_boundaries[:,1]):
                 return -np.inf
         else:
@@ -2040,7 +2150,10 @@ def lnlike(theta, arguments):
     #if "BBT" in p0labels:           args = npargwhere(p0labels=="BBT")[0][0];     mcmc_BBT = theta[args]
     #if "BBR" in p0labels:           args = npargwhere(p0labels=="BBR")[0][0];     mcmc_BBR = theta[args]
     
-    
+    for cn, i in enumerate(p0labels):
+        if cn>num_start_RVs and not "RV" in i:
+            num_end_RVs = cn
+            break
     
     
     T1 = theta[param_index["T1"]] if "T1" in param_index else forced_teff1
@@ -2096,17 +2209,24 @@ def lnlike(theta, arguments):
             Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_DBgrids(T1, logg1)
         elif starType=="DC":
             Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_DCgrids(T1, logg1)
+        elif starType=="ELM":
+            Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_ELMgrids(T1, logg1)
         
     if sys_args[1] != "photometry_only":
         if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
-            if forced_Scaling==False: RV=theta[num_start_RVs:-1];  Scaling=theta[-1]
-            else:                     RV=theta[num_start_RVs:]
+            if forced_Scaling==False: 
+                RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
+            else:                     RV=theta[num_start_RVs:num_end_RVs]
         else:
             if forced_Scaling==False: Scaling=theta[-1]
     
     
     
     if fit_phot_SED:
+        if starType1=="ELM":
+            R1 = get_MTR(T1, logg=logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR, ELM=True)
+            
+            if np.isnan(R1): raise ValueError(T1, logg1)
         if forced_Scaling=="WD" and starType1=="DA":
             R1 = get_MTR(T1, logg=logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR)
             
@@ -2117,7 +2237,7 @@ def lnlike(theta, arguments):
             if np.isnan(R1): raise ValueError(T1, logg1)
         elif isinstance(forced_Scaling, float): Scaling=forced_Scaling
         
-        if starType1=="DA" or starType1=="DB" or starType1=="DC":
+        if starType1=="DA" or starType1=="DB" or starType1=="DC" or starType1=="ELM":
             smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, T1, logg1, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=R1, parallax=mcmc_parallax, red=reddening_Ebv, extraflux=constraintsBB)
         elif starType1=="DBA":
             smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=R1, parallax=mcmc_parallax, red=reddening_Ebv, extraflux=constraintsBB)
@@ -2162,7 +2282,7 @@ def lnlike(theta, arguments):
 
             
             else:
-                if starType1=="DA" or starType1=="DC" or starType1=="DB":  model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, T1, logg1)
+                if starType1=="DA" or starType1=="DC" or starType1=="DB" or starType1=="ELM":  model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, T1, logg1)
                 elif starType1=="DBA": model_wl1, model_spectrum_star1 = return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1)
                 elif starType1.startswith("sd"): model_wl1, model_spectrum_star1 = return_model_spectrum_subdwarf(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1)
                 
@@ -2707,7 +2827,7 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss":
     with open("out/result.out") as resultfile:
         result_lines = resultfile.readlines()
         for iii, lll in enumerate(result_lines):
-            if starType1.startswith("D") or starType1.startswith("sd"):
+            if starType1.startswith("D") or starType1.startswith("sd") or starType1=="ELM":
                 if "Teff1:" in lll:
                     T1_med=float(result_lines[iii+1].split("\t")[0])
                 elif "Logg1:" in lll:
@@ -2726,7 +2846,7 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss":
         resultfile.close()
     
     
-    if starType1.startswith("D") or starType1.startswith("sd"):
+    if starType1.startswith("D") or starType1.startswith("sd") or starType1=="ELM":
         try: T1_med
         except: T1_med = forced_teff1
         try: logg1_med
@@ -2734,6 +2854,8 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss":
         
         if found_out_scaling==False and fit_phot_SED:
             if forced_Scaling==False:    Scaling_med = Scaling_med
+            elif starType1=="ELM":
+                R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR, ELM=True)
             elif forced_Scaling=="WD" and starType1=="DA":
                 R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR)
             elif forced_Scaling=="WD" and starType1=="DBA"  or starType1=="DB" or starType1=="DC":
@@ -2760,6 +2882,9 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss":
             
             elif starType=="DC":
                 if tempcnt==0:    Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_DCgrids(temperature_star, logg_star)
+            
+            elif starType=="ELM":
+                if tempcnt==0:   Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_ELMgrids(temperature_star, logg_star)
         
     else:   Scaling_med=1
 
@@ -2767,8 +2892,8 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss":
     
     cut_limits_min, cut_limits_max = npamin(cut_Ha_all.T), npamax(cut_Ha_all.T)
     
-    if starType1.startswith("D")  or starType1.startswith("sd"):
-        if starType1=="DA" or starType1=="DB" or starType1=="DC": model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, desired_wl, cut_limits_min-20, cut_limits_max+20, Grav1_N, flux1_N, Teff1_N, T1_med, logg1_med)
+    if starType1.startswith("D")  or starType1.startswith("sd") or starType1=="ELM":
+        if starType1=="DA" or starType1=="DB" or starType1=="DC" or starType1=="ELM": model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, desired_wl, cut_limits_min-20, cut_limits_max+20, Grav1_N, flux1_N, Teff1_N, T1_med, logg1_med)
         elif starType1=="DBA": model_wl1, model_spectrum_star1 = return_model_spectrum_DBA(wl_all1_N, desired_wl, cut_limits_min-20, cut_limits_max+20, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1_med, logg1_med, HoverHe1_med)
         elif starType1.startswith("sd"):  model_wl1, model_spectrum_star1 = return_model_spectrum_subdwarf(wl_all1_N, desired_wl, cut_limits_min-20, cut_limits_max+20, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1_med, logg1_med, HoverHe1_med)
     
@@ -3256,7 +3381,7 @@ elif sys_args[1]=="ATM" or sys_args[1]=="photometry_only":
     except: None
     
         
-    if starType1.startswith("D")  or starType1.startswith("sd"):
+    if starType1.startswith("D")  or starType1.startswith("sd") or starType1=="ELM":
         if forced_teff1!=0 and forced_logg1!=0:
             if starType1=="DA":
                 Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_DAgrids(forced_teff1, forced_logg1)
@@ -3264,6 +3389,9 @@ elif sys_args[1]=="ATM" or sys_args[1]=="photometry_only":
             elif starType1.startswith("sd"):
                 Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N = return_DBAgrids(forced_teff1, forced_logg1, forced_HoverHe1)
                 model_wl1, model_spectrum_star1 = return_model_spectrum_subdwarf(wl_all1_N, 5000, -5000, 5000, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1_med, logg1_med, HoverHe1_med)
+            elif starType1=="ELM":
+                Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_ELMgrids(forced_teff1, forced_logg1)
+                model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, 5000, -5000, 5000, Grav1_N, flux1_N, Teff1_N, forced_teff1, forced_logg1)
             
             
             sampler = EnsembleSampler(nwalkers, ndim, lnprob, pool=pool, args=[[input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, HJD_values, sigma_clip, npunique(reference_wl), model_wl1, model_spectrum_star1]])
@@ -3326,7 +3454,7 @@ elif sys_args[1]=="ATM" or sys_args[1]=="photometry_only":
     
     lines_to_write = []
     print(p0labels)
-    if starType1.startswith("D") or starType1.startswith("sd"):
+    if starType1.startswith("D") or starType1.startswith("sd") or starType1=="ELM":
         if "T1" in p0labels:
             args = npargwhere(p0labels=="T1")[0][0];          Teff1_result = samples[::,args]
             T1_med = np.percentile(Teff1_result, 50, axis=0);  T1_min = np.percentile(Teff1_result, 16, axis=0);   T1_max = np.percentile(Teff1_result, 84, axis=0)
@@ -3419,6 +3547,8 @@ elif sys_args[1]=="ATM" or sys_args[1]=="photometry_only":
     # save just the median for individual epoch pngs with fit and observations
     if fit_phot_SED: # no starType1.startswith("sd") yet
         if forced_Scaling==False:    Scaling_med = Scaling_med
+        elif starType1=="ELM":
+            R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR, ELM=True)
         elif forced_Scaling=="WD" and starType1=="DA": 
             R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR)
         elif forced_Scaling=="WD" and starType1=="DBA" or starType1=="DB" or starType1=="DC":
@@ -3519,7 +3649,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly" or sys_args[1] == "photometry_o
 
 
 
-        if starType1.startswith("D") or starType1.startswith("sd") :
+        if starType1.startswith("D") or starType1.startswith("sd") or starType1=="ELM":
             if "Teff1:" in lll:
                 T1_med=float(result[iii+1].split("\t")[0])
                 T1_minus=float(result[iii+1].split("\t")[1])
@@ -3557,8 +3687,9 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly" or sys_args[1] == "photometry_o
             
     
     
-    if fit_phot_SED and (starType1.startswith("D") or starType1.startswith("sd")):
+    if fit_phot_SED and (starType1.startswith("D") or starType1.startswith("sd") or starType1=="ELM"):
         if forced_Scaling==False:    Scaling_med = Scaling_med
+        elif starType1=="ELM":       R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR, ELM=True)
         elif forced_Scaling=="WD": 
             if starType1=="DA":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR)
             elif starType1=="DBA" or starType1=="DC"  or starType1=="DB":   R1 = get_MTR_DB(T1_med, logg=logg1_med)
@@ -3569,7 +3700,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly" or sys_args[1] == "photometry_o
 
 
 
-    if starType1.startswith("D")  or starType1.startswith("sd"):
+    if starType1.startswith("D")  or starType1.startswith("sd") or starType1=="ELM":
         for tempcnt, (temperature_star, logg_star, starType) in enumerate(zip([T1_med],[logg1_med], [starType1])):
             minval=10000;   maxval=-10000
             if starType=="DA":
@@ -3588,13 +3719,16 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly" or sys_args[1] == "photometry_o
             elif starType=="DC":
                 if tempcnt==0:     Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_DCgrids(temperature_star, logg_star)
             
+            elif starType=="ELM":
+                if tempcnt==0:     Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_ELMgrids(temperature_star, logg_star)
+            
 
 
 
 
     # if relevant, plot the photometric solution
     if fit_phot_SED:
-        if starType1=="DA" or starType1=="DB" or starType1=="DC":
+        if starType1=="DA" or starType1=="DB" or starType1=="DC" or starType1=="ELM":
             smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, T1_med, logg1_med, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=R1, parallax=parallax_med, red=reddening_Ebv)
         elif starType1=="DBA":
             smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1_med, logg1_med, HoverHe1_med, min_wl=theminww, max_wl=themaxww,starType1=starType1, R1=R1, parallax=parallax_med, red=reddening_Ebv)
@@ -3634,8 +3768,8 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly" or sys_args[1] == "photometry_o
             
             fig, (ax, ax2) = plt.subplots(2)
             
-            if starType1.startswith("D")  or starType1.startswith("sd"):
-                if starType1=="DA" or starType1=="DB" or starType1=="DC": model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, T1_med, logg1_med)
+            if starType1.startswith("D")  or starType1.startswith("sd") or starType1=="ELM":
+                if starType1=="DA" or starType1=="DB" or starType1=="DC" or starType1=="ELM": model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, T1_med, logg1_med)
                 elif starType1=="DBA": model_wl1, model_spectrum_star1 = return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1_med, logg1_med, HoverHe1_med)
                 elif starType1.startswith("sd"): model_wl1, model_spectrum_star1 = return_model_spectrum_subdwarf(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1_med, logg1_med, HoverHe1_med)
                 
@@ -3747,7 +3881,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly" or sys_args[1] == "photometry_o
             
             ax.scatter(0,1,alpha=0, label="RV1 = " + str(np.round(rv_med1,3)));        ax2.scatter(0,1,alpha=0, label="RV1 = " + str(np.round(rv_med1,3)))
             ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl));                 ax2.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
-            if starType1.startswith("D")  or starType1.startswith("sd"):
+            if starType1.startswith("D")  or starType1.startswith("sd") or starType1=="ELM":
                 ax.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)));          ax2.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)))
                 ax.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)));    ax2.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)))
             ax2.set_xlabel("RV [kms-1]");
@@ -3769,7 +3903,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly" or sys_args[1] == "photometry_o
     #### Now plot just the shared rv combinations
     where_share_rv = (share_rv != -1)
     plt.clf()
-    if starType1.startswith("D")  or starType1.startswith("sd"):
+    if starType1.startswith("D")  or starType1.startswith("sd") or starType1=="ELM":
         for unique_shared_rv in npunique(share_rv[where_share_rv]):
             norm_wl_combinations, normalised_flux_combinations, normalised_err_combinations = [], [], []
             fig = plt.figure()
@@ -3808,7 +3942,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly" or sys_args[1] == "photometry_o
                     normalised_wavelength, normalised_flux, normalised_err = normalised_wavelength[mask_input_spectrum], normalised_flux[mask_input_spectrum], normalised_err[mask_input_spectrum]
                 
                 
-                if starType1=="DA" or starType1=="DB" or starType1=="DC": model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, T1_med, logg1_med)
+                if starType1=="DA" or starType1=="DB" or starType1=="DC" or starType1=="ELM": model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, T1_med, logg1_med)
                 elif starType1=="DBA": model_wl1, model_spectrum_star1 = return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1_med, logg1_med, HoverHe1_med)
                 elif starType1.startswith("sd"):  model_wl1, model_spectrum_star1 = return_model_spectrum_subdwarf(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1_med, logg1_med, HoverHe1_med)
                 
@@ -3950,7 +4084,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly" or sys_args[1] == "photometry_o
             
             ax.scatter(0,1,alpha=0, label="RV1 = " + str(np.round(rv_med1,3)));       ax2.scatter(0,1,alpha=0, label="RV1 = " + str(np.round(rv_med1,3)))
             ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl));                ax2.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
-            if starType1.startswith("D")  or starType1.startswith("sd"):
+            if starType1.startswith("D")  or starType1.startswith("sd")  or starType1=="ELM":
                 ax.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)));         ax2.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)))
                 ax.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)));   ax2.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)))
             ax.set_title(filename)
