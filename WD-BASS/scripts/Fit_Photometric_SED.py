@@ -177,7 +177,7 @@ class Fit_phot(object):
 		""" combine two spectra with scaling and reden the model to fit photometry """
 		
 		mask_logg_wl_1 = (wl_all1_N > min_wl) & (wl_all1_N < max_wl)
-		if starType1=="DA" or starType1=="DB" or starType1=="DC":
+		if starType1=="DA" or starType1=="DB" or starType1=="DC" or starType1=="ELM":
 			Grav1_N, wl_all1_N, flux1_N, Teff1_N = Grav1_N[mask_logg_wl_1], wl_all1_N[mask_logg_wl_1], flux1_N[mask_logg_wl_1], Teff1_N[mask_logg_wl_1]
 			model_wl1, model_spectrum_star1 = Fit_phot.return_model_spectrum_DA(wl_all1_N, 0, 0, 0, Grav1_N, flux1_N, Teff1_N, T1, logg1)
 			
@@ -188,7 +188,7 @@ class Fit_phot(object):
 		
 		
 		mask_logg_wl_2 = (wl_all2_N > min_wl) & (wl_all2_N < max_wl)
-		if starType2=="DA" or starType2=="DB" or starType2=="DC":
+		if starType2=="DA" or starType2=="DB" or starType2=="DC" or starType2=="ELM":
 			Grav2_N, wl_all2_N, flux2_N, Teff2_N = Grav2_N[mask_logg_wl_2], wl_all2_N[mask_logg_wl_2], flux2_N[mask_logg_wl_2], Teff2_N[mask_logg_wl_2]
 			model_wl2, model_spectrum_star2 = Fit_phot.return_model_spectrum_DA(wl_all2_N, 0, 0, 0, Grav2_N, flux2_N, Teff2_N, T2, logg2)
 			

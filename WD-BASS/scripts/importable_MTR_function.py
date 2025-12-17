@@ -197,7 +197,7 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 			return rad_He, rad_CO
 	elif return_R_from_T_logg==True:
 		if ELM:
-		    if logg<7.6:
+		    if logg<7.55:
 		        if len(loaded_Althaus)==0:  all_tempsHe, all_loggHe, all_radiusHe  =  load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
 		        else:      all_tempsHe, all_loggHe, all_radiusHe = loaded_Althaus
 		        radius_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_radiusHe,np.array([T, logg]).T, method='linear')[0])
