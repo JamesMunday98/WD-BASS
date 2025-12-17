@@ -1199,7 +1199,7 @@ if stack_spectra:
 
 
 # now initiate the MCMC parameters
-if (starType1.startswith("D") and starType2.startswith("D")) or (starType.startswith("ELM") and starType2.startswith("ELM")):
+if (starType1.startswith("D") and starType2.startswith("D")) or (starType1.startswith("ELM") and starType2.startswith("ELM")):
 
     ndim, num_DBA = 0, 0
     p0range = np.array([]).reshape((0,2));   p0labels = np.array([])
@@ -1944,11 +1944,16 @@ def return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max,
 
 
 
-if forced_Scaling=="WD":
+if forced_Scaling=="WD" or forced_Scaling=="ELM":
     install_path = os.environ['WD_BASS_INSTALL_DIR']
     loaded_Althaus = np.load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
     loaded_Istrate = np.load(install_path + "/saved_MTR/Istrate_Z0p02_diffusion_nomasses.npy")
     loaded_CO = np.load(install_path + "/saved_MTR/table_valuesCO.npy")
+    
+    if forced_Scaling=="ELM":
+        temp_all_logg = np.round(loaded_Althaus[1]/4,1)*4
+        
+        if np.amin(p0logg1)<np.amin(temp_all_logg): raise ValueError("For ELM with the Althaus grid, the logg is too low. Minimum logg is", np.amin(temp_all_logg))
 
 
 
@@ -2015,17 +2020,21 @@ def lnprior(theta, arguments):
     elif "RV1_4" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_4")[0][0]
     #if "Parallax" in p0labels:      args = npargwhere(p0labels=="Parallax")[0][0];     mcmc_parallax = theta[args]
     
-    for cn, i in enumerate(p0labels):
-        if cn>num_start_RVs and not "RV" in i:
-            num_end_RVs = cn
-            break
+    
     
     if T1<T2:
         return -np_inf
     
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
-        if forced_Scaling==False: RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
-        else:                     RV=theta[num_start_RVs:num_end_RVs]
+        if forced_Scaling==False: 
+            num_end_RVs=len(p0labels)
+            for cn, i in enumerate(p0labels):
+                if cn>num_start_RVs and not "RV" in i:
+                    num_end_RVs = cn
+                    break
+            
+            RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
+        else:                     RV=theta[num_start_RVs:]
         
         
         
@@ -2128,10 +2137,7 @@ def lnlike(theta, arguments):
     
     if "RV1_0" in p0labels:         num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0]
     
-    for cn, i in enumerate(p0labels):
-        if cn>num_start_RVs and not "RV" in i:
-            num_end_RVs = cn
-            break
+    
     
     T1 = theta[param_index["T1"]] if "T1" in param_index else forced_teff1
     logg1 = theta[param_index["logg1"]] if "logg1" in param_index else forced_logg1
@@ -2184,21 +2190,25 @@ def lnlike(theta, arguments):
         
         elif starType=="ELM":
             if starcnt==0:    Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_ELMgrids(T1, logg1)
-            elif starcnt==1:  Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_ELMgrids(T2, logg2)
+            elif starcnt==1:  Grav2_N, wl_all2_N, flux2_N, Teff2_N = return_ELMgrids(T2, logg2)
 
     
-    if forced_Scaling=="WD" and inputScaling==None:
+    if (forced_Scaling=="WD" or forced_Scaling=="ELM") and inputScaling==None:
         if starType1=="DA":     R1 = get_MTR(T1, logg=logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
         elif starType1=="DBA" or starType1=="DB" or starType1=="DC":
             R1 = get_MTR_DB(T1, logg=logg1)
             #### This only applies if Camisassa grid is being used
             #if logg1<7.7529337 or logg1>8.6700679: raise ValueError("logg1=", logg2, "Min/max Bounds of logg for DB scaling is 7.7796246 and 8.6700679. If your logg is close to this, consider restricting p0logg further or turning off WD scaling")
+        elif starType1=="ELM":
+            R1 = get_MTR(T1, logg=logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0], ELM=True)
         
         if starType2=="DA":     R2 = get_MTR(T2, logg=logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
         elif starType2=="DBA"  or starType2=="DB" or starType2=="DC":
             R2 = get_MTR_DB(T2, logg=logg2)
             #### This only applies if Camisassa grid is being used
             #if logg2<7.7529337 or logg2>8.6700679: raise ValueError("logg2=", logg2, "Min/max Bounds of logg for DB scaling is 7.7796246 and 8.6700679. If your logg is close to this, consider restricting p0logg further or turning off WD scaling")
+        elif starType2=="ELM":
+            R2 = get_MTR(T2, logg=logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1], ELM=True)
         Scaling= (R1**2/R2**2)
         
         if np.isnan(R1): raise ValueError(T1, logg1)
@@ -2209,11 +2219,17 @@ def lnlike(theta, arguments):
     
     
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
-        if forced_Scaling==False: RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
-        else:                     RV=theta[num_start_RVs:num_end_RVs]
+        if forced_Scaling==False: 
+            num_end_RVs=len(p0labels)
+            for cn, i in enumerate(p0labels):
+                if cn>num_start_RVs and not "RV" in i:
+                    num_end_RVs = cn
+                    break
+            
+            RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
+        else:                     RV=theta[num_start_RVs:]
     else:
         if forced_Scaling==False: Scaling=theta[-1]
-    
     
     
     if fit_phot_SED:
@@ -2275,10 +2291,10 @@ def lnlike(theta, arguments):
 
         
         else:
-            if starType1=="DA" or starType1=="DC" or starType1=="DB":  model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, T1, logg1)
+            if starType1=="DA" or starType1=="DC" or starType1=="DB" or starType1=="ELM":  model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, T1, logg1)
             elif starType1=="DBA": model_wl1, model_spectrum_star1 = return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1)
             
-            if starType2=="DA" or starType2=="DC" or starType2=="DB":  model_wl2, model_spectrum_star2 = return_model_spectrum_DA(wl_all2_N, ref_wl, cut_wl_min, cut_wl_max, Grav2_N, flux2_N, Teff2_N, T2, logg2)
+            if starType2=="DA" or starType2=="DC" or starType2=="DB" or starType2=="ELM":  model_wl2, model_spectrum_star2 = return_model_spectrum_DA(wl_all2_N, ref_wl, cut_wl_min, cut_wl_max, Grav2_N, flux2_N, Teff2_N, T2, logg2)
             elif starType2=="DBA": model_wl2, model_spectrum_star2 = return_model_spectrum_DBA(wl_all2_N, ref_wl, cut_wl_min, cut_wl_max, Grav2_N, flux2_N, Teff2_N, HoverHe2_N, T2, logg2, HoverHe2)
         
         
@@ -3058,12 +3074,14 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commo
         except: logg2_med = forced_logg2
         if found_out_scaling==False:
             if forced_Scaling==False:    Scaling_med = Scaling_med
-            elif forced_Scaling=="WD":
+            elif (forced_Scaling=="WD" or forced_Scaling=="ELM"):
                 if starType1=="DA":     R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
                 elif starType1=="DBA" or starType1=="DC" or starType1=="DB":  R1 = get_MTR_DB(T1_med, logg=logg1_med)
+                elif starType1=="ELM":     R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0], ELM=True)
                 
                 if starType2=="DA":     R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
                 elif starType2=="DBA" or starType2=="DC" or starType2=="DB":  R2 = get_MTR_DB(T2_med, logg=logg2_med)
+                elif starType2=="ELM":     R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1], ELM=True)
                 Scaling_med=(R1**2/R2**2)
             else: Scaling_med=forced_Scaling
                 
@@ -3945,8 +3963,16 @@ elif sys_args[1]=="ATM":
             model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, 5000, -5000, 5000, Grav1_N, flux1_N, Teff1_N, forced_teff1, forced_logg1)
             model_wl2, model_spectrum_star2 = return_model_spectrum_DA(wl_all2_N, 5000, -5000, 5000, Grav2_N, flux2_N, Teff2_N, forced_teff2, forced_logg2)
             
-            R1 = get_MTR(forced_teff1, logg=forced_logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
-            R2 = get_MTR(forced_teff2, logg=forced_logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
+            if starType1=="ELM":
+                R1 = get_MTR(forced_teff1, logg=forced_logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0], ELM=True)
+            else:
+                R1 = get_MTR(forced_teff1, logg=forced_logg1, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
+            
+            
+            if starType2=="ELM":
+                R2 = get_MTR(forced_teff2, logg=forced_logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1], ELM=True)
+            else:
+                R2 = get_MTR(forced_teff2, logg=forced_logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
             inputScaling= (R1**2/R2**2)
             
             
@@ -4163,11 +4189,13 @@ elif sys_args[1]=="ATM":
 
     # save just the median for individual epoch pngs with fit and observations
     if forced_Scaling==False:    Scaling_med = Scaling_med
-    elif forced_Scaling=="WD": 
+    elif forced_Scaling=="WD" or forced_Scaling=="ELM": 
         if starType1=="DA":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
         elif starType1=="DBA" or starType1=="DC" or starType1=="DB":   R1 = get_MTR_DB(T1_med, logg=logg1_med)
+        elif starType1=="ELM":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0], ELM=True)
         if starType2=="DA":      R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
         elif starType2=="DBA" or starType2=="DC" or starType2=="DB":   R2 = get_MTR_DB(T2_med, logg=logg2_med)
+        elif starType2=="ELM":      R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1], ELM=True)
         Scaling_med=(R1**2/R2**2)
     else: Scaling_med=forced_Scaling
 
@@ -4397,8 +4425,10 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
         elif forced_Scaling=="WD": 
             if starType1=="DA":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
             elif starType1=="DBA" or starType1=="DC"  or starType1=="DB":   R1 = get_MTR_DB(T1_med, logg=logg1_med)
+            elif starType1=="ELM":      R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0])
             if starType2=="DA":      R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
             elif starType2=="DBA" or starType2=="DC"  or starType2=="DB":   R2 = get_MTR_DB(T2_med, logg=logg2_med)
+            elif starType2=="DA":      R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1], ELM=True)
             Scaling_med=(R1**2/R2**2)  #(T1_med/T2_med)**4 * 
         else: Scaling_med=forced_Scaling
     
@@ -4540,12 +4570,14 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
                     R1 = get_MTR_DB(T1_med, logg=logg1_med)
                     #### This only applies if Camisassa grid is being used
                     #if logg1<7.7529337 or logg1>8.6700679: raise ValueError("logg1=", logg2, "Min/max Bounds of logg for DB scaling is 7.7796246 and 8.6700679. If your logg is close to this, consider restricting p0logg further or turning off WD scaling")
+                elif starType1=="ELM":     R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[0], ELM=True)
                 
                 if starType2=="DA":     R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
                 elif starType2=="DBA"  or starType2=="DB" or starType2=="DC":
                     R2 = get_MTR_DB(T2_med, logg=logg2_med)
                     #### This only applies if Camisassa grid is being used
                     #if logg2<7.7529337 or logg2>8.6700679: raise ValueError("logg2=", logg2, "Min/max Bounds of logg for DB scaling is 7.7796246 and 8.6700679. If your logg is close to this, consider restricting p0logg further or turning off WD scaling")
+                elif starType2=="ELM":     R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
                 Scaling= (R1**2/R2**2)
                 
                 if np.isnan(R1): raise ValueError(T1, logg1)

@@ -2026,11 +2026,6 @@ def lnprior(theta, arguments):
     elif "RV1_3" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_3")[0][0]
     elif "RV1_4" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_4")[0][0]
     
-    for cn, i in enumerate(p0labels):
-        if cn>num_start_RVs and not "RV" in i:
-            num_end_RVs = cn
-            break
-            
     
     
     ggg = param_index.get  # local alias — avoids global lookup overhead
@@ -2082,11 +2077,18 @@ def lnprior(theta, arguments):
     
     if sys_args[1] != "photometry_only":
         if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
-            if forced_Scaling==False: RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
-            else:                     RV=theta[num_start_RVs:num_end_RVs]
-    
+            if forced_Scaling==False:
+                num_end_RVs=len(p0labels)
+                for cn, i in enumerate(p0labels):
+                    if cn>num_start_RVs and not "RV" in i:
+                        num_end_RVs = cn
+                        break
+                RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
+            else:                     RV=theta[num_start_RVs:]
+        
     
         used_RV_boundaries=np.asarray(used_RV_boundaries)
+        #raise ValueError(used_RV_boundaries.shape, RV.shape)
         if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
             #for anRV, anRVbound in zip(RV,used_RV_boundaries):  # go through all individual RVs and make sure they are in boundaries
             #    if not anRVbound[0] < anRV < anRVbound[1]:        return -np_inf
@@ -2150,10 +2152,6 @@ def lnlike(theta, arguments):
     #if "BBT" in p0labels:           args = npargwhere(p0labels=="BBT")[0][0];     mcmc_BBT = theta[args]
     #if "BBR" in p0labels:           args = npargwhere(p0labels=="BBR")[0][0];     mcmc_BBR = theta[args]
     
-    for cn, i in enumerate(p0labels):
-        if cn>num_start_RVs and not "RV" in i:
-            num_end_RVs = cn
-            break
     
     
     T1 = theta[param_index["T1"]] if "T1" in param_index else forced_teff1
@@ -2215,8 +2213,13 @@ def lnlike(theta, arguments):
     if sys_args[1] != "photometry_only":
         if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
             if forced_Scaling==False: 
+                num_end_RVs=num_end_RVs=len(p0labels)
+                for cn, i in enumerate(p0labels):
+                    if cn>num_start_RVs and not "RV" in i:
+                        num_end_RVs = cn
+                        break
                 RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
-            else:                     RV=theta[num_start_RVs:num_end_RVs]
+            else:                     RV=theta[num_start_RVs:]
         else:
             if forced_Scaling==False: Scaling=theta[-1]
     
