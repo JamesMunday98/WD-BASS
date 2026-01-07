@@ -1510,7 +1510,7 @@ class load_models(object):
 		trigger_wl=True
 		flux, Teff, Grav, wl_all=[], [], [], []
 		install_path = os.environ['WD_BASS_INSTALL_DIR']
-		workingdir=install_path+"/saved_grids_npy/grid_elm_new"
+		workingdir=install_path+"/saved_grids_npy/grid_elm_new/"
 		for filename in os.listdir(workingdir):
 			Effective_counter=0
 			if not filename.endswith(".py") and not filename.endswith(".tar"):
