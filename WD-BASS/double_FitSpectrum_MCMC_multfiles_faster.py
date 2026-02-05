@@ -2026,7 +2026,7 @@ def lnprior(theta, arguments):
         return -np_inf
     
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
-        if forced_Scaling==False: 
+        if not "RV" in p0labels[-1]:
             num_end_RVs=len(p0labels)
             for cn, i in enumerate(p0labels):
                 if cn>num_start_RVs and not "RV" in i:
@@ -2219,7 +2219,7 @@ def lnlike(theta, arguments):
     
     
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
-        if forced_Scaling==False: 
+        if not "RV" in p0labels[-1]:
             num_end_RVs=len(p0labels)
             for cn, i in enumerate(p0labels):
                 if cn>num_start_RVs and not "RV" in i:
