@@ -1,17 +1,17 @@
 import numpy as np
-import os
+import os, warnings
 from load_All_Models import load_models
 from scipy.interpolate import griddata
 import matplotlib
 import matplotlib.pyplot as plt
-import warnings
 from importable_MTR_function import get_MTR
 warnings.filterwarnings('ignore')
 from scipy import integrate
-from astropy.constants import R_sun,pc
+from astropy.constants import R_sun, pc
 from numba import njit, jit
 from dust_extinction.parameter_averages import G23
 import astropy.units as u
+
 
 class Fit_phot(object):
 	#def air_wl_to_vacuum_wl(lambda_air):
@@ -51,14 +51,36 @@ class Fit_phot(object):
 
 
 
-	
-
 	@njit
+	def two_unique_values(arr):
+	    v0 = arr[0]
+	    v1 = -1.0
+	    found_second = False
+	    
+	    for i in range(1, arr.shape[0]):
+	        if arr[i] != v0:
+	            v1 = arr[i]
+	            found_second = True
+	            break
+	    
+	    if not found_second:   return v0, v0  # degenerate case
+	    
+	    # ensure ordering
+	    if v0 < v1:   return v0, v1
+	    else:         return v1, v0
+
+	#@njit
 	def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, temperature_star, logg_star):
 		""" return model spectrum to fit photometry with a DA """
 		
 		# interpolate for a model at the reference wavelength with this mcmc interation	
-		wl_grid, unique_Ts, unique_Gs = np.unique(wl_all1_N), np.unique(Teff1_N), np.unique(Grav1_N)
+		#wl_grid, unique_Ts, unique_Gs = np.unique(wl_all1_N), np.unique(Teff1_N), np.unique(Grav1_N)
+		
+		
+		wl_grid = np.unique(wl_all1_N)
+		T0, T1 = Fit_phot.two_unique_values(Teff1_N)
+		G0, G1 = Fit_phot.two_unique_values(Grav1_N)
+		
 
 
 		#ffffsss1 = flux1_N[(Teff1_N==unique_Ts[0]) & (Grav1_N==unique_Gs[0])]
@@ -67,21 +89,25 @@ class Fit_phot(object):
 		#ffffsss4 = flux1_N[(Teff1_N==unique_Ts[1]) & (Grav1_N==unique_Gs[1])]
 		
 		
-		maskT0 = Teff1_N==unique_Ts[0];    maskT1 = Teff1_N==unique_Ts[1]
-		maskG0 = Grav1_N==unique_Gs[0];    maskG1 = Grav1_N==unique_Gs[1]
-		ffffsss1 = flux1_N[maskT0 & maskG0];   ffffsss2 = flux1_N[maskT0 & maskG1]
-		ffffsss3 = flux1_N[maskT1 & maskG0];   ffffsss4 = flux1_N[maskT1 & maskG1]
+		#maskT0 = Teff1_N==unique_Ts[0];    maskT1 = Teff1_N==unique_Ts[1]
+		#maskG0 = Grav1_N==unique_Gs[0];    maskG1 = Grav1_N==unique_Gs[1]
+		maskT0 = Teff1_N==T0;    maskT1 = Teff1_N==T1
+		maskG0 = Grav1_N==G0;    maskG1 = Grav1_N==G1
+		
+		model_spectrum = (flux1_N[maskT0 & maskG0] * (T1 - temperature_star) * (G1 - logg_star) +           flux1_N[maskT1 & maskG0] * (temperature_star - T0) * (G1 - logg_star) +            flux1_N[maskT0 & maskG1] * (T1 - temperature_star) * (logg_star - G0) +            flux1_N[maskT1 & maskG1] * (temperature_star - T0) * (logg_star - G0)           ) / ((T1 - T0) * (G1 - G0))
 		
 		
-
-		model_spectrum = (ffffsss1 * (unique_Ts[1] - temperature_star) * (unique_Gs[1] - logg_star) +           ffffsss3 * (temperature_star - unique_Ts[0]) * (unique_Gs[1] - logg_star) +            ffffsss2 * (unique_Ts[1] - temperature_star) * (logg_star - unique_Gs[0]) +            ffffsss4 * (temperature_star - unique_Ts[0]) * (logg_star - unique_Gs[0])           ) / ((unique_Ts[1] - unique_Ts[0]) * (unique_Gs[1] - unique_Gs[0]))
+		#ffffsss1 = flux1_N[maskT0 & maskG0];   ffffsss2 = flux1_N[maskT0 & maskG1]
+		#ffffsss3 = flux1_N[maskT1 & maskG0];   ffffsss4 = flux1_N[maskT1 & maskG1]
+		#model_spectrum = (ffffsss1 * (unique_Ts[1] - temperature_star) * (unique_Gs[1] - logg_star) +           ffffsss3 * (temperature_star - unique_Ts[0]) * (unique_Gs[1] - logg_star) +            ffffsss2 * (unique_Ts[1] - temperature_star) * (logg_star - unique_Gs[0]) +            ffffsss4 * (temperature_star - unique_Ts[0]) * (logg_star - unique_Gs[0])           ) / ((unique_Ts[1] - unique_Ts[0]) * (unique_Gs[1] - unique_Gs[0]))
 		
 		#plt.plot(wl_grid, model_spectrum,c='r', ls='--');   plt.show()
-			
 		#plt.plot(wl_grid, model_spectrum,c='r'); plt.plot(wl_grid, model_spectrum_starx,c='k'); plt.show()
 		
 		
-		fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*10)) # 0.1AA spacing
+		wl_min = wl_grid[0]  # because I did npunique above, the wl_grid is ordered, so the first element is the min and the last element is the max
+		wl_max = wl_grid[-1]
+		fine_grid=np.linspace(wl_min,wl_max,int((wl_max - wl_min)*10)) # 0.1AA spacing
 		
 		
 		#fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*400)) # 0.0025AA spacing
@@ -243,7 +269,7 @@ class Fit_phot(object):
 	
 	
 	
-	def fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=2000, max_wl=10000, starType1="DA", R1=None, parallax=None, red=None, extraflux=0):
+	def fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=2000, max_wl=10000, starType1="DA", R1=None, parallax=None, red=None, extraflux=0, ignore_absolute_flux_phot=False):
 		""" scale one spectrum and reden the model to fit photometry """
 		if not isinstance(R1, list):
 			mask_logg_wl_1 = (wl_all1_N > min_wl) & (wl_all1_N < max_wl)
@@ -257,21 +283,20 @@ class Fit_phot(object):
 				
 			elif starType1.startswith("sd"):
 				model_wl1, model_spectrum_star1 = Fit_phot.return_model_spectrum_subdwarf(wl_all1_N, min_wl, max_wl, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1)
-				
-			
-			D=(1000/parallax) *pc.value
 			
 			
-			factor1=4*(R1*R_sun.value)**2  # here R1 is in solR
 			
-			
-			if False:
-				plt.plot(model_wl1, factor1 * model_spectrum_star1,c='r')
-				plt.title(str(R1));   plt.show();   plt.close()
-			
-
-			spec = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
-			ext = G23(Rv=3.1);   spec *= ext.extinguish(model_wl1*u.AA, Ebv=red)
+			if ignore_absolute_flux_phot:
+			    ext = G23(Rv=3.1);   spec = model_spectrum_star1 * ext.extinguish(model_wl1*u.AA, Ebv=red)
+			else:
+			    D=(1000/parallax) *pc.value
+			    
+			    factor1=4*(R1*R_sun.value)**2  # here R1 is in solR
+			    
+			    if False:  plt.plot(model_wl1, factor1 * model_spectrum_star1,c='r');  plt.title(str(R1));   plt.show();   plt.close()
+			    
+			    spec = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
+			    ext = G23(Rv=3.1);   spec *= ext.extinguish(model_wl1*u.AA, Ebv=red)
 			
 			
 			if extraflux!=0:   return model_wl1, spec + np.interp(model_wl1, extraflux[0], extraflux[1])
@@ -291,9 +316,7 @@ class Fit_phot(object):
 			factor1=4*R1**2
 			
 			
-			if False:
-				plt.plot(model_wl1, factor1 * model_spectrum_star1,c='r')
-				plt.title(str(R1));   plt.show();   plt.close()
+			if False: plt.plot(model_wl1, factor1 * model_spectrum_star1,c='r');  plt.title(str(R1));   plt.show();   plt.close()
 			
 
 			spec = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
@@ -354,8 +377,37 @@ class Fit_phot(object):
 		#plt.scatter(sed_wl, sedflux, c='r');  plt.show();  plt.clf()
 		
 		return sedfilter, sed_wl, sedflux, sedfluxe, catalogue
-		
-	def process_photometry_in_each_pb(model_wl, model_flux, filters, sed_wl, sedflux, sedfluxe, filter_dict, plot_solution=False, theminww_plot=1000, themaxww_plot=10000, specStar1=None, specStar2=None, single_or_double="double", return_points_for_phot_model=False):
+	
+	
+	
+	@njit
+	def norm_fit(x, y, sigma):
+	    """
+	    Weighted linear fit through origin:
+	        y = a * x
+	    Returns norm where y = x / norm
+	    
+	    Parameters
+	    ----------
+	    x : 1D array
+	    y : 1D array
+	    sigma : 1D array
+	        Uncertainties on y
+	    """
+	    
+	    w = 1.0 / (sigma * sigma)
+	    
+	    sum_wxx = np.sum(w * x * x)
+	    sum_wxy = np.sum(w * x * y)
+	    
+	    a = sum_wxy / sum_wxx
+	    norm = 1.0 / a
+	    return norm
+	
+	
+	
+	
+	def process_photometry_in_each_pb(model_wl, model_flux, filters, sed_wl, sedflux, sedfluxe, filter_dict, plot_solution=False, theminww_plot=1000, themaxww_plot=10000, specStar1=None, specStar2=None, single_or_double="double", return_points_for_phot_model=False, ignore_absolute_flux_phot=False):
 		""" integrate the model spectrum in each passband and compute chisq compared with the observed data """
 		
 		#### integrate the model over the transmission filter. If I find photometry from a space based satellite, convert air to vacuum wavelengths.		
@@ -395,13 +447,18 @@ class Fit_phot(object):
 		
 		list_wl_bpass, list_flux_bpass, list_flux_sed, list_fluxe = np.asarray(list_wl_bpass), np.asarray(list_flux_bpass), np.asarray(list_flux_sed), np.asarray(list_fluxe)
 
-		if False:  #### if parallax not given. make this an option in the future simply to fit the shape of the SED. Could be good for sources with no/crappy parallax
-			def func_norm(x,norm):
-				return x/norm
-			guessed_multiplier  =  np.amax(model_flux) / np.amax(sedflux)
-			from scipy.optimize import curve_fit
-			norm, pcov = curve_fit(func_norm, list_flux_bpass, list_flux_sed, sigma=list_fluxe, p0=[guessed_multiplier])
+		if ignore_absolute_flux_phot:
+		    # from scipy.optimize import curve_fit
+			#def func_norm(x,norm):
+			#	return x/norm
+			#guessed_multiplier  =  np.amax(model_flux) / np.amax(sedflux)
+			#norm, pcov = curve_fit(func_norm, list_flux_bpass, list_flux_sed, sigma=list_fluxe, p0=[guessed_multiplier])
+			#norm=float(norm[0])
 			
+			norm = Fit_phot.norm_fit(list_flux_bpass, list_flux_sed, list_fluxe)
+			
+			list_flux_sed*=norm
+			list_fluxe*=norm
 			
 			if plot_solution==True:
 				plt.clf()
@@ -411,8 +468,8 @@ class Fit_phot(object):
 					ax.plot(model_wl, specStar1,c='grey', ls='--', label="star1 fit")
 					ax.plot(model_wl, specStar2,c='k', ls='--', label="star2 fit")
 				ax.scatter(list_wl_bpass, list_flux_bpass, c='r', label='integrated flux')
-				ax.errorbar(list_wl_bpass, list_flux_sed*norm, yerr=list_fluxe*norm, fmt='.b', label='cds data')
-				ax2.errorbar(list_wl_bpass, list_flux_bpass/norm - list_flux_sed, yerr=list_fluxe, fmt='.b')
+				ax.errorbar(list_wl_bpass, list_flux_sed, yerr=list_fluxe, fmt='.b', label='cds data')
+				ax2.errorbar(list_wl_bpass, list_flux_bpass - list_flux_sed, yerr=list_fluxe, fmt='.b')
 				ax2.axhline(0,ls='--',c='grey')
 				ax.set_ylabel("Flux")
 				ax2.set_ylabel("Flux")
@@ -424,7 +481,7 @@ class Fit_phot(object):
 				plt.savefig(os.getcwd()+"/out/photometric_fit.png")
 				plt.clf();  plt.close()
 			
-			chisq=-0.5*np.sum(np.square((list_flux_bpass/norm - list_flux_sed)   /    list_fluxe))
+			#chisq=-0.5*np.sum(np.square((list_flux_bpass/norm - list_flux_sed)   /    (list_fluxe/norm)))
 		
 		
 		
