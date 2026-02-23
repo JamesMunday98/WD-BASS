@@ -199,7 +199,7 @@ class Fit_phot(object):
 
 	
 		
-	def fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1, logg1, HoverHe1, T2, logg2, HoverHe2, min_wl=2000, max_wl=10000,starType1="DA", starType2="DA", R1=None, R2=None, parallax=None, red=None,return_indiv_stars=False):
+	def fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1, logg1, HoverHe1, T2, logg2, HoverHe2, min_wl=2000, max_wl=10000,starType1="DA", starType2="DA", R1=None, R2=None, parallax=None, red=None,return_indiv_stars=False, extinction_law=None):
 		""" combine two spectra with scaling and reden the model to fit photometry """
 		
 		mask_logg_wl_1 = (wl_all1_N > min_wl) & (wl_all1_N < max_wl)
@@ -249,8 +249,7 @@ class Fit_phot(object):
 		
 		spec = (factor1 * model_spectrum_star1  +  factor2 * model_spectrum_star2) *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
 		
-		ext = G23(Rv=3.1)
-		spec *= ext.extinguish(model_wl*u.AA, Ebv=red)
+		spec *= extinction_law.extinguish(model_wl*u.AA, Ebv=red)
 		
 		
 		
@@ -262,14 +261,14 @@ class Fit_phot(object):
 		else:
 			spec1 = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
 			spec2 = factor2 * model_spectrum_star2 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
-			spec1 *= ext.extinguish(model_wl*u.AA, Ebv=red)
-			spec2 *= ext.extinguish(model_wl*u.AA, Ebv=red)
+			spec1 *= extinction_law.extinguish(model_wl*u.AA, Ebv=red)
+			spec2 *= extinction_law.extinguish(model_wl*u.AA, Ebv=red)
 			return model_wl, spec, spec1, spec2
 	
 	
 	
 	
-	def fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=2000, max_wl=10000, starType1="DA", R1=None, parallax=None, red=None, extraflux=0, ignore_absolute_flux_phot=False):
+	def fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=2000, max_wl=10000, starType1="DA", R1=None, parallax=None, red=None, extraflux=0, ignore_absolute_flux_phot=False, extinction_law=None):
 		""" scale one spectrum and reden the model to fit photometry """
 		if not isinstance(R1, list):
 			mask_logg_wl_1 = (wl_all1_N > min_wl) & (wl_all1_N < max_wl)
@@ -287,7 +286,7 @@ class Fit_phot(object):
 			
 			
 			if ignore_absolute_flux_phot:
-			    ext = G23(Rv=3.1);   spec = model_spectrum_star1 * ext.extinguish(model_wl1*u.AA, Ebv=red)
+			    spec = model_spectrum_star1 * extinction_law.extinguish(model_wl1*u.AA, Ebv=red)
 			else:
 			    D=(1000/parallax) *pc.value
 			    
@@ -296,7 +295,7 @@ class Fit_phot(object):
 			    if False:  plt.plot(model_wl1, factor1 * model_spectrum_star1,c='r');  plt.title(str(R1));   plt.show();   plt.close()
 			    
 			    spec = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
-			    ext = G23(Rv=3.1);   spec *= ext.extinguish(model_wl1*u.AA, Ebv=red)
+			    spec *= extinction_law.extinguish(model_wl1*u.AA, Ebv=red)
 			
 			
 			if extraflux!=0:   return model_wl1, spec + np.interp(model_wl1, extraflux[0], extraflux[1])
@@ -320,7 +319,7 @@ class Fit_phot(object):
 			
 
 			spec = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
-			ext = G23(Rv=3.1);   spec *= ext.extinguish(model_wl1*u.AA, Ebv=red)
+			spec *= extinction_law.extinguish(model_wl1*u.AA, Ebv=red)
 			
 			if extraflux!=0:   return model_wl1, spec + np.interp(model_wl1, extraflux[0], extraflux[1])
 			else:   return model_wl1, spec
@@ -411,18 +410,24 @@ class Fit_phot(object):
 		""" integrate the model spectrum in each passband and compute chisq compared with the observed data """
 		
 		#### integrate the model over the transmission filter. If I find photometry from a space based satellite, convert air to vacuum wavelengths.		
-		chisq_indiv=np.array([])
 		list_wl_bpass, list_flux_bpass, list_flux_sed, list_fluxe = [], [], [], []
 		for cnt, filt in enumerate(filters):
 			try:
 				filter_wl, filter_transmission = filter_dict[filt][0]
 				
 				
-				maskfilt_gr_0=(filter_transmission>=0)
-				filter_wl=filter_wl[maskfilt_gr_0];    filter_transmission=filter_transmission[maskfilt_gr_0]
+				#maskfilt_gr_0=(filter_transmission>=0)
+				#filter_wl=filter_wl[maskfilt_gr_0];    filter_transmission=filter_transmission[maskfilt_gr_0]
 				
-				mask_filt = (model_wl>=np.amin(filter_wl))  &  (model_wl<=np.amax(filter_wl))
-				input_wl = model_wl[mask_filt];    input_flux = model_flux[mask_filt]
+				
+				i_lo = np.searchsorted(model_wl, filter_wl[0], side='left')
+				i_hi = np.searchsorted(model_wl, filter_wl[-1], side='right')
+				
+				input_wl = model_wl[i_lo:i_hi]
+				input_flux = model_flux[i_lo:i_hi]
+				
+				#mask_filt = (model_wl>=np.amin(filter_wl))  &  (model_wl<=np.amax(filter_wl))
+				#input_wl = model_wl[mask_filt];    input_flux = model_flux[mask_filt]
 				
 				if "gaia" in filt.lower() or "galex" in filt.lower() or "wise" in filt.lower():
 					input_wl = Fit_phot.air_wl_to_vacuum_wl(input_wl)
@@ -440,7 +445,6 @@ class Fit_phot(object):
 				
 				
 				list_wl_bpass.append(sed_wl[cnt]);   list_flux_bpass.append(flux_in_the_bandpass);    list_flux_sed.append(sedflux[cnt]);    list_fluxe.append(sedfluxe[cnt])
-				
 				
 			except Exception as e: None
 
