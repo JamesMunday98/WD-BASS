@@ -1,6 +1,6 @@
 import numpy as np
 from numpy import interp, polyfit
-import os, sys, yaml, corner, warnings
+import os, sys, yaml, warnings
 from emcee import EnsembleSampler
 sys.path.append(os.environ['WD_BASS_INSTALL_DIR']+"/scripts")
 from load_All_Models import load_models
@@ -16,6 +16,7 @@ from numba import njit, jit
 from scipy.optimize import curve_fit
 from numpy import amin as npamin, amax as npamax, unique as npunique, argwhere as npargwhere, loadtxt as nploadtxt, linspace as nplinspace, pi as np_pi, inf as np_inf, sin as np_sin, square as np_square, sqrt as npsqrt, mean as npmean, power as np_power, sum as npsum
 from dust_extinction.parameter_averages import G23
+ext = G23(Rv=3.1)
 from mpi4py.MPI import COMM_WORLD
 from functools import partial
 
@@ -35,7 +36,7 @@ def print_exception_details(e):
 
 
 with open('example_Config_dbl.yaml') as file:
-    config_info = yaml.load(file, Loader=yaml.FullLoader)
+    config_info = yaml.safe_load(file) #, Loader=yaml.FullLoader)
 
 speed_of_light = 2.99792458E5
 
@@ -175,6 +176,10 @@ try:  sigma_clip=np.asarray(config_info["sigma_clip"])
 except: sigma_clip=np.full((len(modelHa),),-1)
 try: plot_burnin=np.asarray(config_info["plot_burnin"])
 except: plot_burnin=False
+
+if plot_burnin or plot_corner:
+    from corner import corner
+
 try: want_gaiadr3=np.asarray(config_info["want_gaiadr3"])
 except: want_gaiadr3=False
 if fit_phot_SED or continuum_normalisation==False:
@@ -794,7 +799,7 @@ def gauss_if_no_flux_error(x, a, mu, sigma, b):
 try:    stack_spectra=np.asarray(config_info["stack_spectra"]).astype(bool)
 except: stack_spectra=False
 
-ext = G23(Rv=3.1)
+
 for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_Ha_all, reference_wl):
     if spectra_source_type=="wl_flux_fluxerr":
         try:  
@@ -1701,40 +1706,36 @@ except: None
 
 @njit
 def return_DAgrids(temperature_star, logg_star):
-    pier_or_antoine="mixed"#"pier3Dphot_antoine1Dspec"
+    if logg_star<6.5:  raise ValueError
     minval=10000;   maxval=-10000
     #if temperature_star>25000: raise ValueError
     
-    if pier_or_antoine == "mixed":
-        if logg_star>=6.5:
-            temdiff = temperature_star - unique_Teffs_synth
-            Teff_min=unique_Teffs_synth[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
-            Teff_max=unique_Teffs_synth[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
-            
-        else: raise ValueError
+    temdiff = temperature_star - unique_Teffs_synth
+    Teff_min=unique_Teffs_synth[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
+    Teff_max=unique_Teffs_synth[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
         
             
-            # then find the nearest 2 loggs
-        list_search = [6.5,7,7.5,8,8.5,9]
+    # then find the nearest 2 loggs
+    list_search = [6.5,7,7.5,8,8.5,9]
         
-        for logg_opts in list_search:
-            if logg_opts-logg_star<np.abs(logg_opts-maxval):    maxval = logg_opts
-            if logg_star-logg_opts>0:   minval = logg_opts
-        
-        
-        mask_logg = (logg_all_synth<=maxval) & (logg_all_synth>=minval) & (Teff_all_synth<=Teff_max) & (Teff_all_synth>=Teff_min)
+    for logg_opts in list_search:
+        if logg_opts-logg_star<np.abs(logg_opts-maxval):    maxval = logg_opts
+        if logg_star-logg_opts>0:   minval = logg_opts
         
         
-        Grav1_N = logg_all_synth[mask_logg];    wl_all1_N=wl_all_synth[mask_logg];    flux1_N=flux_all_synth[mask_logg];    Teff1_N=Teff_all_synth[mask_logg]
+    mask_logg = (logg_all_synth<=maxval) & (logg_all_synth>=minval) & (Teff_all_synth<=Teff_max) & (Teff_all_synth>=Teff_min)
         
-        if len(npunique(Teff1_N))==3:
-            un_teffs = npunique(Teff1_N)
-            if temperature_star<un_teffs[1]:   newmask = (Teff1_N!=un_teffs[2])
-            else:   newmask = (Teff1_N!=un_teffs[0])
+        
+    Grav1_N = logg_all_synth[mask_logg];    wl_all1_N=wl_all_synth[mask_logg];    flux1_N=flux_all_synth[mask_logg];    Teff1_N=Teff_all_synth[mask_logg]
+        
+    if len(npunique(Teff1_N))==3:
+        un_teffs = npunique(Teff1_N)
+        if temperature_star<un_teffs[1]:   newmask = (Teff1_N!=un_teffs[2])
+        else:   newmask = (Teff1_N!=un_teffs[0])
             
-            Grav1_N, wl_all1_N, flux1_N, Teff1_N = Grav1_N[newmask], wl_all1_N[newmask], flux1_N[newmask], Teff1_N[newmask]
+        Grav1_N, wl_all1_N, flux1_N, Teff1_N = Grav1_N[newmask], wl_all1_N[newmask], flux1_N[newmask], Teff1_N[newmask]
         
-        return Grav1_N, wl_all1_N, flux1_N, Teff1_N
+    return Grav1_N, wl_all1_N, flux1_N, Teff1_N
 
 @njit
 def return_ELMgrids(temperature_star, logg_star):
@@ -1882,11 +1883,11 @@ if starType1=="DC" or starType2=="DC":
 
 
 
-
+## WHY IS THIS DIFFERENT TO SINGLE?? SINGLE IS FASTER AND WORKS WITH NJIT?? Inspect
 #@njit
 def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, temperature_star, logg_star):
-    if ref_wl>6000:    excess_slack=10 # angstroms to allow variation with RV of star. Here, Halpha goes +-450kms-1. Increase this if RV diff larger
-    else:  excess_slack=7.5 # angstroms to allow variation with RV of star. Here, Hbeta goes +-500kms-1. Increase this if RV diff larger
+    if ref_wl>6000:    excess_slack=9.85 # angstroms to allow variation with RV of star. Here, Halpha goes +-450kms-1. Increase this if RV diff larger (remember you need some excess for convolution)
+    else:  excess_slack=7.3 # angstroms to allow variation with RV of star. Here, Hbeta goes +-450kms-1. Increase this if RV diff larger (remember you need some excess for convolution)
     
     mask_logg_wl = ((wl_all1_N > ref_wl+cut_limits_min-excess_slack) & (wl_all1_N < ref_wl+cut_limits_max+excess_slack))
     Grav_N_N = Grav1_N[mask_logg_wl];   wl_all_N_N=wl_all1_N[mask_logg_wl];    flux_N_N=flux1_N[mask_logg_wl];    Teff_N_N=Teff1_N[mask_logg_wl]
@@ -1902,8 +1903,6 @@ def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, 
     model_spectrum = (ffffsss1 * (unique_Ts[1] - temperature_star) * (unique_Gs[1] - logg_star) +           ffffsss3 * (temperature_star - unique_Ts[0]) * (unique_Gs[1] - logg_star) +            ffffsss2 * (unique_Ts[1] - temperature_star) * (logg_star - unique_Gs[0]) +            ffffsss4 * (temperature_star - unique_Ts[0]) * (logg_star - unique_Gs[0])           ) / ((unique_Ts[1] - unique_Ts[0]) * (unique_Gs[1] - unique_Gs[0]))
     
     #plt.plot(wl_grid, model_spectrum,c='r', ls='--');  plt.show()
-    
-    
     #plt.plot(wl_grid, model_spectrum,c='r'); plt.plot(wl_grid, model_spectrum_starx,c='k'); plt.show()
     
     if ref_wl>6500:     fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*50)) # 0.02AA spacing
@@ -1911,11 +1910,7 @@ def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, 
     elif ref_wl>4200:   fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*25)) # 0.04AA spacing
     else:               fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*25)) # 0.04AA spacing
     
-    
-    #fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*400)) # 0.0025AA spacing
-    model_spectrum=interp(fine_grid, wl_grid, model_spectrum)
-    
-    return fine_grid, model_spectrum
+    return fine_grid, interp(fine_grid, wl_grid, model_spectrum)
     
 
 
@@ -1969,6 +1964,20 @@ if forced_Scaling==False: checkscaling=True
 
 param_index = {label: i for i, label in enumerate(p0labels)}
 
+RV_in_labels = False
+if "RV1_0" in p0labels:         num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0];  RV_in_labels = True
+elif "RV1_1" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_1")[0][0];  RV_in_labels = True
+elif "RV1_2" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_2")[0][0];  RV_in_labels = True
+elif "RV1_3" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_3")[0][0];  RV_in_labels = True
+elif "RV1_4" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_4")[0][0];  RV_in_labels = True
+
+if RV_in_labels:
+    num_end_RVs=len(p0labels)
+    for cn, i in enumerate(p0labels):
+        if cn>num_start_RVs and not "RV" in i:
+            num_end_RVs = cn
+            break
+
 #Test that next step falls within boundaries allowed by the priors
 def lnprior(theta, arguments):
     input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, normalised_wavelength, normalised_flux, normalised_err,  inp_resolution, used_RV_boundaries, HJD_values, sigma_clip, the_unique_wavelengths, spec1wl, spec1flux, spec2wl, spec2flux, inputScaling = arguments
@@ -2013,11 +2022,11 @@ def lnprior(theta, arguments):
     #if "Vg1" in p0labels:           args = npargwhere(p0labels=="Vg1")[0][0];         mcmc_Vgamma1 = theta[args]
     #if "Vg2" in p0labels:           args = npargwhere(p0labels=="Vg2")[0][0];         mcmc_Vgamma2 = theta[args]
     #if "Scaling" in p0labels:       args = npargwhere(p0labels=="Scaling")[0][0];     Scaling = theta[args]
-    if "RV1_0" in p0labels:         num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0]
-    elif "RV1_1" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_1")[0][0]
-    elif "RV1_2" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_2")[0][0]
-    elif "RV1_3" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_3")[0][0]
-    elif "RV1_4" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_4")[0][0]
+    #if "RV1_0" in p0labels:         num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0]
+    #elif "RV1_1" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_1")[0][0]
+    #elif "RV1_2" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_2")[0][0]
+    #elif "RV1_3" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_3")[0][0]
+    #elif "RV1_4" in p0labels:       num_start_RVs = npargwhere(p0labels=="RV1_4")[0][0]
     #if "Parallax" in p0labels:      args = npargwhere(p0labels=="Parallax")[0][0];     mcmc_parallax = theta[args]
     
     
@@ -2027,12 +2036,6 @@ def lnprior(theta, arguments):
     
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
         if not "RV" in p0labels[-1]:
-            num_end_RVs=len(p0labels)
-            for cn, i in enumerate(p0labels):
-                if cn>num_start_RVs and not "RV" in i:
-                    num_end_RVs = cn
-                    break
-            
             RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
         else:                     RV=theta[num_start_RVs:]
         
@@ -2135,7 +2138,7 @@ def lnlike(theta, arguments):
     #if "Scaling" in p0labels:       args = npargwhere(p0labels=="Scaling")[0][0];     Scaling = theta[args]
     #else:                           Scaling = forced_Scaling
     
-    if "RV1_0" in p0labels:         num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0]
+    #if "RV1_0" in p0labels:         num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0]
     
     
     
@@ -2220,12 +2223,6 @@ def lnlike(theta, arguments):
     
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
         if not "RV" in p0labels[-1]:
-            num_end_RVs=len(p0labels)
-            for cn, i in enumerate(p0labels):
-                if cn>num_start_RVs and not "RV" in i:
-                    num_end_RVs = cn
-                    break
-            
             RV=theta[num_start_RVs:num_end_RVs];  Scaling=theta[-1]
         else:                     RV=theta[num_start_RVs:]
     else:
@@ -2235,19 +2232,19 @@ def lnlike(theta, arguments):
     if fit_phot_SED:
         if (starType1=="DA" and starType2=="DA") or (starType1=="ELM" and starType2=="ELM"):
             if pier_or_antoine=="pier3Dphot_antoine1Dspec" and (starType1=="DA" and starType2=="DA"):
-                smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(photGrav1_N, photwl_all1_N, photflux1_N, photTeff1_N, None, photGrav2_N, photwl_all2_N, photflux2_N, photTeff2_N, None, T1, logg1, None, T2, logg2, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum")
+                smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(photGrav1_N, photwl_all1_N, photflux1_N, photTeff1_N, None, photGrav2_N, photwl_all2_N, photflux2_N, photTeff2_N, None, T1, logg1, None, T2, logg2, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum", extinction_law = ext)
             else:
                 try:
-                    smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1, logg1, None, T2, logg2, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum")
+                    smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1, logg1, None, T2, logg2, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum", extinction_law = ext)
                 except: raise ValueError(T1, logg1, T2, logg2, len(Teff1_N), len(Grav1_N), len(Teff2_N), len(Grav2_N))
         elif starType1=="DA" and starType2=="DBA":
-            smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1, logg1, None, T2, logg2, HoverHe2, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum")
+            smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1, logg1, None, T2, logg2, HoverHe2, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum", extinction_law = ext)
         elif starType1=="DBA" and starType2=="DA":
-            smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1, logg1, HoverHe1, T2, logg2, None, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum")
+            smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1, logg1, HoverHe1, T2, logg2, None, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum", extinction_law = ext)
         elif starType1=="DBA" and starType2=="DBA":
-            smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1, logg1, HoverHe1, T2, logg2, HoverHe2, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum")
+            smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1, logg1, HoverHe1, T2, logg2, HoverHe2, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum", extinction_law = ext)
         elif (starType1=="DA" and starType2=="DC") or (starType1=="DC" and starType2=="DA") or (starType1=="DA" and starType2=="DB") or (starType1=="DB" and starType2=="DA"):
-            smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1, logg1, None, T2, logg2, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum")
+            smeared_wl, smeared_flux, star1flux, star2flux = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1, logg1, None, T2, logg2, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=mcmc_parallax, red=reddening_Ebv, return_indiv_stars="forSpectrum", extinction_law = ext)
         
             
             
@@ -4480,19 +4477,19 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
         if fit_phot_SED:
             if starType1=="DA" and starType2=="DA" or starType1=="ELM" or starType2=="ELM":
                 if pier_or_antoine=="pier3Dphot_antoine1Dspec":
-                    smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(photGrav1_N, photwl_all1_N, photflux1_N, photTeff1_N, None, photGrav2_N, photwl_all2_N, photflux2_N, photTeff2_N, None, T1_med, logg1_med, None, T2_med, logg2_med, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=parallax_med, red=reddening_Ebv, return_indiv_stars=True)
+                    smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(photGrav1_N, photwl_all1_N, photflux1_N, photTeff1_N, None, photGrav2_N, photwl_all2_N, photflux2_N, photTeff2_N, None, T1_med, logg1_med, None, T2_med, logg2_med, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=parallax_med, red=reddening_Ebv, return_indiv_stars=True, extinction_law = ext)
                 else:
-                    smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1_med, logg1_med, None, T2_med, logg2_med, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2="DA", R1=R1, R2=R2, parallax=parallax_med, red=reddening_Ebv, return_indiv_stars=True)
+                    smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1_med, logg1_med, None, T2_med, logg2_med, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2="DA", R1=R1, R2=R2, parallax=parallax_med, red=reddening_Ebv, return_indiv_stars=True, extinction_law = ext)
             
             elif starType1=="DA" and starType2=="DBA":
-                smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1_med, logg1_med, None, T2_med, logg2_med, HoverHe2_med, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2="DA", R1=R1, R2=R2, parallax=parallax_med, red=reddening_Ebv, return_indiv_stars=True)
+                smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1_med, logg1_med, None, T2_med, logg2_med, HoverHe2_med, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2="DA", R1=R1, R2=R2, parallax=parallax_med, red=reddening_Ebv, return_indiv_stars=True, extinction_law = ext)
             elif starType1=="DBA" and starType2=="DA":
-                smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1_med, logg1_med, HoverHe1_med, T2_med, logg2_med, None, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2=starType2, scaling=Scaling_med, return_indiv_stars=True)
+                smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1_med, logg1_med, HoverHe1_med, T2_med, logg2_med, None, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2=starType2, scaling=Scaling_med, return_indiv_stars=True, extinction_law = ext)
             elif starType1=="DBA" and starType2=="DBA":
-                smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1_med, logg1_med, HoverHe1_med, T2_med, logg2_med, HoverHe2_med, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2=starType2, scaling=Scaling_med, return_indiv_stars=True)
+                smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N, T1_med, logg1_med, HoverHe1_med, T2_med, logg2_med, HoverHe2_med, min_wl=theminww, max_wl=themaxww,starType1=starType1, starType2=starType2, scaling=Scaling_med, return_indiv_stars=True, extinction_law = ext)
                 
             elif (starType1=="DA" and starType2=="DC") or (starType1=="DC" and starType2=="DA") or (starType1=="DA" and starType2=="DB") or (starType1=="DB" and starType2=="DA") or (starType1=="ELM" and starType2=="ELM"):
-                smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1_med, logg1_med, None, T2_med, logg2_med, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=parallax_med, red=reddening_Ebv, return_indiv_stars=True)
+                smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1_med, logg1_med, None, T2_med, logg2_med, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=parallax_med, red=reddening_Ebv, return_indiv_stars=True, extinction_law = ext)
             
             
             rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, plot_solution=True, theminww_plot=theminww+50, themaxww_plot=themaxww+50, specStar1=smeared_flux1, specStar2=smeared_flux2, return_points_for_phot_model=False)
