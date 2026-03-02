@@ -19,8 +19,11 @@ from dust_extinction.parameter_averages import G23
 ext = G23(Rv=3.1)
 from mpi4py.MPI import COMM_WORLD
 from functools import partial
-
-
+from scipy.ndimage import convolve1d
+minus_npinf = -np.inf
+if os.environ['WD_BASS_INSTALL_DIR'] == "/home/james/python_scripts_path/dwd_fit_package/": JM_environment=True
+else: JM_environment=False
+getcwd = os.getcwd()
 sys_args = sys.argv
 
 if sys_args[1]=="ATM" or sys_args[1]=="photometry_only":
@@ -63,18 +66,22 @@ if forced_Scaling!=False and forced_Scaling!="WD"  and forced_Scaling!="sd" and 
 forced_ephemeris=np.asarray(config_info["forced_ephemeris"]) # expects False or [T0, P0]
 if forced_ephemeris[0]==False:  forced_ephemeris=forced_ephemeris[0];  forced_T0=None;  forced_P0=None
 else: forced_T0=float(forced_ephemeris[0]);  forced_P0=float(forced_ephemeris[1])
-forced_K1=config_info["forced_K1"][0]
-if not forced_K1==False and not forced_K1=="Fit":  forced_K1=float(forced_K1)
-forced_K2=config_info["forced_K2"][0]
-if not forced_K2==False and not forced_K2=="Fit":  forced_K2=float(forced_K2)
-p0K1 = np.array(config_info["K1_boundaries"], dtype=float)
-p0K2 = np.array(config_info["K2_boundaries"], dtype=float)
-forced_Vgamma1=config_info["forced_Vgamma1"][0]
-if not forced_Vgamma1=="Fit":  forced_Vgamma1=float(forced_Vgamma1)
-p0Vgamma1 = np.array(config_info["Vgamma1_boundaries"], dtype=float)
-forced_Vgamma2=config_info["forced_Vgamma2"][0]
-if not forced_Vgamma2=="Fit":  forced_Vgamma2=float(forced_Vgamma2)
-p0Vgamma2 = np.array(config_info["Vgamma2_boundaries"], dtype=float)
+if forced_ephemeris!=False:
+    forced_K1=config_info["forced_K1"][0]
+    if not forced_K1==False and not forced_K1=="Fit":  forced_K1=float(forced_K1)
+    forced_K2=config_info["forced_K2"][0]
+    if not forced_K2==False and not forced_K2=="Fit":  forced_K2=float(forced_K2)
+    p0K1 = np.array(config_info["K1_boundaries"], dtype=float)
+    p0K2 = np.array(config_info["K2_boundaries"], dtype=float)
+    forced_Vgamma1=config_info["forced_Vgamma1"][0]
+    if not forced_Vgamma1=="Fit":  forced_Vgamma1=float(forced_Vgamma1)
+    p0Vgamma1 = np.array(config_info["Vgamma1_boundaries"], dtype=float)
+    forced_Vgamma2=config_info["forced_Vgamma2"][0]
+    if not forced_Vgamma2=="Fit":  forced_Vgamma2=float(forced_Vgamma2)
+    p0Vgamma2 = np.array(config_info["Vgamma2_boundaries"], dtype=float)
+else:
+    forced_K1, forced_K2, forced_Vgamma1, forced_Vgamma2 = False, False, False, False
+    p0K1, p0K2, p0Vgamma1, p0Vgamma2 = [-300,300], [-300,300], [-100,100], [-100,100]
 plot_fit=np.asarray([config_info["plot_fit"]])[0]
 fit_phot_SED=np.asarray([config_info["fit_phot_SED"]])
 RA=np.asarray([config_info["RA"]])[0]
@@ -321,7 +328,7 @@ if fit_phot_SED:
 
 
 if ((starType1 != "DA" and starType1 != "DBA" and starType1 != "DC") or (starType2 != "DA" and starType2 != "DBA" and starType2 != "DC")) and forced_Scaling == "WD":   raise ValueError("WD scaling only allowed for DA/DB/DC stars")
-if (forced_K1=="Fit" and (forced_K2==False and not (forced_Vgamma2=="Fit" or isinstance(forced_Vgamma2, float)))) or ((forced_K1==False and not (forced_Vgamma1=="Fit" or isinstance(forced_Vgamma1, float))) and forced_K2=="Fit"):  raise ValueError("Error - knowing the ephemeris and fitting K1 + RV2s is weird. Not allowed")
+if forced_ephemeris!=False and not (forced_K1=="Fit" or isinstance(forced_K1, float) or forced_Vgamma1=="Fit" or isinstance(forced_Vgamma1, float)  or  forced_K2=="Fit" or isinstance(forced_K2, float) or forced_Vgamma2=="Fit" or isinstance(forced_Vgamma2, float)):  raise ValueError("Error - knowing the ephemeris and not fitting or knowing any K or Vgamma is weird. Not allowed")
 if (forced_K1==False and forced_Vgamma1=="Fit") or (forced_K2==False and forced_Vgamma2=="Fit"):  raise ValueError("Can't fit Vgamma with K free")
 
 
@@ -639,8 +646,8 @@ if starType1.startswith("D") or starType2.startswith("D") or starType1=="ELM" or
                 except: None
                 
                 
-                newMinT, newMaxT = npamin(unique_Teff_all[mask_TEFF]), npamax(unique_Teff_all[mask_TEFF])
-                newMinLogg, newMaxLogg = npamin(unique_Grav_all[mask_LOGG]), npamax(unique_Grav_all[mask_LOGG])
+                newMinT, newMaxT = unique_Teff_all[mask_TEFF][0], unique_Teff_all[mask_TEFF][1]
+                newMinLogg, newMaxLogg = unique_Grav_all[mask_LOGG][0], unique_Grav_all[mask_LOGG][1]
                 
                 
                 mask_atm_grid = (Teff_all <= newMaxT) & (Teff_all >= newMinT)  &  (Grav_all <= newMaxLogg) & (Grav_all >= newMinLogg)
@@ -730,8 +737,8 @@ if starType1.startswith("D") or starType2.startswith("D") or starType1=="ELM" or
                 except: None
             
             
-                newMinT, newMaxT = npamin(unique_Teff_all[mask_TEFF]), npamax(unique_Teff_all[mask_TEFF])
-                newMinLogg, newMaxLogg = npamin(unique_Grav_all[mask_LOGG]), npamax(unique_Grav_all[mask_LOGG])
+                newMinT, newMaxT = unique_Teff_all[mask_TEFF][0], unique_Teff_all[mask_TEFF][-1]
+                newMinLogg, newMaxLogg = unique_Grav_all[mask_LOGG][0], unique_Grav_all[mask_LOGG][-1]
             
             
                 mask_atm_grid = (Teff_all <= newMaxT) & (Teff_all >= newMinT)  &  (Grav_all <= newMaxLogg) & (Grav_all >= newMinLogg)
@@ -789,6 +796,32 @@ def linear_fit_weighted(x, y, yerr):
     return m, b
 
 
+@njit
+def linear_fit(x, y):
+    """
+    Simple linear regression (unweighted) using np.sum.
+    Returns slope (m) and intercept (b).
+
+    Parameters
+    ----------
+    x : 1D array
+        Independent variable
+    y : 1D array
+        Dependent variable
+    """
+    n = x.size
+
+    sum_x = np.sum(x)
+    sum_y = np.sum(y)
+    sum_xx = np.sum(x * x)
+    sum_xy = np.sum(x * y)
+
+    denom = n * sum_xx - sum_x * sum_x
+
+    m = (n * sum_xy - sum_x * sum_y) / denom
+    b = (sum_y - m * sum_x) / n
+    return m, b
+
 
 # Normalise the input data
 @njit
@@ -803,21 +836,45 @@ except: stack_spectra=False
 for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_Ha_all, reference_wl):
     if spectra_source_type=="wl_flux_fluxerr":
         try:  
-            if files.startswith("DESI_"):
-                wl_data, flux_data, ivar_data = nploadtxt(os.getcwd()+"/"+files, skiprows=1, usecols=(0,1,2),unpack=True)  #  if you have flux errors, files are loaded in normally. Great.
-                snr = flux_data * np.sqrt(ivar_data)
+            if JM_environment and ((files.startswith("DESI_") or (files.startswith("SDSS")) and not "COADD" in files)):
+                #wl_data, flux_data, ivar_data = nploadtxt(getcwd+"/"+files, skiprows=1, usecols=(0,1,2),unpack=True)  #  if you have flux errors, files are loaded in normally. Great.
+                wl_data, flux_data, ivar_data, bitmask = nploadtxt(getcwd+"/"+files, skiprows=1,unpack=True)  #  if you have flux errors, files are loaded in normally. Great.
                 
+                line1 = open(getcwd+"/"+files).readline()
+                if "vacuum=True" in line1 or "vacuum_wl_red=True" in line1:
+                    s = 10**4/wl_data
+                    n = 1 + 0.0000834254 + 0.02406147 / (130 - s**2) + 0.00015998 / (38.9 - s**2)
+                    wl_data /= n
+                    del s, n
                     
+                # DESI SPECTRA ARE HELIOCENTRIC VELOCITY CORRECTED  
+                # """4.4.3. Solar system barycentric velocity correction:    The wavelength are corrected for the shift due the relative velocity of the Earth with respect to the solar system barycenter. We apply the same correction to all fibers of an exposure, using the velocity shift calculated for the center of the field of view. Our approach is to apply the opposite correction to the wavelength array used for the spectral extraction (see §4.5), and then simply correct the reported wavelength. This avoids any resampling of the extracted spectra and in consequence does not introduce any extra correlation between the flux values
+                # SDSS ARE NOT HELIOCENTRIC CORRECTED. So, I apply this below:
+                    
+                if files.startswith("SDSS"):
+                    split = line1.split(", ")
+                    for i in split:
+                        if i.startswith("helio_red"):
+                            helio_corr_vel = float(i.replace("helio_red=",""))
+                            break
+                    wl_data +=  wl_data * helio_corr_vel/speed_of_light
+                
+                mask_JM = bitmask==0 # get rid of all bad bitmask points
+                wl_data, flux_data, ivar_data = wl_data[mask_JM], flux_data[mask_JM], ivar_data[mask_JM]
+                snr = flux_data * np.sqrt(ivar_data)
+            
+                
                 flux_data*=1E-17
                 flux_data = 3.33564095E+04 * flux_data * np_square(wl_data) / 1E23   # convert to  erg/cm^2/s/Hz
                 flux_e_data = flux_data/snr
+                
             else:
-                wl_data, flux_data, flux_e_data = nploadtxt(os.getcwd()+"/"+files, skiprows=1,unpack=True)  #  if you have flux errors, files are loaded in normally. Great.
+                wl_data, flux_data, flux_e_data = nploadtxt(getcwd+"/"+files, skiprows=1,unpack=True)  #  if you have flux errors, files are loaded in normally. Great.
         except:
             ##### this part of the code is for when you do not have flux errors. I do my best to guess the SNR of the data given an expected continuum SNR under the assumption that your spectral line follows a gaussian profile. In the "gauss" function below, mmm and ccc are included to fit the general trend of the continuum as a linear fit. 
             
             ##### I used this method to fit to FIES observations as errors are not output in its reduction pipeline
-            wl_data, flux_data = nploadtxt(os.getcwd()+"/"+files, skiprows=2, unpack=True)
+            wl_data, flux_data = nploadtxt(getcwd+"/"+files, skiprows=2, unpack=True)
             if True:
                 
                 cut_limits_min, cut_limits_max = ref_wl+cut_Ha[0],  ref_wl+cut_Ha[1]
@@ -1883,8 +1940,25 @@ if starType1=="DC" or starType2=="DC":
 
 
 
-## WHY IS THIS DIFFERENT TO SINGLE?? SINGLE IS FASTER AND WORKS WITH NJIT?? Inspect
-#@njit
+@njit
+def two_unique_values(arr):
+    v0 = arr[0]
+    v1 = -1.0
+    found_second = False
+
+    for i in range(1, arr.shape[0]):
+        if arr[i] != v0:
+            v1 = arr[i]
+            found_second = True
+            break
+
+    if not found_second:   return v0, v0  # degenerate case
+
+    # ensure ordering
+    if v0 < v1:   return v0, v1
+    else:         return v1, v0
+
+@njit
 def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, temperature_star, logg_star):
     if ref_wl>6000:    excess_slack=9.85 # angstroms to allow variation with RV of star. Here, Halpha goes +-450kms-1. Increase this if RV diff larger (remember you need some excess for convolution)
     else:  excess_slack=7.3 # angstroms to allow variation with RV of star. Here, Hbeta goes +-450kms-1. Increase this if RV diff larger (remember you need some excess for convolution)
@@ -1892,50 +1966,78 @@ def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, 
     mask_logg_wl = ((wl_all1_N > ref_wl+cut_limits_min-excess_slack) & (wl_all1_N < ref_wl+cut_limits_max+excess_slack))
     Grav_N_N = Grav1_N[mask_logg_wl];   wl_all_N_N=wl_all1_N[mask_logg_wl];    flux_N_N=flux1_N[mask_logg_wl];    Teff_N_N=Teff1_N[mask_logg_wl]
     
-    # interpolate for a model at the reference wavelength with this mcmc interation    
-    wl_grid, unique_Ts, unique_Gs = npunique(wl_all_N_N), npunique(Teff_N_N), npunique(Grav_N_N)
+    # interpolate for a model at the reference wavelength with this mcmc interation
+    #wl_grid, unique_Ts, unique_Gs = npunique(wl_all_N_N), npunique(Teff_N_N), npunique(Grav_N_N)
+    #T0, T1 = unique_Ts
+    #G0, G1 = unique_Gs
+    #maskT0 = Teff_N_N==unique_Ts[0]
+    #maskT1 = Teff_N_N==unique_Ts[1]
+    #maskG0 = Grav_N_N==unique_Gs[0]
+    #maskG1 = Grav_N_N==unique_Gs[1]
+    #ffffsss1 = flux_N_N[maskT0 & maskG0]
+    #ffffsss2 = flux_N_N[maskT0 & maskG1]
+    #ffffsss3 = flux_N_N[maskT1 & maskG0]
+    #ffffsss4 = flux_N_N[maskT1 & maskG1]
+    
+    #try:
+    #    model_spectrum = (flux_N_N[maskT0 & maskG0] * (unique_Ts[1] - temperature_star) * (unique_Gs[1] - logg_star) +           flux_N_N[maskT1 & maskG0] * (temperature_star - unique_Ts[0]) * (unique_Gs[1] - logg_star) +            flux_N_N[maskT0 & maskG1] * (unique_Ts[1] - temperature_star) * (logg_star - unique_Gs[0]) +            flux_N_N[maskT1 & maskG1] * (temperature_star - unique_Ts[0]) * (logg_star - unique_Gs[0])           ) / ((unique_Ts[1] - unique_Ts[0]) * (unique_Gs[1] - unique_Gs[0]))
+    #except:    raise ValueError(unique_Ts, unique_Gs, unique_Ts[0], unique_Ts[1], unique_Gs[0], unique_Gs[1], len(flux_N_N[maskT0 & maskG0]), len(flux_N_N[maskT0 & maskG1]), len(flux_N_N[maskT1 & maskG0]), len(flux_N_N[maskT1 & maskG1]), temperature_star, logg_star)
+    
+    
+    
+    wl_grid = npunique(wl_all_N_N)
+    T0, T1 = two_unique_values(Teff_N_N)
+    G0, G1 = two_unique_values(Grav_N_N)
+    
+    maskT0 = Teff_N_N==T0
+    maskT1 = Teff_N_N==T1
+    maskG0 = Grav_N_N==G0
+    maskG1 = Grav_N_N==G1
+    #ffffsss1 = flux_N_N[maskT0 & maskG0]
+    #ffffsss2 = flux_N_N[maskT0 & maskG1]
+    #ffffsss3 = flux_N_N[maskT1 & maskG0]
+    #ffffsss4 = flux_N_N[maskT1 & maskG1]
+    
+    
+    #try:
+    model_spectrum = (flux_N_N[maskT0 & maskG0] * (T1 - temperature_star) * (G1 - logg_star) +           flux_N_N[maskT1 & maskG0] * (temperature_star - T0) * (G1 - logg_star) +            flux_N_N[maskT0 & maskG1] * (T1 - temperature_star) * (logg_star - G0) +            flux_N_N[maskT1 & maskG1] * (temperature_star - T0) * (logg_star - G0)           ) / ((T1 - T0) * (G1 - G0))
+    #except:    raise ValueError(T0, T1, G0, G1, len(flux_N_N[maskT0 & maskG0]), len(flux_N_N[maskT0 & maskG1]), len(flux_N_N[maskT1 & maskG0]), len(flux_N_N[maskT1 & maskG1]), temperature_star, logg_star)
 
-    ffffsss1 = flux_N_N[(Teff_N_N==unique_Ts[0]) & (Grav_N_N==unique_Gs[0])]
-    ffffsss2 = flux_N_N[(Teff_N_N==unique_Ts[0]) & (Grav_N_N==unique_Gs[1])]
-    ffffsss3 = flux_N_N[(Teff_N_N==unique_Ts[1]) & (Grav_N_N==unique_Gs[0])]
-    ffffsss4 = flux_N_N[(Teff_N_N==unique_Ts[1]) & (Grav_N_N==unique_Gs[1])]
     
-    model_spectrum = (ffffsss1 * (unique_Ts[1] - temperature_star) * (unique_Gs[1] - logg_star) +           ffffsss3 * (temperature_star - unique_Ts[0]) * (unique_Gs[1] - logg_star) +            ffffsss2 * (unique_Ts[1] - temperature_star) * (logg_star - unique_Gs[0]) +            ffffsss4 * (temperature_star - unique_Ts[0]) * (logg_star - unique_Gs[0])           ) / ((unique_Ts[1] - unique_Ts[0]) * (unique_Gs[1] - unique_Gs[0]))
+    wl_min = wl_grid[0]  # because I did npunique above, the wl_grid is ordered, so the first element is the min and the last element is the max
+    wl_max = wl_grid[-1]
     
-    #plt.plot(wl_grid, model_spectrum,c='r', ls='--');  plt.show()
-    #plt.plot(wl_grid, model_spectrum,c='r'); plt.plot(wl_grid, model_spectrum_starx,c='k'); plt.show()
-    
-    if ref_wl>6500:     fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*50)) # 0.02AA spacing
-    elif ref_wl>4500:   fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*33)) # 0.03AA spacing
-    elif ref_wl>4200:   fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*25)) # 0.04AA spacing
-    else:               fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*25)) # 0.04AA spacing
+    if ref_wl>6500:     fine_grid=nplinspace(wl_min,wl_max,int((wl_max - wl_min)*50)) # 0.02AA spacing
+    elif ref_wl>4500:   fine_grid=nplinspace(wl_min,wl_max,int((wl_max - wl_min)*33)) # 0.03AA spacing
+    elif ref_wl>4200:   fine_grid=nplinspace(wl_min,wl_max,int((wl_max - wl_min)*20)) # 0.05AA spacing
+    else:               fine_grid=nplinspace(wl_min,wl_max,int((wl_max - wl_min)*10)) # 0.1AA spacing
     
     return fine_grid, interp(fine_grid, wl_grid, model_spectrum)
     
 
-
-#@njit
-# temperature grid for DBs is irregular. Don't try to speed it up and accept the griddata way
-def return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, temperature_star, logg_star, HoverHe_star):
-    if ref_wl>6000:    excess_slack=10 # angstroms to allow variation with RV of star. Here, Halpha goes +-450kms-1. Increase this if RV diff larger
-    else:  excess_slack=7.5 # angstroms to allow variation with RV of star. Here, Hbeta goes +-500kms-1. Increase this if RV diff larger
-    
-    mask_logg_wl = ((wl_all1_N > ref_wl+cut_limits_min-excess_slack) & (wl_all1_N < ref_wl+cut_limits_max+excess_slack))
-    Grav_N_N = Grav1_N[mask_logg_wl];   wl_all_N_N=wl_all1_N[mask_logg_wl];    flux_N_N=flux1_N[mask_logg_wl];    Teff_N_N=Teff1_N[mask_logg_wl];    HoverHe_N_N = HoverHe1_N[mask_logg_wl]
-    
-    # interpolate for a model at the reference wavelength with this mcmc interation    
-    wl_grid = npunique(wl_all_N_N)
-    model_spectrum=griddata(np.array([Teff_N_N, wl_all_N_N, Grav_N_N, HoverHe_N_N]).T, flux_N_N, np.array([np.full((len(wl_grid),),temperature_star), wl_grid, np.full((len(wl_grid),),logg_star), np.full((len(wl_grid),),HoverHe_star)]).T, method="linear")
+if starType1=="DBA" or starType2=="DBA":
+    #@njit
+    # temperature grid for DBs is irregular. Don't try to speed it up and accept the griddata way
+    def return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, temperature_star, logg_star, HoverHe_star):
+        if ref_wl>6000:    excess_slack=10 # angstroms to allow variation with RV of star. Here, Halpha goes +-450kms-1. Increase this if RV diff larger
+        else:  excess_slack=7.5 # angstroms to allow variation with RV of star. Here, Hbeta goes +-500kms-1. Increase this if RV diff larger
         
-    
-    if ref_wl>6500:     fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*10)) # 0.1AA spacing
-    elif ref_wl>4500:   fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*10)) # 0.1AA spacing
-    elif ref_wl>4200:   fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*10)) # 0.1AA spacing
-    else:               fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*10)) # 0.1AA spacing
-    
-    model_spectrum=interp(fine_grid, wl_grid, model_spectrum)
-    
-    return fine_grid, model_spectrum
+        mask_logg_wl = ((wl_all1_N > ref_wl+cut_limits_min-excess_slack) & (wl_all1_N < ref_wl+cut_limits_max+excess_slack))
+        Grav_N_N = Grav1_N[mask_logg_wl];   wl_all_N_N=wl_all1_N[mask_logg_wl];    flux_N_N=flux1_N[mask_logg_wl];    Teff_N_N=Teff1_N[mask_logg_wl];    HoverHe_N_N = HoverHe1_N[mask_logg_wl]
+        
+        # interpolate for a model at the reference wavelength with this mcmc interation    
+        wl_grid = npunique(wl_all_N_N)
+        model_spectrum=griddata(np.array([Teff_N_N, wl_all_N_N, Grav_N_N, HoverHe_N_N]).T, flux_N_N, np.array([np.full((len(wl_grid),),temperature_star), wl_grid, np.full((len(wl_grid),),logg_star), np.full((len(wl_grid),),HoverHe_star)]).T, method="linear")
+            
+        
+        if ref_wl>6500:     fine_grid=nplinspace(wl_grid[0],wl_grid[-1],int((wl_grid[-1] - wl_grid[0])*10)) # 0.1AA spacing
+        elif ref_wl>4500:   fine_grid=nplinspace(wl_grid[0],wl_grid[-1],int((wl_grid[-1] - wl_grid[0])*10)) # 0.1AA spacing
+        elif ref_wl>4200:   fine_grid=nplinspace(wl_grid[0],wl_grid[-1],int((wl_grid[-1] - wl_grid[0])*10)) # 0.1AA spacing
+        else:               fine_grid=nplinspace(wl_grid[0],wl_grid[-1],int((wl_grid[-1] - wl_grid[0])*10)) # 0.1AA spacing
+        
+        model_spectrum=interp(fine_grid, wl_grid, model_spectrum)
+        
+        return fine_grid, model_spectrum
 
 
 
@@ -1978,26 +2080,91 @@ if RV_in_labels:
             num_end_RVs = cn
             break
 
+
+
+
+
+PARAM_IDX = {
+    "T1":        param_index.get("T1"),
+    "logg1":     param_index.get("logg1"),
+    "T2":        param_index.get("T1"),
+    "logg2":     param_index.get("logg1"),
+    "H/He1":     param_index.get("H/He1"),
+    "H/He2":     param_index.get("H/He2"),
+    "K1":        param_index.get("K1"),
+    "K2":        param_index.get("K2"),
+    "Vg1":       param_index.get("Vg1"),
+    "Vg2":       param_index.get("Vg2"),
+    "Scaling":   param_index.get("Scaling"),
+    "Parallax":  param_index.get("Parallax"),
+    "R":         param_index.get("R"),
+    "Dummy":     param_index.get("Dummy"),
+    "BBT":       param_index.get("BBT"),
+    "BBR":       param_index.get("BBR"),
+}
+
+IDX_T1        = PARAM_IDX["T1"];     IDX_logg1     = PARAM_IDX["logg1"];   IDX_T2        = PARAM_IDX["T2"];     IDX_logg2     = PARAM_IDX["logg2"]
+IDX_HoverHe1  = PARAM_IDX["H/He1"];  IDX_HoverHe2  = PARAM_IDX["H/He2"];
+IDX_K1        = PARAM_IDX["K1"];     IDX_K2        = PARAM_IDX["K2"];      IDX_Vg1       = PARAM_IDX["Vg1"];    IDX_Vg2       = PARAM_IDX["Vg2"]
+IDX_Scaling   = PARAM_IDX["Scaling"]; IDX_Parallax  = PARAM_IDX["Parallax"];  IDX_R         = PARAM_IDX["R"]
+IDX_Dummy     = PARAM_IDX["Dummy"];  IDX_BBT       = PARAM_IDX["BBT"];     IDX_BBR       = PARAM_IDX["BBR"]
+
+if IDX_T1 is None: IDX_T1=-1
+if IDX_T2 is None: IDX_T2=-1
+if IDX_logg1 is None: IDX_logg1=-1
+if IDX_logg2 is None: IDX_logg2=-1
+if IDX_HoverHe1 is None: IDX_HoverHe1=-1
+if IDX_HoverHe2 is None: IDX_HoverHe2=-1
+if IDX_K1 is None: IDX_K1=-1
+if IDX_K2 is None: IDX_K2=-1
+if IDX_Vg1 is None: IDX_Vg1=-1
+if IDX_Vg2 is None: IDX_Vg2=-1
+if IDX_Scaling is None: IDX_Scaling=-1
+if IDX_Parallax is None: IDX_Parallax=-1
+if IDX_R is None: IDX_R=-1
+if IDX_Dummy is None: IDX_Dummy=-1
+if IDX_BBT is None: IDX_BBT=-1
+if IDX_BBR is None: IDX_BBR=-1
+
+
+
+
 #Test that next step falls within boundaries allowed by the priors
 def lnprior(theta, arguments):
-    input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, normalised_wavelength, normalised_flux, normalised_err,  inp_resolution, used_RV_boundaries, HJD_values, sigma_clip, the_unique_wavelengths, spec1wl, spec1flux, spec2wl, spec2flux, inputScaling = arguments
+    #_, _, _, _, _, _, _, _, _, used_RV_boundaries, _, _, _, _, _, _, _, _ = arguments
+    used_RV_boundaries = arguments[9]
     
-    T1 = theta[param_index["T1"]] if "T1" in param_index else forced_teff1
-    logg1 = theta[param_index["logg1"]] if "logg1" in param_index else forced_logg1
-    T2 = theta[param_index["T2"]] if "T2" in param_index else forced_teff2
-    logg2 = theta[param_index["logg2"]] if "logg2" in param_index else forced_logg2
+    #T1 = theta[param_index["T1"]] if "T1" in param_index else forced_teff1
+    #logg1 = theta[param_index["logg1"]] if "logg1" in param_index else forced_logg1
+    #T2 = theta[param_index["T2"]] if "T2" in param_index else forced_teff2
+    #logg2 = theta[param_index["logg2"]] if "logg2" in param_index else forced_logg2
     #HoverHe1 = theta[param_index["H/He1"]] if "H/He1" in param_index else forced_HoverHe1
     #HoverHe2 = theta[param_index["H/He2"]] if "H/He2" in param_index else forced_HoverHe2
-    mcmc_K1 = theta[param_index["K1"]] if "K1" in param_index else None
-    mcmc_K2 = theta[param_index["K2"]] if "K2" in param_index else None
-    mcmc_Vgamma1 = theta[param_index["Vg1"]] if "Vg1" in param_index else None
-    mcmc_Vgamma2 = theta[param_index["Vg2"]] if "Vg2" in param_index else None
-    Scaling = theta[param_index["Scaling"]] if "Scaling" in param_index else None
-    mcmc_parallax = theta[param_index["Parallax"]] if "Parallax" in param_index else None
-    mcmc_R = theta[param_index["R"]] if "R" in param_index else None
-    mcmc_Dummy = theta[param_index["Dummy"]] if "Dummy" in param_index else None
-    mcmc_BBT = theta[param_index["BBT"]] if "BBT" in param_index else None
-    mcmc_BBR = theta[param_index["BBR"]] if "BBR" in param_index else None
+    #mcmc_K1 = theta[param_index["K1"]] if "K1" in param_index else None
+    #mcmc_K2 = theta[param_index["K2"]] if "K2" in param_index else None
+    #mcmc_Vgamma1 = theta[param_index["Vg1"]] if "Vg1" in param_index else None
+    #mcmc_Vgamma2 = theta[param_index["Vg2"]] if "Vg2" in param_index else None
+    #Scaling = theta[param_index["Scaling"]] if "Scaling" in param_index else None
+    #mcmc_parallax = theta[param_index["Parallax"]] if "Parallax" in param_index else None
+    #mcmc_R = theta[param_index["R"]] if "R" in param_index else None
+    #mcmc_Dummy = theta[param_index["Dummy"]] if "Dummy" in param_index else None
+    #mcmc_BBT = theta[param_index["BBT"]] if "BBT" in param_index else None
+    #mcmc_BBR = theta[param_index["BBR"]] if "BBR" in param_index else None
+    
+    
+    
+    
+    if IDX_T1>=0 and not (p0T1[0]<theta[IDX_T1]<p0T1[1]): return -np.inf
+    if IDX_T2>=0 and not (p0T2[0]<theta[IDX_T2]<p0T2[1]): return -np.inf
+    if IDX_logg1>=0 and not (p0logg1[0]<theta[IDX_logg1]<p0logg1[1]): return -np.inf
+    if IDX_logg2>=0 and not (p0logg2[0]<theta[IDX_logg2]<p0logg2[1]): return -np.inf
+    if IDX_HoverHe1>=0 and not (p0HoverHe1[0]<theta[IDX_HoverHe1]<p0HoverHe1[1]): return -np.inf
+    if IDX_HoverHe2>=0 and not (p0HoverHe2[0]<theta[IDX_HoverHe2]<p0HoverHe2[1]): return -np.inf
+    if IDX_Scaling>=0 and not (p0scaling[0]<theta[IDX_Scaling]<p0scaling[1]): return -np.inf
+    if IDX_R>=0 and not (p0R[0]<theta[IDX_R]<p0R[1]): return -np.inf
+    if IDX_Dummy>=0 and not (dummybound[0]<theta[IDX_Dummy]<dummybound[1]): return -np.inf
+    if IDX_BBT>=0 and not (p0BBT[0]<theta[IDX_BBT]<p0BBT[1]): return -np.inf
+    if IDX_BBR>=0 and not (p0BBR[0]<theta[IDX_BBR]<p0BBR[1]): return -np.inf 
     
     
     
@@ -2009,14 +2176,14 @@ def lnprior(theta, arguments):
     #else: T2=forced_teff2
     #if "logg2" in p0labels:         args = npargwhere(p0labels=="logg2")[0][0];       logg2 = theta[args]
     #else: logg2=forced_logg2
-    if "H/He1" in p0labels:         args = npargwhere(p0labels=="H/He1")[0][0];       HoverHe1 = theta[args]
-    else:
-        try: HoverHe1 = forced_HoverHe1
-        except: None
-    if "H/He2" in p0labels:         args = npargwhere(p0labels=="H/He2")[0][0];       HoverHe2 = theta[args]
-    else:
-        try: HoverHe2 = forced_HoverHe2
-        except: None
+    #if "H/He1" in p0labels:         args = npargwhere(p0labels=="H/He1")[0][0];       HoverHe1 = theta[args]
+    #else:
+    #    try: HoverHe1 = forced_HoverHe1
+    #    except: None
+    #if "H/He2" in p0labels:         args = npargwhere(p0labels=="H/He2")[0][0];       HoverHe2 = theta[args]
+    #else:
+    #    try: HoverHe2 = forced_HoverHe2
+    #    except: None
     #if "K1" in p0labels:            args = npargwhere(p0labels=="K1")[0][0];          mcmc_K1 = theta[args]
     #if "K2" in p0labels:            args = npargwhere(p0labels=="K2")[0][0];          mcmc_K2 = theta[args]
     #if "Vg1" in p0labels:           args = npargwhere(p0labels=="Vg1")[0][0];         mcmc_Vgamma1 = theta[args]
@@ -2030,9 +2197,9 @@ def lnprior(theta, arguments):
     #if "Parallax" in p0labels:      args = npargwhere(p0labels=="Parallax")[0][0];     mcmc_parallax = theta[args]
     
     
-    
-    if T1<T2:
-        return -np_inf
+    if IDX_T1>=0 and IDX_T2>=0:
+        if theta[IDX_T1]<theta[IDX_T2]:
+            return minus_npinf
     
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
         if not "RV" in p0labels[-1]:
@@ -2041,59 +2208,60 @@ def lnprior(theta, arguments):
         
         
         
-    passed = True
-    
-
-    
-    if checkT1 and not p0T1[0]<T1<p0T1[1]: passed = False
-    if checklogg1 and not p0logg1[0]<logg1<p0logg1[1]: passed = False
-    if checkT2 and not p0T2[0]<T2<p0T2[1]: passed = False
-    if checklogg2 and not p0logg2[0]<logg2<p0logg2[1]: passed = False
-    if checkHoverHe1 and not p0HoverHe1[0]<HoverHe1<p0HoverHe1[1]: passed = False
-    if checkHoverHe2 and not p0HoverHe2[0]<HoverHe2<p0HoverHe2[1]: passed = False
-    if checkscaling and not p0scaling[0]<Scaling<p0scaling[1]: passed = False
-    if passed==False:  return -np_inf
+    #passed = True
+    #if checkT1 and not p0T1[0]<T1<p0T1[1]: passed = False
+    #if checklogg1 and not p0logg1[0]<logg1<p0logg1[1]: passed = False
+    #if checkT2 and not p0T2[0]<T2<p0T2[1]: passed = False
+    #if checklogg2 and not p0logg2[0]<logg2<p0logg2[1]: passed = False
+    #if checkHoverHe1 and not p0HoverHe1[0]<HoverHe1<p0HoverHe1[1]: passed = False
+    #if checkHoverHe2 and not p0HoverHe2[0]<HoverHe2<p0HoverHe2[1]: passed = False
+    #if checkscaling and not p0scaling[0]<Scaling<p0scaling[1]: passed = False
+    #if passed==False:  return minus_npinf
     
     #used_RV_boundaries=np.asarray(used_RV_boundaries)
     
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
         for anRV, anRVbound in zip(RV,used_RV_boundaries):  # go through all individual RVs and make sure they are in boundaries
-            if not anRVbound[0] < anRV < anRVbound[1]:        return -np_inf
+            if not anRVbound[0] < anRV < anRVbound[1]:        return minus_npinf
         #if np.any(RV < used_RV_boundaries[:,0]) or np.any(RV > used_RV_boundaries[:,1]):
         #    return -np.inf
     else:
+        if IDX_Vg1>=0: mcmc_Vgamma1 = theta[IDX_Vg1]
+        if IDX_K1>=0: mcmc_K1 = theta[IDX_K1]
+        if IDX_Vg2>=0: mcmc_Vgamma2 = theta[IDX_Vg2]
+        if IDX_K2>=0: mcmc_K2 = theta[IDX_K2]
+        
         if forced_K1=="Fit" and forced_K2=="Fit":
             if forced_Vgamma1=="Fit" and forced_Vgamma2=="Fit":
                 if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0K2[0] < mcmc_K2 < p0K2[1] and p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):
-                    return -np_inf
+                    return minus_npinf
             else:
-                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0K2[0] < mcmc_K2 < p0K2[1]):              return -np_inf
+                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0K2[0] < mcmc_K2 < p0K2[1]):              return minus_npinf
         elif forced_K1=="Fit":
             if forced_Vgamma1=="Fit":
-                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]):    return -np_inf
+                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]):    return minus_npinf
             else:
-                if not p0K1[0] < mcmc_K1 < p0K1[1]:       return -np_inf
+                if not p0K1[0] < mcmc_K1 < p0K1[1]:       return minus_npinf
         elif forced_K2=="Fit":
             if forced_Vgamma2=="Fit":
-                if not (p0K2[0] < mcmc_K2 < p0K2[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return -np_inf
+                if not (p0K2[0] < mcmc_K2 < p0K2[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return minus_npinf
             else:
-                if not p0K2[0] < mcmc_K2 < p0K2[1]:       return -np_inf
+                if not p0K2[0] < mcmc_K2 < p0K2[1]:       return minus_npinf
         
         if forced_K1!="Fit" and forced_Vgamma1=="Fit":
-            if not p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]:    return -np_inf
+            if not p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]:    return minus_npinf
         if forced_K1!="Fit" and forced_Vgamma1=="Fit" and forced_K2!="Fit" and forced_Vgamma2=="Fit":
-            if not (p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return -np_inf
+            if not (p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return minus_npinf
         if forced_K1!="Fit" and forced_Vgamma1!="Fit" and forced_K2!="Fit" and forced_Vgamma2=="Fit":
-            if not p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]:    return -np_inf
+            if not p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]:    return minus_npinf
     
-    if "Parallax" in p0labels: 
-        parallax_prior = np.log(1.0/(npsqrt(2*np_pi)*plax_unc))-0.5*(mcmc_parallax-plax)**2/plax_unc**2
-        return parallax_prior
+    if IDX_Parallax>=0:
+        return np.log(1.0/(npsqrt(2*np_pi)*plax_unc))-0.5*(theta[IDX_Parallax]-plax)**2/plax_unc**2
     return 0.0
     
     
 
-
+KERNEL_CACHE={}
 def lnlike(theta, arguments):
     input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, normalised_wavelength, normalised_flux, normalised_err,  inp_resolution, used_RV_boundaries, HJD_values, sigma_clip, the_unique_wavelengths, spec1wl, spec1flux, spec2wl, spec2flux, inputScaling = arguments
     if type(input_files)==np.str_:
@@ -2111,15 +2279,15 @@ def lnlike(theta, arguments):
     #if "logg2" in p0labels:         args = npargwhere(p0labels=="logg2")[0][0];       logg2 = theta[args]
     #else:                           logg2 = forced_logg2
     
-    if "H/He1" in p0labels:         args = npargwhere(p0labels=="H/He1")[0][0];       HoverHe1 = theta[args]
-    else:
-        try:    HoverHe1 = forced_HoverHe1
-        except: None
+    #if "H/He1" in p0labels:         args = npargwhere(p0labels=="H/He1")[0][0];       HoverHe1 = theta[args]
+    #else:
+    #    try:    HoverHe1 = forced_HoverHe1
+    #    except: None
     
-    if "H/He2" in p0labels:         args = npargwhere(p0labels=="H/He2")[0][0];       HoverHe2 = theta[args]
-    else:
-        try:    HoverHe2 = forced_HoverHe2
-        except: None
+    #if "H/He2" in p0labels:         args = npargwhere(p0labels=="H/He2")[0][0];       HoverHe2 = theta[args]
+    #else:
+    #    try:    HoverHe2 = forced_HoverHe2
+    #    except: None
     
     #if "K1" in p0labels:            args = npargwhere(p0labels=="K1")[0][0];          mcmc_K1 = theta[args]
     #else:                           mcmc_K1 = forced_K1
@@ -2142,18 +2310,18 @@ def lnlike(theta, arguments):
     
     
     
-    T1 = theta[param_index["T1"]] if "T1" in param_index else forced_teff1
-    logg1 = theta[param_index["logg1"]] if "logg1" in param_index else forced_logg1
-    T2 = theta[param_index["T2"]] if "T2" in param_index else forced_teff2
-    logg2 = theta[param_index["logg2"]] if "logg2" in param_index else forced_logg2
-    #HoverHe1 = theta[param_index["H/He1"]] if "H/He1" in param_index else None
-    #HoverHe2 = theta[param_index["H/He2"]] if "H/He2" in param_index else None
-    mcmc_K1 = theta[param_index["K1"]] if "K1" in param_index else forced_K1
-    mcmc_K2 = theta[param_index["K2"]] if "K2" in param_index else forced_K2
-    mcmc_Vgamma1 = theta[param_index["Vg1"]] if "Vg1" in param_index else forced_Vgamma1
-    mcmc_Vgamma2 = theta[param_index["Vg2"]] if "Vg2" in param_index else forced_Vgamma2
-    Scaling = theta[param_index["Scaling"]] if "Scaling" in param_index else forced_Scaling
-    mcmc_parallax = theta[param_index["Parallax"]] if "Parallax" in param_index else None
+    T1 = theta[IDX_T1] if IDX_T1>=0 else forced_teff1
+    logg1 = theta[IDX_logg1] if IDX_logg1>=0 else forced_logg1
+    T2 = theta[IDX_T2] if IDX_T2>=0 else forced_teff2
+    logg2 = theta[IDX_logg2] if IDX_logg2>=0 else forced_logg2
+    HoverHe1 = theta[IDX_HoverHe1] if IDX_HoverHe1>=0 else forced_HoverHe1
+    HoverHe2 = theta[IDX_HoverHe2] if IDX_HoverHe2>=0 else forced_HoverHe2
+    mcmc_K1 = theta[IDX_K1] if IDX_K1>=0 else forced_K1
+    mcmc_K2 = theta[IDX_K2] if IDX_K2>=0 else forced_K2
+    mcmc_Vgamma1 = theta[IDX_Vg1] if IDX_Vg1>=0 else forced_Vgamma1
+    mcmc_Vgamma2 = theta[IDX_Vg2] if IDX_Vg2>=0 else forced_Vgamma2
+    Scaling = theta[IDX_Scaling] if IDX_Scaling>=0 else forced_Scaling
+    mcmc_parallax = theta[IDX_Parallax] if IDX_Parallax>=0 else None
     #mcmc_R = theta[param_index["R"]] if "R" in param_index else None
     #mcmc_Dummy = theta[param_index["Dummy"]] if "Dummy" in param_index else None
     #mcmc_BBT = theta[param_index["BBT"]] if "BBT" in param_index else None
@@ -2163,7 +2331,6 @@ def lnlike(theta, arguments):
     
     
     
-
     
     for starcnt, starType in enumerate([starType1, starType2]):
         if starType=="DA":
@@ -2265,9 +2432,9 @@ def lnlike(theta, arguments):
     index = np.arange(0,len(input_files),1)
     
     if fit_phot_SED:
-        no_need_to_recompute = npamin(smeared_wl) < npamin(the_unique_wavelengths)+npamin(cut_Ha_all.T) - 10 and npamax(smeared_wl) > npamax(the_unique_wavelengths)+npamax(cut_Ha_all.T) + 10
+        #no_need_to_recompute = npamin(smeared_wl) < npamin(the_unique_wavelengths)+npamin(cut_Ha_all.T) - 10 and npamax(smeared_wl) > npamax(the_unique_wavelengths)+npamax(cut_Ha_all.T) + 10
+        no_need_to_recompute = smeared_wl[0] < the_unique_wavelengths[0]+npamin(cut_Ha_all.T) - 10 and smeared_wl[-1] > the_unique_wavelengths[-1]+npamax(cut_Ha_all.T) + 10
     else:   no_need_to_recompute = False
-    
     
     for ref_wl in the_unique_wavelengths:
         mask_ref_wl = reference_wl==ref_wl
@@ -2299,10 +2466,9 @@ def lnlike(theta, arguments):
         
         
         
-        
+        ref_wl_over_speed_of_light = ref_wl/speed_of_light
         # go through all files one by one and do the same as above, but recalculating the interpolated spectrum, which makes things slower
         for (ii, in_fi, sh_rv, modha, cut_lim, norm_lim, aHJD, sigclipspec) in zip(index[mask_ref_wl], input_files[mask_ref_wl], share_rv[mask_ref_wl], modelHa[mask_ref_wl], cut_Ha_all[mask_ref_wl], normaliseHa_all[mask_ref_wl], HJD_values[mask_ref_wl], sigma_clip[mask_ref_wl]):  # the mcmc RVs are gone through 1 by one, uses the ii counter.
-            
             
             if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
                 if sh_rv == -1:  mcmc_rv1, mcmc_rv2 = RV[2*ii], RV[2*ii+1]
@@ -2323,18 +2489,15 @@ def lnlike(theta, arguments):
                     else:    mcmc_rv2 = forced_Vgamma2 + forced_K2*np_sin(2*np_pi*phi)
                 if forced_K1!="Fit" and forced_Vgamma1=="Fit":     mcmc_rv1 = mcmc_Vgamma1 + forced_K1*np_sin(2*np_pi*phi)
                 if forced_K2!="Fit" and forced_Vgamma2=="Fit":     mcmc_rv2 = mcmc_Vgamma2 + forced_K2*np_sin(2*np_pi*phi)
-                    
-            
+                
             
             
             normalised_wavelength = list_norm_wl_grids[ii];    normalised_flux = list_normalised_flux[ii];    normalised_err = list_normalised_err[ii];    inp_resolution = resolutions[ii]
             
             
             
-            
-            
-            dlam1 = ref_wl*mcmc_rv1/speed_of_light
-            dlam2 = ref_wl*mcmc_rv2/speed_of_light
+            dlam1 = ref_wl_over_speed_of_light*mcmc_rv1
+            dlam2 = ref_wl_over_speed_of_light*mcmc_rv2
 
             if high_RV_amp: modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
             
@@ -2348,14 +2511,17 @@ def lnlike(theta, arguments):
                 except: 
                     interparr = (R1*696340000)**2 / ((1000/plx)*3.085677581E16)**2  *interp(model_wl2, model_wl1+dlam1, model_spectrum_star1)    + (R2*696340000)**2 / ((1000/plx)*3.085677581E16)**2 * interp(model_wl2, model_wl2+dlam2, model_spectrum_star2)
                     interparr *= 4*np.pi
-                
-                
             
+            
+            
+            key = (ref_wl, inp_resolution, model_wl2[10], model_wl2[9])
+            if key not in KERNEL_CACHE:
+                kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])).array
+                KERNEL_CACHE[key] =  kern_array/kern_array.sum() # need to normalise to preserve flux. astropy does this automatically 
             
             # Smear to the resolution desired
-            resstd=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])
-            interparr = convolve(interparr, Gaussian1DKernel(stddev=resstd), boundary = 'extend')
-            
+            #interparr = convolve(interparr, KERNEL_CACHE[key], boundary = 'extend')
+            interparr = convolve1d(interparr, KERNEL_CACHE[key], mode="nearest")
             
             interparr = interp(normalised_wavelength, model_wl2, interparr)
             
@@ -2366,9 +2532,9 @@ def lnlike(theta, arguments):
                 
                 try:
                     #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
-                    m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
+                    m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
                     interparr /= (m*normalised_wavelength + c)
-                except: return -np_inf
+                except: return minus_npinf
                 
                 
                 if False:
@@ -2423,12 +2589,12 @@ def lnlike(theta, arguments):
     
     if fit_phot_SED:
         #if np.isnan(chisq_spec): plt.plot(normalised_wavelength, interparr1); plt.plot(normalised_wavelength, interparr2); plt.title(str(T1) + "  "+ str(logg1)+"  "+ str(T2)+"  "+ str(logg2));  plt.show()
-        if np.isnan(chisq_spec) or np.isnan(chisq_phot):    return -np_inf
+        if np.isnan(chisq_spec) or np.isnan(chisq_phot):    return minus_npinf
         else:  
             if rank==1: print(chisq_spec,chisq_phot)
             return chisq_spec + chisq_phot
     else:
-        if np.isnan(chisq_spec):    return -np_inf
+        if np.isnan(chisq_spec):    return minus_npinf
         else:   return chisq_spec
         
         
@@ -2437,7 +2603,7 @@ def lnlike(theta, arguments):
 def lnprob(theta, arguments):
     lp = lnprior(theta, arguments)
     if not np.isfinite(lp):
-        return -np_inf
+        return minus_npinf
     return lp + lnlike(theta, arguments)
 
 
@@ -2472,21 +2638,21 @@ def lnprior_gauss_lorentz(theta, arguments):
     
     
     if not (A1_1_boundaries[0] < gaussLorentz1_A1 < A1_1_boundaries[1]):
-        return -np_inf
+        return minus_npinf
     if not (A1_2_boundaries[0] < gaussLorentz1_A2 < A1_2_boundaries[1]):
-        return -np_inf
+        return minus_npinf
     if not (A2_1_boundaries[0] < gaussLorentz2_A1 < A2_1_boundaries[1]):
-        return -np_inf
+        return minus_npinf
     if not (A2_2_boundaries[0] < gaussLorentz2_A2 < A2_2_boundaries[1]):
-        return -np_inf
+        return minus_npinf
     if not (sigma1_1_boundaries[0] < gaussLorentz1_sigma1 < sigma1_1_boundaries[1]):
-        return -np_inf
+        return minus_npinf
     if not (sigma1_2_boundaries[0] < gaussLorentz1_sigma2 < sigma1_2_boundaries[1]):
-        return -np_inf
+        return minus_npinf
     if not (sigma2_1_boundaries[0] < gaussLorentz2_sigma1 < sigma2_1_boundaries[1]):
-        return -np_inf
+        return minus_npinf
     if not (sigma2_2_boundaries[0] < gaussLorentz2_sigma2 < sigma2_2_boundaries[1]):
-        return -np_inf
+        return minus_npinf
     
     
     
@@ -2497,33 +2663,33 @@ def lnprior_gauss_lorentz(theta, arguments):
     #used_RV_boundaries=np.asarray(used_RV_boundaries)
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
         for anRV, anRVbound in zip(RV,used_RV_boundaries):  # go through all individual RVs and make sure they are in boundaries
-            if not anRVbound[0] < anRV < anRVbound[1]:        return -np_inf
+            if not anRVbound[0] < anRV < anRVbound[1]:        return minus_npinf
         #if np.any(RV < used_RV_boundaries[:,0]) or np.any(RV > used_RV_boundaries[:,1]):
         #    return -np.inf
     else:
         if forced_K1=="Fit" and forced_K2=="Fit":
             if forced_Vgamma1=="Fit" and forced_Vgamma2=="Fit":
                 if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0K2[0] < mcmc_K2 < p0K2[1] and p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):
-                    return -np_inf
+                    return minus_npinf
             else:
-                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0K2[0] < mcmc_K2 < p0K2[1]):              return -np_inf
+                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0K2[0] < mcmc_K2 < p0K2[1]):              return minus_npinf
         elif forced_K1=="Fit":
             if forced_Vgamma1=="Fit":
-                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]):    return -np_inf
+                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]):    return minus_npinf
             else:
-                if not p0K1[0] < mcmc_K1 < p0K1[1]:       return -np_inf
+                if not p0K1[0] < mcmc_K1 < p0K1[1]:       return minus_npinf
         elif forced_K2=="Fit":
             if forced_Vgamma2=="Fit":
-                if not (p0K2[0] < mcmc_K2 < p0K2[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return -np_inf
+                if not (p0K2[0] < mcmc_K2 < p0K2[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return minus_npinf
             else:
-                if not p0K2[0] < mcmc_K2 < p0K2[1]:       return -np_inf
+                if not p0K2[0] < mcmc_K2 < p0K2[1]:       return minus_npinf
         
         if forced_K1!="Fit" and forced_Vgamma1=="Fit":
-            if not p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]:    return -np_inf
+            if not p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]:    return minus_npinf
         if forced_K1!="Fit" and forced_Vgamma1=="Fit" and forced_K2!="Fit" and forced_Vgamma2=="Fit":
-            if not (p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return -np_inf
+            if not (p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return minus_npinf
         if forced_K1!="Fit" and forced_Vgamma1!="Fit" and forced_K2!="Fit" and forced_Vgamma2=="Fit":
-            if not p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]:    return -np_inf
+            if not p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]:    return minus_npinf
     
     return 0.0
     
@@ -2610,7 +2776,7 @@ def lnlike_gauss_lorentz(theta, arguments):
         
         
         
-        
+        ref_wl_over_speed_of_light = ref_wl/speed_of_light
         # go through all files one by one and do the same as above, but recalculating the interpolated spectrum, which makes things slower
         for (ii, in_fi, sh_rv, modha, cut_lim, norm_lim, aHJD, sigclipspec) in zip(index[mask_ref_wl], input_files[mask_ref_wl], share_rv[mask_ref_wl], modelHa[mask_ref_wl], cut_Ha_all[mask_ref_wl], normaliseHa_all[mask_ref_wl], HJD_values[mask_ref_wl], sigma_clip[mask_ref_wl]):  # the mcmc RVs are gone through 1 by one, uses the ii counter.
             modelHa_min, modelHa_max = modha
@@ -2645,8 +2811,8 @@ def lnlike_gauss_lorentz(theta, arguments):
             normalised_wavelength = list_norm_wl_grids[ii];    normalised_flux = list_normalised_flux[ii];    normalised_err = list_normalised_err[ii];    inp_resolution = resolutions[ii]
             
             
-            dlam1 = ref_wl*mcmc_rv1/speed_of_light
-            dlam2 = ref_wl*mcmc_rv2/speed_of_light
+            dlam1 = ref_wl_over_speed_of_light*mcmc_rv1
+            dlam2 = ref_wl_over_speed_of_light*mcmc_rv2
             
             if high_RV_amp: modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
 
@@ -2668,9 +2834,9 @@ def lnlike_gauss_lorentz(theta, arguments):
             
             try:
                 #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
-                m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
+                m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
                 interparr /= (m*normalised_wavelength + c)
-            except: return -np_inf
+            except: return minus_npinf
             
             
             if False:
@@ -2704,7 +2870,7 @@ def lnlike_gauss_lorentz(theta, arguments):
             
     
     
-    if np.isnan(chisq_spec):    return -np_inf
+    if np.isnan(chisq_spec):    return minus_npinf
     else:   return chisq_spec
         
         
@@ -2713,7 +2879,7 @@ def lnlike_gauss_lorentz(theta, arguments):
 def lnprob_gauss_lorentz(theta, arguments):
     lp = lnprior_gauss_lorentz(theta, arguments)
     if not np.isfinite(lp):
-        return -np_inf
+        return minus_npinf
     return lp + lnlike_gauss_lorentz(theta, arguments)
 
 
@@ -2747,13 +2913,13 @@ def lnprior_quad_lorentz(theta, arguments):
         args = npargwhere(p0labels=="sig1_1")[0][0];   gaussLorentz1_sigma1 = theta[args]
         args = npargwhere(p0labels=="sig2_1")[0][0];   gaussLorentz2_sigma1 = theta[args]
         if not (A1_1_boundaries[0] < gaussLorentz1_A1 < A1_1_boundaries[1]):
-            return -np_inf
+            return minus_npinf
         if not (A2_1_boundaries[0] < gaussLorentz2_A1 < A2_1_boundaries[1]):
-            return -np_inf
+            return minus_npinf
         if not (sigma1_1_boundaries[0] < gaussLorentz1_sigma1 < sigma1_1_boundaries[1]):
-            return -np_inf
+            return minus_npinf
         if not (sigma2_1_boundaries[0] < gaussLorentz2_sigma1 < sigma2_1_boundaries[1]):
-            return -np_inf
+            return minus_npinf
 
     else:
         with open("out/result.out") as resultfile:
@@ -2778,33 +2944,33 @@ def lnprior_quad_lorentz(theta, arguments):
     #used_RV_boundaries=np.asarray(used_RV_boundaries)
     if not (isinstance(forced_P0, float) and isinstance(forced_T0, float)):
         for anRV, anRVbound in zip(RV,used_RV_boundaries):  # go through all individual RVs and make sure they are in boundaries
-            if not anRVbound[0] < anRV < anRVbound[1]:        return -np_inf
+            if not anRVbound[0] < anRV < anRVbound[1]:        return minus_npinf
         #if np.any(RV < used_RV_boundaries[:,0]) or np.any(RV > used_RV_boundaries[:,1]):
         #    return -np.inf
     else:
         if forced_K1=="Fit" and forced_K2=="Fit":
             if forced_Vgamma1=="Fit" and forced_Vgamma2=="Fit":
                 if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0K2[0] < mcmc_K2 < p0K2[1] and p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):
-                    return -np_inf
+                    return minus_npinf
             else:
-                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0K2[0] < mcmc_K2 < p0K2[1]):              return -np_inf
+                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0K2[0] < mcmc_K2 < p0K2[1]):              return minus_npinf
         elif forced_K1=="Fit":
             if forced_Vgamma1=="Fit":
-                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]):    return -np_inf
+                if not (p0K1[0] < mcmc_K1 < p0K1[1] and p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]):    return minus_npinf
             else:
-                if not p0K1[0] < mcmc_K1 < p0K1[1]:       return -np_inf
+                if not p0K1[0] < mcmc_K1 < p0K1[1]:       return minus_npinf
         elif forced_K2=="Fit":
             if forced_Vgamma2=="Fit":
-                if not (p0K2[0] < mcmc_K2 < p0K2[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return -np_inf
+                if not (p0K2[0] < mcmc_K2 < p0K2[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return minus_npinf
             else:
-                if not p0K2[0] < mcmc_K2 < p0K2[1]:       return -np_inf
+                if not p0K2[0] < mcmc_K2 < p0K2[1]:       return minus_npinf
         
         if forced_K1!="Fit" and forced_Vgamma1=="Fit":
-            if not p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]:    return -np_inf
+            if not p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1]:    return minus_npinf
         if forced_K1!="Fit" and forced_Vgamma1=="Fit" and forced_K2!="Fit" and forced_Vgamma2=="Fit":
-            if not (p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return -np_inf
+            if not (p0Vgamma1[0] < mcmc_Vgamma1 < p0Vgamma1[1] and p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]):    return minus_npinf
         if forced_K1!="Fit" and forced_Vgamma1!="Fit" and forced_K2!="Fit" and forced_Vgamma2=="Fit":
-            if not p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]:    return -np_inf
+            if not p0Vgamma2[0] < mcmc_Vgamma2 < p0Vgamma2[1]:    return minus_npinf
     
     return 0.0
 
@@ -2879,7 +3045,7 @@ def lnlike_quad_lorentz(theta, arguments):
         
         
         
-        
+        ref_wl_over_speed_of_light = ref_wl/speed_of_light
         # go through all files one by one and do the same as above, but recalculating the interpolated spectrum, which makes things slower
         for (ii, in_fi, sh_rv, modha, cut_lim, norm_lim, aHJD, sigclipspec) in zip(index[mask_ref_wl], input_files[mask_ref_wl], share_rv[mask_ref_wl], modelHa[mask_ref_wl], cut_Ha_all[mask_ref_wl], normaliseHa_all[mask_ref_wl], HJD_values[mask_ref_wl], sigma_clip[mask_ref_wl]):  # the mcmc RVs are gone through 1 by one, uses the ii counter.
             modelHa_min, modelHa_max = modha
@@ -2914,8 +3080,8 @@ def lnlike_quad_lorentz(theta, arguments):
             normalised_wavelength = list_norm_wl_grids[ii];    normalised_flux = list_normalised_flux[ii];    normalised_err = list_normalised_err[ii];    inp_resolution = resolutions[ii]
             
             
-            dlam1 = ref_wl*mcmc_rv1/speed_of_light
-            dlam2 = ref_wl*mcmc_rv2/speed_of_light
+            dlam1 = ref_wl_over_speed_of_light*mcmc_rv1
+            dlam2 = ref_wl_over_speed_of_light*mcmc_rv2
             
             if high_RV_amp: modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
 
@@ -2964,7 +3130,7 @@ def lnlike_quad_lorentz(theta, arguments):
             #try:
             #    m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
             #    interparr /= (m*normalised_wavelength + c)
-            #except: return -np_inf
+            #except: return minus_npinf
             
             
             if False:
@@ -2998,7 +3164,7 @@ def lnlike_quad_lorentz(theta, arguments):
             
     
     
-    if np.isnan(chisq_spec):    return -np_inf
+    if np.isnan(chisq_spec):    return minus_npinf
     else:   return chisq_spec
         
         
@@ -3007,7 +3173,7 @@ def lnlike_quad_lorentz(theta, arguments):
 def lnprob_quad_lorentz(theta, arguments):
     lp = lnprior_quad_lorentz(theta, arguments)
     if not np.isfinite(lp):
-        return -np_inf
+        return minus_npinf
     return lp + lnlike_quad_lorentz(theta, arguments)
 
 
@@ -3241,7 +3407,7 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commo
                 mask = ((wl1>desired_refwl+cut_limits_min) & (wl1<desired_refwl+norm_limits_min)) | ((wl1>desired_refwl+norm_limits_max)   & (wl1<desired_refwl+cut_limits_max))
                 
                 #m,c =  polyfit(wl1[mask], interparr[mask], deg=1)
-                m,c = linear_fit_weighted(wl1[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
+                m,c = linear_fit(wl1[mask], interparr[mask])
                 interparr /= (m*wl1 + c)
                 interparr = interp(normalised_wavelength, wl1, interparr)
                 
@@ -3269,7 +3435,7 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commo
         def lnprob_gauss(theta, arguments):
             lp = lnprior_gauss(theta, arguments)
             if not np.isfinite(lp):
-                return -np_inf
+                return minus_npinf
             return lp + lnlike_gauss(theta, arguments)
         
                     
@@ -3348,7 +3514,7 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commo
         
         
         #if plot_corner==True:
-        #    fig2 = corner.corner(samples, labels=p0labels, range=p0range, bins=30,smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
+        #    fig2 = corner(samples, labels=p0labels, range=p0range, bins=30,smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
         #    fig2.savefig("RVfits/Gauss_corner.pdf")
         #    del fig2
         #plt.close()
@@ -3373,7 +3539,7 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commo
         
         if not (starType1=="quadLorentz" and starType2=="quadLorentz"):
             #m,c =  polyfit(x[mask], interparr[mask], deg=1)	
-            m,c = linear_fit_weighted(x[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
+            m,c = linear_fit(x[mask], interparr[mask])
             interparr /= (m*x + c)
 
         
@@ -3702,12 +3868,12 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commo
                 mask = ((normalised_wavelength>desired_refwl+cut_limits_min) & (normalised_wavelength<desired_refwl+norm_limits_min)) | ((normalised_wavelength>desired_refwl+norm_limits_max)   & (normalised_wavelength<desired_refwl+cut_limits_max))
                 # and lastly make the spectrum normalised to 1 again using the desired region with 1 sigma clipping iteration to the normalisation region
                 #m_, c_ = polyfit(normalised_wavelength[mask]-desired_refwl, normalised_flux[mask], deg=1)
-                m_,c_ = linear_fit_weighted(normalised_wavelength[mask]-desired_refwl, normalised_flux[mask], np.full((len(normalised_flux[mask]),), 1))
+                m_,c_ = linear_fit(normalised_wavelength[mask]-desired_refwl, normalised_flux[mask])
                 resid=normalised_flux[mask] - (normalised_wavelength[mask]*m_ + c)
                 try:
                     mask2=np.abs(resid)<2.5
                     #m_, c_ = polyfit(normalised_wavelength[mask][mask2]-desired_refwl, normalised_flux[mask][mask2], deg=1)
-                    m_, c_ = linear_fit_weighted(normalised_wavelength[mask][mask2]-desired_refwl, normalised_flux[mask][mask2], np.full((len(normalised_flux[mask][mask2]),), 1))
+                    m_, c_ = linear_fit(normalised_wavelength[mask][mask2]-desired_refwl, normalised_flux[mask][mask2])
                     normalised_flux/=c_
                 except: 
                     normalised_flux/=c_
@@ -3919,10 +4085,10 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commo
 
                 if sys_args[1]=="RV_double_commonRV12":
                     rvfilename.append([in_fi, aHJD, RV1, RV1err])
-                    ax.set_title("V1=" + str(np.round(RV1,1)) + " " + str(np.round(RV1err,1)));  ax2.set_title("R=" + str(inp_resolution) + "  " + str(rvbound1))
+                    ax.set_title("V1=" + str(np.round(RV1,1)) + " " + str(np.round(RV1err,1)));  ax2.set_title("R=" + str(np.round(inp_resolution,2)) + "  " + str(rvbound1))
                 else:
                     rvfilename.append([in_fi, aHJD, RV1, RV1err, RV2, RV2err])
-                    ax.set_title("V1=" + str(np.round(RV1,1)) + " " + str(np.round(RV1err,1)) + "  V2=" + str(np.round(RV2,1)) + " " + str(np.round(RV2err,1)));  ax2.set_title("R=" + str(inp_resolution) + "  " + str(rvbound1) + "|" + str(rvbound2))
+                    ax.set_title("V1=" + str(np.round(RV1,1)) + " " + str(np.round(RV1err,1)) + "  V2=" + str(np.round(RV2,1)) + " " + str(np.round(RV2err,1)));  ax2.set_title("R=" + str(np.round(inp_resolution,2)) + "  " + str(rvbound1) + "|" + str(rvbound2))
                 
                 
                 #np.savetxt("RVfits/plot/"+str(in_fi)+"data.dat", np.array([normalised_wavelength,  normalised_flux]).T)
@@ -4004,7 +4170,7 @@ elif sys_args[1]=="ATM":
     if not "run_double_one_by_oneMCMC" in sys_args:
 
         if plot_burnin:
-            fig = corner.corner(samples, labels=p0labels, range=p0range, bins=30,smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
+            fig = corner(samples, labels=p0labels, range=p0range, bins=30,smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
             fig.savefig("out/corner_burnin.pdf")
             del fig
     plt.close()
@@ -4024,7 +4190,7 @@ elif sys_args[1]=="ATM":
             
             #Make a corner plot which shows values
             samples=nploadtxt("out/MCMC_samples.dat")
-            fig2 = corner.corner(samples, labels=p0labels, range=p0range, bins=30,smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
+            fig2 = corner(samples, labels=p0labels, range=p0range, bins=30,smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
             fig2.savefig("out/corner.pdf")
             del fig2
     plt.close()
@@ -4037,7 +4203,7 @@ elif sys_args[1]=="ATM":
     #try:
     #    for ll, (fi, arv, arvBounds1, arvBounds2) in enumerate(zip(input_files, share_rv, RV_boundaries1, RV_boundaries2)):
     #    
-    #        fig3 = corner.corner(samples.T[ll*2:ll*2+2].T, labels=["RV1", "RV2"], range=[arvBounds1, arvBounds2], bins=30, smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
+    #        fig3 = corner(samples.T[ll*2:ll*2+2].T, labels=["RV1", "RV2"], range=[arvBounds1, arvBounds2], bins=30, smooth=True, quantiles=[0.16, 0.5, 0.84], show_titles=True, labels_args={"fontsize": 40}, title_fmt = '.3f')
     #        fig3.savefig("out/corner/corner_"+str(fi).split("/")[-1]+".png")
     #        del fig3
     #except: None
@@ -4250,7 +4416,7 @@ elif sys_args[1]=="ATM":
     
     
 if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
-    result = open(os.getcwd()+"/out/result.out").readlines()
+    result = open(getcwd+"/out/result.out").readlines()
     allRV1s, allRV2s = [], []
     allRV1sminus, allRV2sminus =[], []
     allRV1smax, allRV2smax =[], []
@@ -4377,7 +4543,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
     if forced_HoverHe2!=0: HoverHe2_med=forced_HoverHe2
     
     if "run_double_one_by_oneMCMC" in sys_args:
-        filesout = os.listdir(os.getcwd()+"/out")
+        filesout = os.listdir(getcwd+"/out")
         files_one_by_one = []
         for ff in filesout:
             if "result" in ff and ".out" in ff:
@@ -4391,7 +4557,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
         
         res = "result"+str(int(sys_args[-1])+1)+".out"
         
-        result = open(os.getcwd()+"/out/"+res).readlines()
+        result = open(getcwd+"/out/"+res).readlines()
         
         allRV1s, allRV2s = [], []
         allRV1sminus, allRV2sminus =[], []
@@ -4634,7 +4800,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
                     
                 try:   
                     #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
-                    m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
+                    m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
                 except Exception as eee:
                     print_exception_details(eee)
                     plt.clf()
@@ -4644,7 +4810,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
                     plt.title(str() + in_fi + " " + str(ref_wl) + "    "+str(cut_limits_min) + "  " + str(norm_limits_min) + "  " + str(norm_limits_max) + "  " + str(cut_limits_max))
                     plt.show();    plt.clf()
                     #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
-                    m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
+                    m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
                 
                 
                 #plt.plot(normalised_wavelength, interparr);   plt.plot(nplinspace(6000, 7000, 1000), m*nplinspace(6000, 7000, 1000) + c);  plt.show()
@@ -4708,7 +4874,8 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
                 
                 ax.scatter(0,1,alpha=0, label="V1 = " + str(np.round(rv_med1,3)));        ax2.scatter(0,1,alpha=0, label="V1 = " + str(np.round(rv_med1,3)))
                 ax.scatter(0,1,alpha=0, label="V2 = " + str(np.round(rv_med2,3)));        ax2.scatter(0,1,alpha=0, label="V2 = " + str(np.round(rv_med2,3)))
-                ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl));                 ax2.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
+                #ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
+                ax2.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
                 if starType1.startswith("D") or starType1=="ELM":
                     ax.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)));          ax2.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)))
                     ax.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)));    ax2.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)))
@@ -4829,7 +4996,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
     plot_fancy=False
     if plot_fancy:
         minstored=np_inf
-        maxstored=-np_inf
+        maxstored=minus_npinf
         import matplotlib
         import matplotlib.pyplot as plt
         matplotlib.rcParams['text.usetex'] = True
@@ -4960,7 +5127,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
             
             try:
                 #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
-                m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
+                m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
             except Exception as eee:
                 print_exception_details(eee)
                 print(eee)
@@ -4976,7 +5143,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
                 plt.clf()
                 
                 #m,c =  polyfit(normalised_wavelength[mask], interparr[mask], deg=1)
-                m,c = linear_fit_weighted(normalised_wavelength[mask], interparr[mask], np.full((len(interparr[mask]),), 1))
+                m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
             
             interparr /= (m*normalised_wavelength + c)
             
@@ -5121,7 +5288,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
         if plot_fancy==False:
             ax.scatter(0,1,alpha=0, label="V1 = " + str(np.round(rv_med1,3)))
             ax.scatter(0,1,alpha=0, label="V2 = " + str(np.round(rv_med2,3)))
-            ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
+            #ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
             ax.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)))
             ax.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)))
             ax.scatter(0,1,alpha=0, label="T2 = " + str(np.round(T2_med,0)))
