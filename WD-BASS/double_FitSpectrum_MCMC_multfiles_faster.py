@@ -2087,8 +2087,8 @@ if RV_in_labels:
 PARAM_IDX = {
     "T1":        param_index.get("T1"),
     "logg1":     param_index.get("logg1"),
-    "T2":        param_index.get("T1"),
-    "logg2":     param_index.get("logg1"),
+    "T2":        param_index.get("T2"),
+    "logg2":     param_index.get("logg2"),
     "H/He1":     param_index.get("H/He1"),
     "H/He2":     param_index.get("H/He2"),
     "K1":        param_index.get("K1"),
@@ -3482,17 +3482,17 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commo
         sampler = EnsembleSampler(nwalkers, ndim, lnprob_gauss, pool=pool, args=[[process_gauss_inpf, process_gauss_rwl, process_gauss_cHa, process_gauss_nHa, process_gauss_normwl, process_gauss_normfl, process_gauss_normerr,  process_gauss_res, process_gauss_rvbound, model_wl1, model_spectrum_star1, model_wl2, model_spectrum_star2, desired_refwl]])
         pos, prob, state = sampler.run_mcmc(p0,burnin,progress=True)
         samples = sampler.flatchain
-        np.savetxt("RVfits/Gauss_MCMC_samples_burnin.dat",samples)
-        np.savetxt("RVfits/Gauss_MCMC_burninpos.dat",pos)
+        #np.savetxt("RVfits/Gauss_MCMC_samples_burnin.dat",samples)
+        #np.savetxt("RVfits/Gauss_MCMC_burninpos.dat",pos)
         print("Finished burn-in")
 
 
 
         #Make a corner plot which shows values
-        samples=nploadtxt("RVfits/Gauss_MCMC_samples_burnin.dat")
+        #samples=nploadtxt("RVfits/Gauss_MCMC_samples_burnin.dat")
 
         sampler.reset()
-        pos=nploadtxt("RVfits/Gauss_MCMC_burninpos.dat")
+        #pos=nploadtxt("RVfits/Gauss_MCMC_burninpos.dat")
         
 
         pos, prob, state = sampler.run_mcmc(pos,nsteps,progress=True)
@@ -4158,7 +4158,7 @@ elif sys_args[1]=="ATM":
     samples = sampler.flatchain
     if plot_burnin:
         np.savetxt("out/MCMC_samples_burnin.dat",samples)
-    np.savetxt("out/MCMC_burninpos.dat",pos)
+    #np.savetxt("out/MCMC_burninpos.dat",pos)
     print("Finished burn-in")
 
 
@@ -4176,7 +4176,7 @@ elif sys_args[1]=="ATM":
     plt.close()
 
     sampler.reset()
-    pos=nploadtxt("out/MCMC_burninpos.dat")
+    #pos=nploadtxt("out/MCMC_burninpos.dat")
     
 
     pos, prob, state = sampler.run_mcmc(pos,nsteps,progress=True)
@@ -4212,86 +4212,86 @@ elif sys_args[1]=="ATM":
 
     lines_to_write = []
     print(p0labels)
-    if "T1" in p0labels:
-        args = npargwhere(p0labels=="T1")[0][0];          Teff1_result = samples[::,args]
+    if IDX_T1>=0:
+        Teff1_result = samples[::,IDX_T1]
         T1_med = np.percentile(Teff1_result, 50, axis=0);  T1_min = np.percentile(Teff1_result, 16, axis=0);   T1_max = np.percentile(Teff1_result, 84, axis=0)
         lines_to_write.append("Teff1:\n")
         lines_to_write.append(str(T1_med) + "\t" + str(np.percentile(Teff1_result, 16, axis=0) - T1_med) + "\t" + str(np.percentile(Teff1_result, 84, axis=0) - T1_med) + "\n")
     else:   T1_med = forced_teff1;   T1_min = 0;   T1_max=0
         
-    if "T2" in p0labels:
-        args = npargwhere(p0labels=="T2")[0][0];          Teff2_result = samples[::,args]
+    if IDX_T2>=0:
+        Teff2_result = samples[::,IDX_T2]
         T2_med = np.percentile(Teff2_result, 50, axis=0);  T2_min = np.percentile(Teff2_result, 16, axis=0);   T2_max = np.percentile(Teff2_result, 84, axis=0)
         lines_to_write.append("Teff2:\n")
         lines_to_write.append(str(T2_med) + "\t" + str(np.percentile(Teff2_result, 16, axis=0) - T2_med) + "\t" + str(np.percentile(Teff2_result, 84, axis=0) - T2_med) + "\n")
     else:   T2_med = forced_teff2;   T2_min = 0;   T2_max=0
 
-    if "logg1" in p0labels:
-        args = npargwhere(p0labels=="logg1")[0][0];       logg1_result = samples[::,args]
+    if IDX_logg1>=0:
+        logg1_result = samples[::,IDX_logg1]
         logg1_med = np.percentile(logg1_result, 50, axis=0);   logg1_min = np.percentile(logg1_result, 16, axis=0);   logg1_max = np.percentile(logg1_result, 84, axis=0)
         lines_to_write.append("Logg1:\n")
         lines_to_write.append(str(logg1_med) + "\t" + str(np.percentile(logg1_result, 16, axis=0) - logg1_med) + "\t" + str(np.percentile(logg1_result, 84, axis=0) - logg1_med) + "\n")
     else:   logg1_med = forced_logg1;   logg1_min = 0;   logg1_max=0
 
-    if "logg2" in p0labels:
-        args = npargwhere(p0labels=="logg2")[0][0];       logg2_result = samples[::,args]
+    if IDX_logg2>=0:
+        logg2_result = samples[::,IDX_logg2]
         logg2_med = np.percentile(logg2_result, 50, axis=0);   logg2_min = np.percentile(logg2_result, 16, axis=0);   logg2_max = np.percentile(logg2_result, 84, axis=0)
         lines_to_write.append("Logg2:\n")
         lines_to_write.append(str(logg2_med) + "\t" + str(np.percentile(logg2_result, 16, axis=0) - logg2_med) + "\t" + str(np.percentile(logg2_result, 84, axis=0) - logg2_med) + "\n")
     else:   logg2_med = forced_logg2;   logg2_min = 0;   logg2_max=0
 
-    if "H/He1" in p0labels:
-        args = npargwhere(p0labels=="H/He1")[0][0];       HoverHe1_result = samples[::,args]
+    if IDX_HoverHe1>=0:
+        HoverHe1_result = samples[::,IDX_HoverHe1]
         HoverHe1_med = np.percentile(HoverHe1_result, 50, axis=0);   HoverHe1_min = np.percentile(HoverHe1_result, 16, axis=0);   HoverHe1_max = np.percentile(HoverHe1_result, 84, axis=0)
         lines_to_write.append("H/He1:\n")
         lines_to_write.append(str(HoverHe1_med) + "\t" + str(np.percentile(HoverHe1_result, 16, axis=0) - HoverHe1_med) + "\t" + str(np.percentile(HoverHe1_result, 84, axis=0) - HoverHe1_med) + "\n")
     else:   HoverHe1_med = forced_HoverHe1;   HoverHe1_min = 0;   HoverHe1_max=0
 
-    if "H/He2" in p0labels:
-        args = npargwhere(p0labels=="H/He2")[0][0];       HoverHe2_result = samples[::,args]
+    if IDX_HoverHe2>=0:
+        HoverHe2_result = samples[::,IDX_HoverHe2]
         HoverHe2_med = np.percentile(HoverHe2_result, 50, axis=0);   HoverHe2_min = np.percentile(HoverHe2_result, 16, axis=0);   HoverHe2_max = np.percentile(HoverHe2_result, 84, axis=0)
         lines_to_write.append("H/He2:\n")
         lines_to_write.append(str(HoverHe2_med) + "\t" + str(np.percentile(HoverHe2_result, 16, axis=0) - HoverHe2_med) + "\t" + str(np.percentile(HoverHe2_result, 84, axis=0) - HoverHe2_med) + "\n")
     else:   HoverHe2_med = forced_HoverHe2;   HoverHe2_min = 0;   HoverHe2_max=0
 
 
-    if "K1" in p0labels:
-        args = npargwhere(p0labels=="K1")[0][0];          K1_result = samples[::,args]
+    if IDX_K1>=0:
+        K1_result = samples[::,IDX_K1]
         K1_med = np.percentile(K1_result, 50, axis=0);     K1_min = np.percentile(K1_result, 16, axis=0);   K1_max = np.percentile(K1_result, 84, axis=0)
         lines_to_write.append("K1:\n")
         lines_to_write.append(str(K1_med) + "\t" + str(np.percentile(K1_result, 16, axis=0) - K1_med) + "\t" + str(np.percentile(K1_result, 84, axis=0) - K1_med) + "\n")
     else:   K1_med = forced_K1;   K1_min = 0;   K1_max=0
 
-    if "K2" in p0labels:
-        args = npargwhere(p0labels=="K2")[0][0];          K2_result = samples[::,args]
+    if IDX_K2>=0:
+        K2_result = samples[::,IDX_K2]
         K2_med = np.percentile(K2_result, 50, axis=0);     K2_min = np.percentile(K2_result, 16, axis=0);   K2_max = np.percentile(K2_result, 84, axis=0)
         lines_to_write.append("K2:\n")
         lines_to_write.append(str(K2_med) + "\t" + str(np.percentile(K2_result, 16, axis=0) - K2_med) + "\t" + str(np.percentile(K2_result, 84, axis=0) - K2_med) + "\n")
     else:   K2_med = forced_K2;   K2_min = 0;   K2_max=0
 
-    if "Vg1" in p0labels:
-        args = npargwhere(p0labels=="Vg1")[0][0];         Vgamma1_result = samples[::,args]
+    if IDX_Vg1>=0:
+        Vgamma1_result = samples[::,IDX_Vg1]
         Vgamma1_med = np.percentile(Vgamma1_result, 50, axis=0);   Vgamma1_min = np.percentile(Vgamma1_result, 16, axis=0);   Vgamma1_max = np.percentile(Vgamma1_result, 84, axis=0)
         lines_to_write.append("Vg1:\n")
         lines_to_write.append(str(Vgamma1_med) + "\t" + str(np.percentile(Vgamma1_result, 16, axis=0) - Vgamma1_med) + "\t" + str(np.percentile(Vgamma1_result, 84, axis=0) - Vgamma1_med) + "\n")
     else:   Vgamma1_med = forced_Vgamma1;   Vgamma1_min = 0;   Vgamma1_max=0
 
-    if "Vg2" in p0labels:
-        args = npargwhere(p0labels=="Vg2")[0][0];         Vgamma2_result = samples[::,args]
+    if IDX_Vg2>=0:
+        Vgamma2_result = samples[::,IDX_Vg2]
         Vgamma2_med = np.percentile(Vgamma2_result, 50, axis=0);   Vgamma2_min = np.percentile(Vgamma2_result, 16, axis=0);   Vgamma2_max = np.percentile(Vgamma2_result, 84, axis=0)
         lines_to_write.append("Vg2:\n")
         lines_to_write.append(str(Vgamma2_med) + "\t" + str(np.percentile(Vgamma2_result, 16, axis=0) - Vgamma2_med) + "\t" + str(np.percentile(Vgamma2_result, 84, axis=0) - Vgamma2_med) + "\n")
     else:   Vgamma2_med = forced_Vgamma2;   Vgamma2_min = 0;   Vgamma2_max=0
 
-    if "Scaling" in p0labels:
-        args = npargwhere(p0labels=="Scaling")[0][0];     Scaling_result = samples[::,args]
+    if IDX_Scaling>=0:
+        Scaling_result = samples[::,IDX_Scaling]
         Scaling_med = np.percentile(Scaling_result, 50, axis=0);   Scaling_min = np.percentile(Scaling_result, 16, axis=0);   Scaling_max = np.percentile(Scaling_result, 84, axis=0)
         lines_to_write.append("Scaling:\n")
         lines_to_write.append(str(Scaling_med) + "\t" + str(np.percentile(Scaling_result, 16, axis=0) - Scaling_med) + "\t" + str(np.percentile(Scaling_result, 84, axis=0) - Scaling_med) + "\n")
     else:   Scaling_med = forced_Scaling;   Scaling_min = 0;   Scaling_max=0
     
-    if "Parallax" in p0labels:
-        args = npargwhere(p0labels=="Parallax")[0][0];     parallax_result = samples[::,args]
+    if IDX_Parallax>=0:
+        parallax_result = samples[::,IDX_Parallax]
         parallax_med = np.percentile(parallax_result, 50, axis=0);   parallax_min = np.percentile(parallax_result, 16, axis=0);   parallax_max = np.percentile(parallax_result, 84, axis=0)
         lines_to_write.append("Parallax:\n")
         lines_to_write.append(str(parallax_med) + "\t" + str(np.percentile(parallax_result, 16, axis=0) - parallax_med) + "\t" + str(np.percentile(parallax_result, 84, axis=0) - parallax_med) + "\n")
@@ -5344,7 +5344,6 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
             
             ax.set_ylim(minstored-0.25,maxstored+0.05)
             h, l = ax.get_legend_handles_labels()
-            print(l)
             
             
             if float(l[0].split("=")[-1].split("\\")[0])<10000 and float(l[3].split("=")[-1].split("\\")[0])>10000:

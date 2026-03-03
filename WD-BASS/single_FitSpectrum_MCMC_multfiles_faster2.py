@@ -628,7 +628,7 @@ if fit_phot_SED:
 #Uniform priors over which the variables will be allowed to vary
 p0T1=config_info["p0teff"][0]  # max teff is 14000 for DA
 p0logg1=config_info["p0logg"][0]
-if forced_Scaling=="ELM" and np.amax(p0logg1)>8.3: raise ValueError("For the ELM grid, Althaus mass-temperature-radius relationships do not cover logg>8.5. Decrease the maximum logg")
+if forced_Scaling=="ELM" and npamax(p0logg1)>8.3: raise ValueError("For the ELM grid, Althaus mass-temperature-radius relationships do not cover logg>8.5. Decrease the maximum logg")
 p0HoverHe1=config_info["p0HoverHe"][0]
 try:  p0scaling=np.asarray(config_info["p0scaling"]).astype(float)
 except: 
@@ -655,7 +655,7 @@ else:    want_R=False
 
 
 pier_or_antoine="mixed"#"pier3Dphot_antoine1Dspec"
-starType1_is_DA = starType1=="DA" 
+starType1_is_DA = starType1=="DA"
 
 if starType1_is_DA and pier_or_antoine=="mixed":
     if fit_phot_SED:         wl_all_synth, flux_all_synth, Teff_all_synth, Grav_all_synth = load_models.load_models_DA_3D_NLTE(minwl=theminww_loadgrid,maxwl=themaxww_loadgrid)
@@ -664,20 +664,17 @@ if starType1_is_DA and pier_or_antoine=="mixed":
     if False:
         if forced_teff1==0 and forced_logg1==0:
             # Trim the grid to only include the values within p0Teff and p0logg
-            min_p0T = npamin(np.array([p0T1[0], p0T1[1]]));    max_p0T = npamax(np.array([p0T1[0], p0T1[1]]))
-            
-            
             
             unique_Teff_all_synth=npunique(Teff_all_synth)
             unique_Grav_all_synth=npunique(Grav_all_synth)
             
-            mask_TEFF = (unique_Teff_all_synth >= min_p0T)  &  (unique_Teff_all_synth <= max_p0T)
+            mask_TEFF = (unique_Teff_all_synth >= p0T1[0])  &  (unique_Teff_all_synth <= p0T1[1])
             try:  mask_TEFF[npamin(npargwhere(mask_TEFF==True)) - 1] = True
             except: None
             try: mask_TEFF[npamax(npargwhere(mask_TEFF==True)) + 1] = True
             except: None
             
-            min_p0logg = npamin(np.array([p0logg1[0], p0logg1[1]]));    max_p0logg = npamax(np.array([p0logg1[0], p0logg1[1]]))
+            min_p0logg = p0logg1[0];    max_p0logg = p0logg1[1]
             
             mask_LOGG = (unique_Grav_all_synth >= min_p0logg)  &  (unique_Grav_all_synth <= max_p0logg)
             try: mask_LOGG[npamin(npargwhere(mask_LOGG==True)) - 1] = True
@@ -686,8 +683,8 @@ if starType1_is_DA and pier_or_antoine=="mixed":
             except: None
             
             
-            newMinT, newMaxT = npamin(unique_Teff_all_synth[mask_TEFF]), npamax(unique_Teff_all_synth[mask_TEFF])
-            newMinLogg, newMagLogg = npamin(unique_Grav_all_synth[mask_LOGG]), npamax(unique_Grav_all_synth[mask_LOGG])
+            newMinT, newMaxT = unique_Teff_all_synth[mask_TEFF][0], unique_Teff_all_synth[mask_TEFF][-1]
+            newMinLogg, newMagLogg = unique_Grav_all_synth[mask_LOGG][0], unique_Grav_all_synth[mask_LOGG][-1]
             
             
             mask_atm_grid = (Teff_all_synth <= newMaxT) & (Teff_all_synth >= newMinT)  &  (Grav_all_synth <= newMagLogg) & (Grav_all_synth >= newMinLogg)
@@ -707,34 +704,32 @@ if starType1=="DBA" or starType1=="DB":
     else:                    wl_all, flux_all, Teff_all, Grav_all, H_over_He_all = load_models.load_models_DBA(minwl=npamin(reference_wl)-150,maxwl=npamax(reference_wl)+250)
     
     if forced_teff1==0 and forced_logg1==0 and forced_HoverHe1==0:
-            ## Trim the grid to only include the values within p0Teff and p0logg
-            min_p0T = npamin(np.array([p0T1[0], p0T1[1]]));    max_p0T = npamax(np.array([p0T1[0], p0T1[1]]))
-            
-            unique_Teff_all=npunique(Teff_all)
-            unique_Grav_all=npunique(Grav_all)
-            
-            mask_TEFF = (unique_Teff_all >= min_p0T)  &  (unique_Teff_all <= max_p0T)
-            try: mask_TEFF[npamin(npargwhere(mask_TEFF==True)) - 1] = True
-            except: None
-            try:  mask_TEFF[npamax(npargwhere(mask_TEFF==True)) + 1] = True
-            except: None
-            
-            min_p0logg = npamin(np.array([p0logg1[0], p0logg1[1]]));    max_p0logg = npamax(np.array([p0logg1[0], p0logg1[1]]))
-            
-            mask_LOGG = (unique_Grav_all >= min_p0logg)  &  (unique_Grav_all <= max_p0logg)
-            try: mask_LOGG[npamin(npargwhere(mask_LOGG==True)) - 1] = True
-            except: None
-            try: mask_LOGG[npamax(npargwhere(mask_LOGG==True)) + 1] = True
-            except: None
-            
-            
-            newMinT, newMaxT = npamin(unique_Teff_all[mask_TEFF]), npamax(unique_Teff_all[mask_TEFF])
-            newMinLogg, newMaxLogg = npamin(unique_Grav_all[mask_LOGG]), npamax(unique_Grav_all[mask_LOGG])
-            
-            
-            mask_atm_grid = (Teff_all <= newMaxT) & (Teff_all >= newMinT)  &  (Grav_all <= newMaxLogg) & (Grav_all >= newMinLogg)
-            
-            wl_all, flux_all, Teff_all, Grav_all, H_over_He_all = wl_all[mask_atm_grid], flux_all[mask_atm_grid], Teff_all[mask_atm_grid], Grav_all[mask_atm_grid], H_over_He_all[mask_atm_grid]
+        ## Trim the grid to only include the values within p0Teff and p0logg
+        
+        unique_Teff_all=npunique(Teff_all)
+        unique_Grav_all=npunique(Grav_all)
+        
+        mask_TEFF = (unique_Teff_all >= p0T1[0])  &  (unique_Teff_all <= p0T1[1])
+        try: mask_TEFF[npamin(npargwhere(mask_TEFF==True)) - 1] = True
+        except: None
+        try:  mask_TEFF[npamax(npargwhere(mask_TEFF==True)) + 1] = True
+        except: None
+        
+        
+        mask_LOGG = (unique_Grav_all >= p0logg1[0])  &  (unique_Grav_all <= p0logg1[1])
+        try: mask_LOGG[npamin(npargwhere(mask_LOGG==True)) - 1] = True
+        except: None
+        try: mask_LOGG[npamax(npargwhere(mask_LOGG==True)) + 1] = True
+        except: None
+        
+        
+        newMinT, newMaxT = unique_Teff_all[mask_TEFF][0], unique_Teff_all[mask_TEFF][-1]
+        newMinLogg, newMaxLogg = unique_Grav_all[mask_LOGG][0], unique_Grav_all[mask_LOGG][-1]
+        
+        
+        mask_atm_grid = (Teff_all <= newMaxT) & (Teff_all >= newMinT)  &  (Grav_all <= newMaxLogg) & (Grav_all >= newMinLogg)
+        
+        wl_all, flux_all, Teff_all, Grav_all, H_over_He_all = wl_all[mask_atm_grid], flux_all[mask_atm_grid], Teff_all[mask_atm_grid], Grav_all[mask_atm_grid], H_over_He_all[mask_atm_grid]
     
     logg_all=Grav_all
 
@@ -756,28 +751,26 @@ if starType1=="DC":
     if False:
         if forced_teff1==0 and forced_logg1==0:
             # Trim the grid to only include the values within p0Teff and p0logg
-            min_p0T = npamin(np.array([p0T1[0], p0T1[1]]));    max_p0T = npamax(np.array([p0T1[0], p0T1[1]]))
             
             unique_Teff_all=npunique(Teff_all)
             unique_Grav_all=npunique(Grav_all)
             
-            mask_TEFF = (unique_Teff_all >= min_p0T)  &  (unique_Teff_all <= max_p0T)
+            mask_TEFF = (unique_Teff_all >= p0T1[0])  &  (unique_Teff_all <= p0T1[1])
             try: mask_TEFF[npamin(npargwhere(mask_TEFF==True)) - 1] = True
             except: None
             try: mask_TEFF[npamax(npargwhere(mask_TEFF==True)) + 1] = True
             except: None
             
-            min_p0logg = npamin(np.array([p0logg1[0], p0logg1[1]]));    max_p0logg = npamax(np.array([p0logg1[0], p0logg1[1]]))
             
-            mask_LOGG = (unique_Grav_all >= min_p0logg)  &  (unique_Grav_all <= max_p0logg)
+            mask_LOGG = (unique_Grav_all >= p0logg1[0])  &  (unique_Grav_all <= p0logg1[1])
             try: mask_LOGG[npamin(npargwhere(mask_LOGG==True)) - 1] = True
             except: None
             try: mask_LOGG[npamax(npargwhere(mask_LOGG==True)) + 1] = True
             except: None
             
             
-            newMinT, newMaxT = npamin(unique_Teff_all[mask_TEFF]), npamax(unique_Teff_all[mask_TEFF])
-            newMinLogg, newMagLogg = npamin(unique_Grav_all[mask_LOGG]), npamax(unique_Grav_all[mask_LOGG])
+            newMinT, newMaxT = unique_Teff_all[mask_TEFF][0], unique_Teff_all[mask_TEFF][-1]
+            newMinLogg, newMagLogg = unique_Grav_all[mask_LOGG][0], unique_Grav_all[mask_LOGG][-1]
             
             
             mask_atm_grid = (Teff_all <= newMaxT) & (Teff_all >= newMinT)  &  (Grav_all <= newMagLogg) & (Grav_all >= newMinLogg)
@@ -801,20 +794,18 @@ elif starType1=="sd":
     if True:
         if forced_teff1==0 and forced_logg1==0:
             # Trim the grid to only include the values within p0Teff and p0logg
-            min_p0T = npamin(np.array([p0T1[0], p0T1[1]]));    max_p0T = npamax(np.array([p0T1[0], p0T1[1]]))
             
             unique_Teff_all=npunique(Teff_all)
             unique_Grav_all=npunique(Grav_all)
             unique_H_over_He_all=npunique(H_over_He_all)
             
-            mask_TEFF = (unique_Teff_all >= min_p0T)  &  (unique_Teff_all <= max_p0T)
+            mask_TEFF = (unique_Teff_all >= p0T1[0])  &  (unique_Teff_all <= p0T1[1])
             try: mask_TEFF[npamin(npargwhere(mask_TEFF==True)) - 1] = True
             except: None
             try: mask_TEFF[npamax(npargwhere(mask_TEFF==True)) + 1] = True
             except: None
             
-            min_p0logg = npamin(np.array([p0logg1[0], p0logg1[1]]));    max_p0logg = npamax(np.array([p0logg1[0], p0logg1[1]]))
-            mask_LOGG = (unique_Grav_all >= min_p0logg)  &  (unique_Grav_all <= max_p0logg)
+            mask_LOGG = (unique_Grav_all >= p0logg1[0])  &  (unique_Grav_all <= p0logg1[1])
             try: mask_LOGG[npamin(npargwhere(mask_LOGG==True)) - 1] = True
             except: None
             try: mask_LOGG[npamax(npargwhere(mask_LOGG==True)) + 1] = True
@@ -828,9 +819,9 @@ elif starType1=="sd":
             except: None
             
             
-            newMinT, newMaxT = npamin(unique_Teff_all[mask_TEFF]), npamax(unique_Teff_all[mask_TEFF])
-            newMinLogg, newMaxLogg = npamin(unique_Grav_all[mask_LOGG]), npamax(unique_Grav_all[mask_LOGG])
-            newMinHoverHe, newMaxHoverHe = npamin(unique_H_over_He_all[mask_HOVERHE]), npamax(unique_H_over_He_all[mask_HOVERHE])
+            newMinT, newMaxT = unique_Teff_all[mask_TEFF][0], unique_Teff_all[mask_TEFF][-1]
+            newMinLogg, newMaxLogg = unique_Grav_all[mask_LOGG][0], unique_Grav_all[mask_LOGG][-1]
+            newMinHoverHe, newMaxHoverHe = unique_H_over_He_all[mask_HOVERHE][0], unique_H_over_He_all[mask_HOVERHE][-1]
             
             
             mask_atm_grid = (Teff_all <= newMaxT) & (Teff_all >= newMinT)  &  (Grav_all <= newMaxLogg) & (Grav_all >= newMinLogg)  &  (H_over_He_all <= newMaxHoverHe) & (H_over_He_all >= newMinHoverHe)
@@ -852,27 +843,25 @@ elif starType1=="ELM":
     if True:
         if forced_teff1==0 and forced_logg1==0:
             # Trim the grid to only include the values within p0Teff and p0logg
-            min_p0T = npamin(np.array([p0T1[0], p0T1[1]]));    max_p0T = npamax(np.array([p0T1[0], p0T1[1]]))
             
             unique_Teff_all=npunique(Teff_all)
             unique_Grav_all=npunique(Grav_all)
             
-            mask_TEFF = (unique_Teff_all >= min_p0T)  &  (unique_Teff_all <= max_p0T)
+            mask_TEFF = (unique_Teff_all >= p0T1[0])  &  (unique_Teff_all <= p0T1[1])
             try: mask_TEFF[npamin(npargwhere(mask_TEFF==True)) - 1] = True
             except: None
             try: mask_TEFF[npamax(npargwhere(mask_TEFF==True)) + 1] = True
             except: None
             
-            min_p0logg = npamin(np.array([p0logg1[0], p0logg1[1]]));    max_p0logg = npamax(np.array([p0logg1[0], p0logg1[1]]))
-            mask_LOGG = (unique_Grav_all >= min_p0logg)  &  (unique_Grav_all <= max_p0logg)
+            mask_LOGG = (unique_Grav_all >= p0logg1[0])  &  (unique_Grav_all <= p0logg1[1])
             try: mask_LOGG[npamin(npargwhere(mask_LOGG==True)) - 1] = True
             except: None
             try: mask_LOGG[npamax(npargwhere(mask_LOGG==True)) + 1] = True
             except: None
             
             
-            newMinT, newMaxT = npamin(unique_Teff_all[mask_TEFF]), npamax(unique_Teff_all[mask_TEFF])
-            newMinLogg, newMaxLogg = npamin(unique_Grav_all[mask_LOGG]), npamax(unique_Grav_all[mask_LOGG])
+            newMinT, newMaxT = unique_Teff_all[mask_TEFF][0], unique_Teff_all[mask_TEFF][-1]
+            newMinLogg, newMaxLogg = unique_Grav_all[mask_LOGG][0], unique_Grav_all[mask_LOGG][-1]
             
             
             mask_atm_grid = (Teff_all <= newMaxT) & (Teff_all >= newMinT)  &  (Grav_all <= newMaxLogg) & (Grav_all >= newMinLogg)
@@ -2051,8 +2040,8 @@ if starType1=="DBA":
         
         model_spectrum=griddata(np.array([Teff_N_N, wl_all_N_N, Grav_N_N, HoverHe_N_N]).T, flux_N_N, np.array([np.full((len(wl_grid),),temperature_star), wl_grid, np.full((len(wl_grid),),logg_star), np.full((len(wl_grid),),HoverHe_star)]).T, method="linear")
         
-        wl_min = npamin(wl_grid)
-        wl_max = npamax(wl_grid)
+        wl_min = wl_grid[0]
+        wl_max = wl_grid[-1]
         
         if ref_wl>6500:     fine_grid=nplinspace(wl_min,wl_max,int((wl_max - wl_min)*10)) # 0.1AA spacing
         elif ref_wl>4500:   fine_grid=nplinspace(wl_min,wl_max,int((wl_max - wl_min)*10)) # 0.1AA spacing
@@ -2122,7 +2111,7 @@ if starType1.startswith("sd"):
         model_spectrum = c0*(1-HoverHe_d) + c1*HoverHe_d
         
         
-        fine_grid=nplinspace(npamin(wl_grid),npamax(wl_grid),int((npamax(wl_grid) - npamin(wl_grid))*10)) # 0.1AA spacing
+        fine_grid=nplinspace(wl_grid[0],wl_grid[-1],int((wl_grid[-1] - wl_grid[0])*10)) # 0.1AA spacing
         model_spectrum=interp(fine_grid, wl_grid, model_spectrum)
         
         
@@ -2139,7 +2128,7 @@ if fit_phot_SED and (forced_Scaling=="WD" or forced_Scaling=="ELM"):
     if forced_Scaling=="ELM":
         temp_all_logg = np.round(loaded_Althaus[1]/4,1)*4
         
-        if np.amin(p0logg1)<np.amin(temp_all_logg): raise ValueError("For ELM with the Althaus grid, the logg is too low. Minimum logg is", np.amin(temp_all_logg))
+        if npamin(p0logg1)<npamin(temp_all_logg): raise ValueError("For ELM with the Althaus grid, the logg is too low. Minimum logg is", npamin(temp_all_logg))
 
 
 
@@ -2396,9 +2385,7 @@ def lnlike(theta, arguments):
         rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot)
         
         if chisq_phot > -1E-7:
-            plt.plot(smeared_wl, smeared_flux)
-            plt.title(str(T1) + "  "+ str(logg1))
-            plt.show()
+            plt.plot(smeared_wl, smeared_flux);  plt.title(str(T1) + "  "+ str(logg1));  plt.show()
             raise ValueError(chisq_phot)
     
     
@@ -2453,8 +2440,7 @@ def lnlike(theta, arguments):
                 
                 
                 if not use_forced_orbit:
-                    if sh_rv == -1:  mcmc_rv1 = RV[ii]
-                    else:            mcmc_rv1 = RV[sh_rv]
+                    mcmc_rv1 = RV[ii] if sh_rv == -1   else  RV[sh_rv]
                 else:
                     phi = ((aHJD - forced_T0)%forced_P0)/forced_P0
                     if forced_K1=="Fit":
@@ -3237,18 +3223,12 @@ if sys_arg1=="RV" or sys_arg1=="RV_gauss":
         sampler = EnsembleSampler(nwalkers, ndim, lnprob_gauss, pool=pool, args=[[input_files, reference_wl, cut_Ha_all, normaliseHa_all, list_norm_wl_grids, list_normalised_flux, list_normalised_err,  resolutions, used_RV_boundaries, model_wl1, model_spectrum_star1, desired_refwl]])
         pos, prob, state = sampler.run_mcmc(p0,burnin,progress=True)
         samples = sampler.flatchain
-        np.savetxt("RVfits/Gauss_MCMC_samples_burnin.dat",samples)
-        np.savetxt("RVfits/Gauss_MCMC_burninpos.dat",pos)
         print("Finished burn-in")
 
 
 
         #Make a corner plot which shows values
-        samples=nploadtxt("RVfits/Gauss_MCMC_samples_burnin.dat")
-
         sampler.reset()
-        pos=nploadtxt("RVfits/Gauss_MCMC_burninpos.dat")
-        
 
         pos, prob, state = sampler.run_mcmc(pos,nsteps,progress=True)
         print("MCMC completed")
@@ -3662,24 +3642,24 @@ elif sys_arg1=="ATM" or arg1_is_photometry_only:
     lines_to_write = []
     print(p0labels)
     if starType1.startswith("D") or starType1.startswith("sd") or starType1=="ELM":
-        if "T1" in p0labels:
-            args = npargwhere(p0labels=="T1")[0][0];          Teff1_result = samples[::,args]
+        if IDX_T1>=0:
+            Teff1_result = samples[::,IDX_T1]
             T1_med = np.percentile(Teff1_result, 50, axis=0);  T1_min = np.percentile(Teff1_result, 16, axis=0);   T1_max = np.percentile(Teff1_result, 84, axis=0)
             lines_to_write.append("Teff1:\n")
             lines_to_write.append(str(T1_med) + "\t" + str(np.percentile(Teff1_result, 16, axis=0) - T1_med) + "\t" + str(np.percentile(Teff1_result, 84, axis=0) - T1_med) + "\n")
         else:   T1_med = forced_teff1;   T1_min = 0;   T1_max=0
             
 
-        if "logg1" in p0labels:
-            args = npargwhere(p0labels=="logg1")[0][0];       logg1_result = samples[::,args]
+        if IDX_logg1>=0:
+            logg1_result = samples[::,IDX_logg1]
             logg1_med = np.percentile(logg1_result, 50, axis=0);   logg1_min = np.percentile(logg1_result, 16, axis=0);   logg1_max = np.percentile(logg1_result, 84, axis=0)
             lines_to_write.append("Logg1:\n")
             lines_to_write.append(str(logg1_med) + "\t" + str(np.percentile(logg1_result, 16, axis=0) - logg1_med) + "\t" + str(np.percentile(logg1_result, 84, axis=0) - logg1_med) + "\n")
         else:   logg1_med = forced_logg1;   logg1_min = 0;   logg1_max=0
 
 
-        if "H/He1" in p0labels:
-            args = npargwhere(p0labels=="H/He1")[0][0];       HoverHe1_result = samples[::,args]
+        if IDX_HoverHe1>=0:
+            HoverHe1_result = samples[::,IDX_HoverHe1]
             HoverHe1_med = np.percentile(HoverHe1_result, 50, axis=0);   HoverHe1_min = np.percentile(HoverHe1_result, 16, axis=0);   HoverHe1_max = np.percentile(HoverHe1_result, 84, axis=0)
             lines_to_write.append("H/He1:\n")
             lines_to_write.append(str(HoverHe1_med) + "\t" + str(np.percentile(HoverHe1_result, 16, axis=0) - HoverHe1_med) + "\t" + str(np.percentile(HoverHe1_result, 84, axis=0) - HoverHe1_med) + "\n")
@@ -3710,39 +3690,39 @@ elif sys_arg1=="ATM" or arg1_is_photometry_only:
 
 
 
-    if "K1" in p0labels:
-        args = npargwhere(p0labels=="K1")[0][0];          K1_result = samples[::,args]
+    if IDX_K1>=0:
+        K1_result = samples[::,IDX_K1]
         K1_med = np.percentile(K1_result, 50, axis=0);     K1_min = np.percentile(K1_result, 16, axis=0);   K1_max = np.percentile(K1_result, 84, axis=0)
         lines_to_write.append("K1:\n")
         lines_to_write.append(str(K1_med) + "\t" + str(np.percentile(K1_result, 16, axis=0) - K1_med) + "\t" + str(np.percentile(K1_result, 84, axis=0) - K1_med) + "\n")
     else:   K1_med = forced_K1;   K1_min = 0;   K1_max=0
 
 
-    if "Vg1" in p0labels:
-        args = npargwhere(p0labels=="Vg1")[0][0];         Vgamma1_result = samples[::,args]
+    if IDX_Vg1>=0:
+        Vgamma1_result = samples[::,IDX_Vg1]
         Vgamma1_med = np.percentile(Vgamma1_result, 50, axis=0);   Vgamma1_min = np.percentile(Vgamma1_result, 16, axis=0);   Vgamma1_max = np.percentile(Vgamma1_result, 84, axis=0)
         lines_to_write.append("Vg1:\n")
         lines_to_write.append(str(Vgamma1_med) + "\t" + str(np.percentile(Vgamma1_result, 16, axis=0) - Vgamma1_med) + "\t" + str(np.percentile(Vgamma1_result, 84, axis=0) - Vgamma1_med) + "\n")
     else:   Vgamma1_med = forced_Vgamma1;   Vgamma1_min = 0;   Vgamma1_max=0
 
 
-    if "Scaling" in p0labels:
-        args = npargwhere(p0labels=="Scaling")[0][0];     Scaling_result = samples[::,args]
+    if IDX_Scaling>=0:
+        Scaling_result = samples[::,IDX_Scaling]
         Scaling_med = np.percentile(Scaling_result, 50, axis=0);   Scaling_min = np.percentile(Scaling_result, 16, axis=0);   Scaling_max = np.percentile(Scaling_result, 84, axis=0)
         lines_to_write.append("Scaling:\n")
         lines_to_write.append(str(Scaling_med) + "\t" + str(np.percentile(Scaling_result, 16, axis=0) - Scaling_med) + "\t" + str(np.percentile(Scaling_result, 84, axis=0) - Scaling_med) + "\n")
     else:   Scaling_med = forced_Scaling;   Scaling_min = 0;   Scaling_max=0
     
-    if "Parallax" in p0labels:
-        args = npargwhere(p0labels=="Parallax")[0][0];     parallax_result = samples[::,args]
+    if IDX_Parallax>=0:
+        parallax_result = samples[::,IDX_Parallax]
         parallax_med = np.percentile(parallax_result, 50, axis=0);   parallax_min = np.percentile(parallax_result, 16, axis=0);   parallax_max = np.percentile(parallax_result, 84, axis=0)
         lines_to_write.append("Parallax:\n")
         lines_to_write.append(str(parallax_med) + "\t" + str(np.percentile(parallax_result, 16, axis=0) - parallax_med) + "\t" + str(np.percentile(parallax_result, 84, axis=0) - parallax_med) + "\n")
 
 
 
-    if "R" in p0labels:
-        args = npargwhere(p0labels=="R")[0][0];     R_result = samples[::,args]
+    if IDX_R>=0:
+        R_result = samples[::,IDX_R]
         R_med = np.percentile(R_result, 50, axis=0);   R_min = np.percentile(R_result, 16, axis=0);   R_max = np.percentile(R_result, 84, axis=0)
         lines_to_write.append("R:\n")
         lines_to_write.append(str(R_med) + "\t" + str(np.percentile(R_result, 16, axis=0) - R_med) + "\t" + str(np.percentile(R_result, 84, axis=0) - R_med) + "\n")
@@ -3766,9 +3746,8 @@ elif sys_arg1=="ATM" or arg1_is_photometry_only:
 
     if not arg1_is_photometry_only:
         allRV1s, allRV1s_minerr, allRV1s_maxerr = [], [], []
-        if "RV1_0" in p0labels:
-            num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0]
-            if "Scaling" in p0labels or "Parallax" in p0labels:   RVvals_result = samples[::,num_start_RVs:-1]
+        if RV_in_labels:
+            if IDX_Scaling>=0 or IDX_Parallax>=0:   RVvals_result = samples[::,num_start_RVs:-1]
             else: RVvals_result = samples[::,num_start_RVs:]
             for cnt, item in enumerate(RVvals_result.T):
                 allRV1s.append(np.percentile(item, 50, axis=0));   allRV1s_minerr.append(np.percentile(item, 16, axis=0));   allRV1s_maxerr.append(np.percentile(item, 84, axis=0))
@@ -4058,25 +4037,17 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
             i3 = np.searchsorted(normalised_wavelength, ref_wl + cut_limits_max, side="right")
                 
                 
-            try:   
-                m,c = linear_fit(np.concatenate((normalised_wavelength[i0:i1], normalised_wavelength[i2:i3])), np.concatenate((interparr[i0:i1], interparr[i2:i3])))
-                #m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
-            except:
-                plt.close()
-                plt.plot(normalised_wavelength, normalised_flux);    plt.plot(normalised_wavelength, interparr)
-                plt.axvline(ref_wl+cut_limits_min, c='k');     plt.axvline(ref_wl+cut_limits_max, c='k')
-                plt.axvline(ref_wl+norm_limits_min, c='r');    plt.axvline(ref_wl+norm_limits_max, c='r')
-                plt.title(str() + in_fi + " " + str(ref_wl) + "    "+str(cut_limits_min) + "  " + str(norm_limits_min) + "  " + str(norm_limits_max) + "  " + str(cut_limits_max))
-                plt.show();    plt.close()
-                m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
+            #try:   
+            m,c = linear_fit(np.concatenate((normalised_wavelength[i0:i1], normalised_wavelength[i2:i3])), np.concatenate((interparr[i0:i1], interparr[i2:i3])))
+            #    #m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
+            #except:
+            #    m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
             interparr /= (m*normalised_wavelength + c)
             
             
             mask1 = (normalised_wavelength>ref_wl+cut_limits_min) & (normalised_wavelength<ref_wl+norm_limits_min)
             mask2 = (normalised_wavelength>ref_wl+norm_limits_max) & (normalised_wavelength<ref_wl+cut_limits_max)
             
-            if False:
-                plt.clf();   plt.plot(normalised_wavelength[mask1], interparr[mask1], c='g');   plt.plot(normalised_wavelength[mask2], interparr[mask2], c='r');   plt.show()
             
             
             
@@ -4228,23 +4199,12 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
                 i3 = np.searchsorted(normalised_wavelength, ref_wl + cut_limits_max, side="right")
                 
                 
-                try:
-                    m,c = linear_fit(np.concatenate((normalised_wavelength[i0:i1], normalised_wavelength[i2:i3])), np.concatenate((interparr[i0:i1], interparr[i2:i3])))
-                    #m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
-                except Exception as eee:
-                    print(eee)
-                    plt.clf()
-                    plt.plot(normalised_wavelength, normalised_flux)
-                    plt.plot(normalised_wavelength, interparr)
-                    plt.axvline(ref_wl+cut_limits_min, c='k')
-                    plt.axvline(ref_wl+cut_limits_max, c='k')
-                    plt.axvline(ref_wl+norm_limits_min, c='r')
-                    plt.axvline(ref_wl+norm_limits_max, c='r')
-                    plt.title(str() + in_fi + " " + str(ref_wl) + "    "+str(cut_limits_min) + "  " + str(norm_limits_min) + "  " + str(norm_limits_max) + "  " + str(cut_limits_max))
-                    plt.show()
-                    plt.clf()
-                    
-                    m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
+                #try:
+                m,c = linear_fit(np.concatenate((normalised_wavelength[i0:i1], normalised_wavelength[i2:i3])), np.concatenate((interparr[i0:i1], interparr[i2:i3])))
+                #    #m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
+                #except Exception as eee:
+                #    print(eee)
+                #    m,c = linear_fit(normalised_wavelength[mask], interparr[mask])
                 
                 interparr /= (m*normalised_wavelength + c)
                 
