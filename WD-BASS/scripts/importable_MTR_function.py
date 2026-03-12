@@ -329,22 +329,23 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 			try:
 				if logg>7.625: raise ValueError  # istrate grid max logg is 7.5493763049546985  (I checked, exact number)
 				
-				if len(loaded_Istrate)==0:  all_massHe, all_tempsHe, all_radiusHe, all_loggHe=load(install_path + "/saved_MTR/Istrate_Z0p02_diffusion_nomasses.npy")
-				else:  all_tempsHe, all_radiusHe, all_loggHe  =  loaded_Istrate
+				all_massHe, all_tempsHe, all_radiusHe, all_loggHe=load(install_path + "/saved_MTR/Istrate_Z0p02_diffusion_nomasses.npy")
 				
-				if logg>=7:
-					maskIst = (all_loggHe>logg-0.25) & (all_loggHe<logg+0.25)
-					if T>20000: maskIst=maskIst & (all_tempsHe>T-5000)
-					elif T>15000: maskIst=maskIst & (all_tempsHe>T-3500)   &  (all_tempsHe<22500)
-					elif T>10000: maskIst=maskIst & (all_tempsHe>T-2000)   &  (all_tempsHe<17500)
-					elif T>8500: maskIst=maskIst & (all_tempsHe>T-1500)   &  (all_tempsHe<12500)
-					elif T>7000: maskIst=maskIst & (all_tempsHe>T-1000)   &  (all_tempsHe<10000)
-					elif T>6000: maskIst=maskIst & (all_tempsHe>T-800)   &  (all_tempsHe<8500)
-					else: maskIst=maskIst & (all_tempsHe>T-800)   &  (all_tempsHe<8000)
-				else:
-					if T>15000: maskIst= all_tempsHe>11000
-					elif T>10000: maskIst= all_tempsHe>7000
-					elif T>8000: maskIst= all_tempsHe>6000
+				
+				if False:
+				    if logg>=7:
+					    maskIst = (all_loggHe>logg-0.25) & (all_loggHe<logg+0.25)
+					    if T>20000: maskIst=maskIst & (all_tempsHe>T-5000)
+					    elif T>15000: maskIst=maskIst & (all_tempsHe>T-3500)   &  (all_tempsHe<22500)
+					    elif T>10000: maskIst=maskIst & (all_tempsHe>T-2000)   &  (all_tempsHe<17500)
+					    elif T>8500: maskIst=maskIst & (all_tempsHe>T-1500)   &  (all_tempsHe<12500)
+					    elif T>7000: maskIst=maskIst & (all_tempsHe>T-1000)   &  (all_tempsHe<10000)
+					    elif T>6000: maskIst=maskIst & (all_tempsHe>T-800)   &  (all_tempsHe<8500)
+					    else: maskIst=maskIst & (all_tempsHe>T-800)   &  (all_tempsHe<8000)
+				    else:
+					    if T>15000: maskIst= all_tempsHe>11000
+					    elif T>10000: maskIst= all_tempsHe>7000
+					    elif T>8000: maskIst= all_tempsHe>6000
 
 				
 				radius_He = float(griddata(np.array([all_tempsHe[maskIst],all_loggHe[maskIst]]).T,all_radiusHe[maskIst],np.array([T, logg]).T, method='linear')[0])
@@ -366,7 +367,10 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 		G=6.67430E-11;    one_solM = 1.98847E30;    one_solR = 6.957E8
 
 		if logg!=None:
-			mass_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_massHe,np.array([T, logg]).T, method='linear')[0])
+			try:
+			    mass_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_massHe,np.array([T, logg]).T, method='linear')[0])
+			except:
+			    raise ValueError(T, logg, Althaus_or_Istrate)
 			mass_CO = float(griddata(np.array([all_tempsCO,all_loggCO]).T,all_massCO,np.array([T, logg]).T, method='linear')[0])
 		if compute_logg:
 			g_He=np.log10(   1000*G*mass_He*one_solM*1000/np.square(radius_He*one_solR*100) )
