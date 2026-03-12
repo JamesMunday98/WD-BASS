@@ -143,7 +143,9 @@ if starType1=="quadLorentz":
     except: raise ValueError("Missing boundaries for star1: A1_1_boundaries/sigma1_1_boundaries")
 
 try:  reddening_Ebv=float(config_info["reddening_Ebv"])
-except: reddening_Ebv=config_info["reddening_Ebv"]
+except: 
+    if os.environ['WD_BASS_INSTALL_DIR'] == "/home/james/python_scripts_path/dwd_fit_package/" and config_info["reddening_Ebv"]=="XX": reddening_Ebv=0
+    reddening_Ebv=config_info["reddening_Ebv"]
 
 
 
@@ -571,11 +573,16 @@ if fit_phot_SED:
                 External_Flux_Jy_err=npsqrt(  ((-(0.9210340371976184*10**((External_AB_mag+243/5)*-0.4+23)))*External_AB_mag_err)**2   )
             except:
                 try:
-                    External_Flux_Jy = np.asarray(config_info["External_Flux_Jy"]).astype(float)
-                    External_Flux_Jy_err = np.asarray(config_info["External_Flux_Jy_err"]).astype(float)
+                    try:
+                        External_Flux_Jy = np.asarray(config_info["External_Flux_Jy"]).astype(float)
+                        External_Flux_Jy_err = np.asarray(config_info["External_Flux_Jy_err"]).astype(float)
+                    except:
+                        External_Flux_Jy = np.asarray(config_info["extFluxJy"]).astype(float)
+                        External_Flux_Jy_err = np.asarray(config_info["extFluxErrJy"]).astype(float)
                 except:
                     raise ValueError("No good sources of photometry found. Consider want_gaiadr3: True, want_2mass: True, in yaml file. Alternatively, you can add your own photometry manually with External_AB_mag, External_AB_mag_err   or   External_Flux_Jy, External_Flux_Jy_err")
-            External_Filter = np.asarray(config_info["External_Filter"])
+            try: External_Filter = np.asarray(config_info["External_Filter"])
+            except: External_Filter = np.asarray(config_info["extFilters"])
             External_wl = []
             for an_external_filt in External_Filter:
                 try:
@@ -596,7 +603,7 @@ if fit_phot_SED:
         
         
         
-        
+    need_air_to_vac=False
     theminww, themaxww = 999999, -999999
     for afilt in sedfilter:
         filter_dict[afilt]
@@ -609,6 +616,9 @@ if fit_phot_SED:
         if maxww>themaxww: themaxww=maxww
             
         print(afilt)
+        
+        if "gaia" in afilt.lower() or "galex" in afilt.lower() or "wise" in afilt.lower():
+            need_air_to_vac = True
         
     theminww_loadgrid = theminww-160
     themaxww_loadgrid = themaxww+160
@@ -2382,7 +2392,7 @@ def lnlike(theta, arguments):
             smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=mcmc_R, parallax=mcmc_parallax, red=reddening_Ebv, extraflux=constraintsBB, ignore_absolute_flux_phot=ignore_absolute_flux_phot, extinction_law = ext)
         
         
-        rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot)
+        rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot, need_air_to_vac_conversion=need_air_to_vac)
         
         if chisq_phot > -1E-7:
             plt.plot(smeared_wl, smeared_flux);  plt.title(str(T1) + "  "+ str(logg1));  plt.show()
@@ -3923,7 +3933,7 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
         
         
         
-        rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, plot_solution=True, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot)
+        rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, plot_solution=True, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot, need_air_to_vac_conversion=need_air_to_vac)
 
 
 

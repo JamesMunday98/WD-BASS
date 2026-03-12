@@ -348,194 +348,215 @@ if not len(input_files)==len(modelHa)==len(reference_wl)==len(normaliseHa_all)==
 
 theminww_loadgrid, themaxww_loadgrid=1,1500000
 if fit_phot_SED:
-
-    url = Fit_phot.get_url_CDS(RA + " " + Dec,5)
-    sedfilter, sed_wl, sedflux, sedfluxe, catalogue = Fit_phot.get_data(url, False)  # wl [nm], flux and error [Jy]
-    if len(sedfilter)<=3:    url2 = Fit_phot.get_url_CDS(RA + " " + Dec,10);    sedfilter2, sed_wl2, sedflux2, sedfluxe2, catalogue2 = Fit_phot.get_data(url)
+    filterdir=os.environ['WD_BASS_INSTALL_DIR']+"/Filters"
+    filter_dict = {"GAIA/GAIA3:Grp":np.array([nploadtxt(filterdir+"/GAIA_GAIA3.Grp.dat",unpack=True), 7619.96, "PHOTON"], dtype=object),
+        "GAIA/GAIA3:Gbp":np.array([nploadtxt(filterdir+"/GAIA_GAIA3.Gbp.dat",unpack=True), 5035.75, "PHOTON"], dtype=object), 
+        "GAIA/GAIA3:G": np.array([nploadtxt(filterdir+"/GAIA_GAIA3.G.dat",unpack=True), 5822.39, "PHOTON"], dtype=object),
+        "SDSS:z": np.array([nploadtxt(filterdir+"/SLOAN_SDSS.z.dat",unpack=True), 8922.78, "PHOTON"], dtype=object),
+        "SDSS:i": np.array([nploadtxt(filterdir+"/SLOAN_SDSS.i.dat",unpack=True), 7457.89, "PHOTON"], dtype=object),
+        "SDSS:r": np.array([nploadtxt(filterdir+"/SLOAN_SDSS.r.dat",unpack=True), 6141.12, "PHOTON"], dtype=object),
+        "SDSS:g": np.array([nploadtxt(filterdir+"/SLOAN_SDSS.g.dat",unpack=True), 4671.78, "PHOTON"], dtype=object),
+        "SDSS:u": np.array([nploadtxt(filterdir+"/SLOAN_SDSS.u.dat",unpack=True), 3608.04, "PHOTON"], dtype=object),
+        "PAN-STARRS/PS1:y": np.array([nploadtxt(filterdir+"/PAN-STARRS_PS1.y.dat",unpack=True),9613.5, "PHOTON"], dtype=object),
+        "PAN-STARRS/PS1:z": np.array([nploadtxt(filterdir+"/PAN-STARRS_PS1.z.dat",unpack=True),8668.5, "PHOTON"], dtype=object),
+        "PAN-STARRS/PS1:i": np.array([nploadtxt(filterdir+"/PAN-STARRS_PS1.i.dat",unpack=True), 7503.03, "PHOTON"], dtype=object),
+        "PAN-STARRS/PS1:r": np.array([nploadtxt(filterdir+"/PAN-STARRS_PS1.r.dat",unpack=True), 6156.4, "PHOTON"], dtype=object),
+        "PAN-STARRS/PS1:g": np.array([nploadtxt(filterdir+"/PAN-STARRS_PS1.g.dat",unpack=True),4810.9, "PHOTON"], dtype=object),
+        "Johnson:V": np.array([nploadtxt(filterdir+"/Generic_Johnson.V.dat",unpack=True),5466.1, "ENERGY"], dtype=object),
+        #"BarrosU":np.array([nploadtxt(filterdir+"/WHT_ULTRACAM.u.dat",unpack=True), 3481.95, "PHOTON"], dtype=object),
+        #"BarrosG":np.array([nploadtxt(filterdir+"/WHT_ULTRACAM.g.dat",unpack=True), 4762.3, "PHOTON"], dtype=object),
+        #"BarrosR":np.array([nploadtxt(filterdir+"/WHT_ULTRACAM.r.dat",unpack=True), 6256.2, "PHOTON"], dtype=object),
+        #"BarrosI":np.array([nploadtxt(filterdir+"/WHT_ULTRACAM.i.dat",unpack=True), 7585.9, "PHOTON"], dtype=object),
+        "HST_F775W":np.array([nploadtxt(filterdir+"/HST_WFC3_UVIS1.F775W.dat",unpack=True), 7612.8, "PHOTON"], dtype=object),
+        "HST_F390W":np.array([nploadtxt(filterdir+"/HST_WFC3_UVIS1.F390W.dat",unpack=True), 4022.2, "PHOTON"], dtype=object),
+        "HST_F225W":np.array([nploadtxt(filterdir+"/HST_WFC3_UVIS1.F225W.dat",unpack=True), 2372.8, "PHOTON"], dtype=object),
+        "XMM-OT:UVW1":np.array([nploadtxt(filterdir+"/XMM_OM.UVW1_filter.dat",unpack=True), 2971.0, "PHOTON"], dtype=object),
+        "SWIFT:U":np.array([nploadtxt(filterdir+"/Swift_UVOT.U_trn.dat",unpack=True), 3520.95, "PHOTON"], dtype=object),
+        "GALEX:NUV":np.array([nploadtxt(filterdir+"/GALEX_GALEX.NUV.dat",unpack=True), 2303.37, "PHOTON"], dtype=object),
+        "GALEX:FUV":np.array([nploadtxt(filterdir+"/GALEX_GALEX.FUV.dat",unpack=True), 1548.85, "PHOTON"], dtype=object),
+        "GAIA/GAIA2:Grp":np.array([nploadtxt(filterdir+"/GAIA_GAIA2.Grp.dat",unpack=True), 7592.04, "ENERGY"], dtype=object),
+        "GAIA/GAIA2:Gbp":np.array([nploadtxt(filterdir+"/GAIA_GAIA2.Gbp.dat",unpack=True), 5014.05, "ENERGY"], dtype=object), 
+        "GAIA/GAIA2:G": np.array([nploadtxt(filterdir+"/GAIA_GAIA2.G.dat",unpack=True), 5838.81, "ENERGY"], dtype=object), 
+        "XMM-OT:UVM2": np.array([nploadtxt(filterdir+"/XMM_OM.UVM2_filter.dat",unpack=True), 2329.54, "PHOTON"], dtype=object),
+        "XMM-OT:UVW2": np.array([nploadtxt(filterdir+"/XMM_OM.UVW2_filter.dat",unpack=True), 2143.84, "PHOTON"], dtype=object),
+        "UVOT:UVW2": np.array([nploadtxt(filterdir+"/XMM_OM.UVW2_filter.dat",unpack=True), 2143.84, "PHOTON"], dtype=object),
+        "UVOT:UVW1": np.array([nploadtxt(filterdir+"/XMM_OM.UVW1_filter.dat",unpack=True), 2971.72, "PHOTON"], dtype=object),
+        "XMM-OT:U": np.array([nploadtxt(filterdir+"/XMM_OM.U_filter.dat",unpack=True), 3515.73, "PHOTON"], dtype=object),
+        "XMM-OT:V": np.array([nploadtxt(filterdir+"/XMM_OM.V_filter.dat",unpack=True), 5437.81, "PHOTON"], dtype=object),
+        "Johnson:B": np.array([nploadtxt(filterdir+"/Generic_Johnson.B.dat",unpack=True), 4369.53, "ENERGY"], dtype=object),
+        "WISE:W1": np.array([nploadtxt(filterdir+"/WISE_WISE.W1.dat",unpack=True), 33154.27, "ENERGY"], dtype=object),
+        "WISE:W2": np.array([nploadtxt(filterdir+"/WISE_WISE.W2.dat",unpack=True), 45644.77, "ENERGY"], dtype=object),
+        "WISE:W3": np.array([nploadtxt(filterdir+"/WISE_WISE.W3.dat",unpack=True), 107866.13, "ENERGY"], dtype=object),
+        "2MASS:J": np.array([nploadtxt(filterdir+"/2MASS_2MASS.J.dat",unpack=True), 12285.64, "ENERGY"], dtype=object),
+        "2MASS:H": np.array([nploadtxt(filterdir+"/2MASS_2MASS.H.dat",unpack=True), 16385.40, "ENERGY"], dtype=object),
+        "2MASS:Ks": np.array([nploadtxt(filterdir+"/2MASS_2MASS.Ks.dat",unpack=True), 21521.61, "ENERGY"], dtype=object),
+        "OAJ_JPLUS.gSDSS": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.gSDSS.dat",unpack=True), 4748.47, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.J0410": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0410.dat",unpack=True), 4107.98, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.J0861": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0861.dat",unpack=True), 8610.16, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.iSDSS": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.iSDSS.dat",unpack=True), 7613.86, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.J0430": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0430.dat",unpack=True), 4298.36, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.rSDSS": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.rSDSS.dat",unpack=True), 6206.11, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.J0378": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0378.dat",unpack=True), 3793.38, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.J0515": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0515.dat",unpack=True), 5139.67, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.uJAVA": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.uJAVA.dat",unpack=True), 3542.20, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.J0395": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0395.dat",unpack=True), 3938.55, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.J0660": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0660.dat",unpack=True), 6606.67, "PHOTON"], dtype=object),
+        "OAJ_JPLUS.zSDSS": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.zSDSS.dat",unpack=True), 8940.28, "PHOTON"], dtype=object)
+        }
+    sedfilter, sed_wl, sedflux, sedfluxe = [], [], [], []
     try: 
-        if len(sedfilter2)>len(sedfilter):    sedfilter, sed_wl, sedflux, sedfluxe, catalogue = sedfilter2, sed_wl2, sedflux2, sedfluxe2, catalogue2
-    except: None
+        extFilters = config_info["extFilters"]
+        extFluxJy = config_info["extFluxJy"]
+        extFluxErrJy = config_info["extFluxJy"]
+        if len(extFilters)<1: raise ValueError
     
-    if len(sedfilter)>=1:
-        list_gaia=[]
-        if "II/328/allwise" in catalogue: allwise_found=True
-        else: allwise_found=False
-        for cnt, (ff, cat) in enumerate(zip(sedfilter, catalogue)):
-            if not ff in ignore_filt:
-                if "SDSS" in ff:
-                    if str(cat)=="J/MNRAS/508/3877/maincat": list_gaia.append(True)
-                    else: list_gaia.append(False)
-                elif "PAN" in ff:
-                    if cat=="II/349/ps1": list_gaia.append(True)
-                    else: list_gaia.append(False)
-                elif "GAIA3" in ff:
-                    if cat=="I/350/gaiaedr3" and want_gaiadr3:  list_gaia.append(True)
-                    #if cat=="I/350/gaiaedr3" and ("GAIA3:Gbp" in ff or "GAIA3:Grp" in ff):  list_gaia.append(True)
-                    #elif cat=="I/350/gaiaedr3" and want_gaiadr3==True:  list_gaia.append(True)
-                    else: list_gaia.append(False)
-                elif "GALEX:NUV" in ff and want_galex:
-                    if cat=="II/312/ais": list_gaia.append(True)
-                    else: list_gaia.append(False)
-                elif "GALEX:FUV" in ff and want_galex_FUV:
-                    if cat=="II/312/ais": list_gaia.append(True)
-                    else: list_gaia.append(False)
-                elif want_wise1 and "WISE" in ff and "allwise" in cat and "W1" in ff: list_gaia.append(True)
-                elif want_wise1 and allwise_found==False and "WISE" in ff and str(cat)=="II/311/wise" and "W1" in ff: list_gaia.append(True)
-                elif want_wise2 and "WISE" in ff and "allwise" in cat and "W2" in ff: list_gaia.append(True)
-                elif want_wise2 and allwise_found==False and "WISE" in ff and str(cat)=="II/311/wise" and "W2" in ff: list_gaia.append(True)
-                elif want_2mass and "2MASS" in ff and not str(cat)=="J/MNRAS/472/4173/table1": list_gaia.append(True)
-                #elif "GAIA" in ff:   list_gaia.append(False)
-                #elif "XMM" in ff or "UVOT" in ff or "GALEX" in ff: list_gaia.append(False)
-                else:   list_gaia.append(False)
-            else: list_gaia.append(False)
+    except:
+
+        url = Fit_phot.get_url_CDS(RA + " " + Dec,5)
+        sedfilter, sed_wl, sedflux, sedfluxe, catalogue = Fit_phot.get_data(url, False)  # wl [nm], flux and error [Jy]
+        if len(sedfilter)<=3:    url2 = Fit_phot.get_url_CDS(RA + " " + Dec,10);    sedfilter2, sed_wl2, sedflux2, sedfluxe2, catalogue2 = Fit_phot.get_data(url)
+        try: 
+            if len(sedfilter2)>len(sedfilter):    sedfilter, sed_wl, sedflux, sedfluxe, catalogue = sedfilter2, sed_wl2, sedflux2, sedfluxe2, catalogue2
+        except: None
         
-        
-        list_gaia=np.asarray(list_gaia)
-        
-        
-        if len(sedfilter[list_gaia])==0:
+        if len(sedfilter)>=1:
+            list_gaia=[]
+            if "II/328/allwise" in catalogue: allwise_found=True
+            else: allwise_found=False
             for cnt, (ff, cat) in enumerate(zip(sedfilter, catalogue)):
                 if not ff in ignore_filt:
-                    if "SDSS" in ff and str(cat)=="IV/38/tic":
-                        list_gaia[cnt]=True
-        
-        sedfilter, sed_wl, sedflux, sedfluxe = sedfilter[list_gaia], sed_wl[list_gaia], sedflux[list_gaia], sedfluxe[list_gaia]
-        
-        
-        
-        
-        
-        masksome=sedflux>phot_min_val
-        sedfilter, sed_wl, sedflux, sedfluxe = sedfilter[masksome], sed_wl[masksome], sedflux[masksome], sedfluxe[masksome]
-        
-        
-        if want_2mass:
-            mask_nan_fluxes = ( ~((sedfilter=="2MASS:H") | (sedfilter=="2MASS:J") | (sedfilter=="2MASS:Ks"))  ) | (((sedfilter=="2MASS:H") | (sedfilter=="2MASS:J") | (sedfilter=="2MASS:Ks"))  &    (~np.isnan(sedfluxe.astype(float))))
-            sedfilter, sed_wl, sedflux, sedfluxe = sedfilter[mask_nan_fluxes], sed_wl[mask_nan_fluxes], sedflux[mask_nan_fluxes], sedfluxe[mask_nan_fluxes]
+                    if "SDSS" in ff:
+                        if str(cat)=="J/MNRAS/508/3877/maincat": list_gaia.append(True)
+                        else: list_gaia.append(False)
+                    elif "PAN" in ff:
+                        if cat=="II/349/ps1": list_gaia.append(True)
+                        else: list_gaia.append(False)
+                    elif "GAIA3" in ff:
+                        if cat=="I/350/gaiaedr3" and want_gaiadr3:  list_gaia.append(True)
+                        #if cat=="I/350/gaiaedr3" and ("GAIA3:Gbp" in ff or "GAIA3:Grp" in ff):  list_gaia.append(True)
+                        #elif cat=="I/350/gaiaedr3" and want_gaiadr3==True:  list_gaia.append(True)
+                        else: list_gaia.append(False)
+                    elif "GALEX:NUV" in ff and want_galex:
+                        if cat=="II/312/ais": list_gaia.append(True)
+                        else: list_gaia.append(False)
+                    elif "GALEX:FUV" in ff and want_galex_FUV:
+                        if cat=="II/312/ais": list_gaia.append(True)
+                        else: list_gaia.append(False)
+                    elif want_wise1 and "WISE" in ff and "allwise" in cat and "W1" in ff: list_gaia.append(True)
+                    elif want_wise1 and allwise_found==False and "WISE" in ff and str(cat)=="II/311/wise" and "W1" in ff: list_gaia.append(True)
+                    elif want_wise2 and "WISE" in ff and "allwise" in cat and "W2" in ff: list_gaia.append(True)
+                    elif want_wise2 and allwise_found==False and "WISE" in ff and str(cat)=="II/311/wise" and "W2" in ff: list_gaia.append(True)
+                    elif want_2mass and "2MASS" in ff and not str(cat)=="J/MNRAS/472/4173/table1": list_gaia.append(True)
+                    #elif "GAIA" in ff:   list_gaia.append(False)
+                    #elif "XMM" in ff or "UVOT" in ff or "GALEX" in ff: list_gaia.append(False)
+                    else:   list_gaia.append(False)
+                else: list_gaia.append(False)
             
             
-            for filtername in ["2MASS:H", "2MASS:J", "2MASS:Ks"]:
-                if not filtername in ignore_filt:
-                    mask1=sedfilter==filtername
-                    m_wl, m_f, m_fe = npmean(sed_wl[mask1]), npmean(sedflux[mask1]), npmean(sedfluxe[mask1])
-                    sedfilter, sed_wl, sedflux, sedfluxe = sedfilter[~mask1], sed_wl[~mask1], sedflux[~mask1], sedfluxe[~mask1]
-                    if m_f!=0 and not np.isnan(m_fe):
-                        sedfilter, sed_wl, sedflux, sedfluxe = np.append(sedfilter, filtername), np.append(sed_wl, m_wl), np.append(sedflux, m_f), np.append(sedfluxe, m_fe)
+            list_gaia=np.asarray(list_gaia)
             
-        
-        sedfluxe[sedfluxe==0] = npamin(sedfluxe[sedfluxe!=0])
+            
+            if len(sedfilter[list_gaia])==0:
+                for cnt, (ff, cat) in enumerate(zip(sedfilter, catalogue)):
+                    if not ff in ignore_filt:
+                        if "SDSS" in ff and str(cat)=="IV/38/tic":
+                            list_gaia[cnt]=True
+            
+            sedfilter, sed_wl, sedflux, sedfluxe = sedfilter[list_gaia], sed_wl[list_gaia], sedflux[list_gaia], sedfluxe[list_gaia]
+            
+            
+            
+            
+            
+            masksome=sedflux>phot_min_val
+            sedfilter, sed_wl, sedflux, sedfluxe = sedfilter[masksome], sed_wl[masksome], sedflux[masksome], sedfluxe[masksome]
+            
+            
+            if want_2mass:
+                mask_nan_fluxes = ( ~((sedfilter=="2MASS:H") | (sedfilter=="2MASS:J") | (sedfilter=="2MASS:Ks"))  ) | (((sedfilter=="2MASS:H") | (sedfilter=="2MASS:J") | (sedfilter=="2MASS:Ks"))  &    (~np.isnan(sedfluxe.astype(float))))
+                sedfilter, sed_wl, sedflux, sedfluxe = sedfilter[mask_nan_fluxes], sed_wl[mask_nan_fluxes], sedflux[mask_nan_fluxes], sedfluxe[mask_nan_fluxes]
+                
+                
+                for filtername in ["2MASS:H", "2MASS:J", "2MASS:Ks"]:
+                    if not filtername in ignore_filt:
+                        mask1=sedfilter==filtername
+                        m_wl, m_f, m_fe = npmean(sed_wl[mask1]), npmean(sedflux[mask1]), npmean(sedfluxe[mask1])
+                        sedfilter, sed_wl, sedflux, sedfluxe = sedfilter[~mask1], sed_wl[~mask1], sedflux[~mask1], sedfluxe[~mask1]
+                        if m_f!=0 and not np.isnan(m_fe):
+                            sedfilter, sed_wl, sedflux, sedfluxe = np.append(sedfilter, filtername), np.append(sed_wl, m_wl), np.append(sedflux, m_f), np.append(sedfluxe, m_fe)
+                
+            
+            sedfluxe[sedfluxe==0] = npamin(sedfluxe[sedfluxe!=0])
 
-        try: 
-            if np.asarray(config_info["plot_phot_spectrum"]):
-                plt.errorbar(sed_wl, sedflux, sedfluxe,fmt='.k'); plt.xlabel("Wavelength [AA"); plt.ylabel("Flux [Jy]");  plt.show();   plt.clf()
-        except: None
+            try: 
+                if np.asarray(config_info["plot_phot_spectrum"]):
+                    plt.errorbar(sed_wl, sedflux, sedfluxe,fmt='.k'); plt.xlabel("Wavelength [AA"); plt.ylabel("Flux [Jy]");  plt.show();   plt.clf()
+            except: None
 
-        sed_wl*=10
+            sed_wl*=10
         
-        
-        filterdir=os.environ['WD_BASS_INSTALL_DIR']+"/Filters"
-        filter_dict = {"GAIA/GAIA3:Grp":np.array([nploadtxt(filterdir+"/GAIA_GAIA3.Grp.dat",unpack=True), 7619.96, "PHOTON"], dtype=object),
-            "GAIA/GAIA3:Gbp":np.array([nploadtxt(filterdir+"/GAIA_GAIA3.Gbp.dat",unpack=True), 5035.75, "PHOTON"], dtype=object), 
-            "GAIA/GAIA3:G": np.array([nploadtxt(filterdir+"/GAIA_GAIA3.G.dat",unpack=True), 5822.39, "PHOTON"], dtype=object),
-            "SDSS:z": np.array([nploadtxt(filterdir+"/SLOAN_SDSS.z.dat",unpack=True), 8922.78, "PHOTON"], dtype=object),
-            "SDSS:i": np.array([nploadtxt(filterdir+"/SLOAN_SDSS.i.dat",unpack=True), 7457.89, "PHOTON"], dtype=object),
-            "SDSS:r": np.array([nploadtxt(filterdir+"/SLOAN_SDSS.r.dat",unpack=True), 6141.12, "PHOTON"], dtype=object),
-            "SDSS:g": np.array([nploadtxt(filterdir+"/SLOAN_SDSS.g.dat",unpack=True), 4671.78, "PHOTON"], dtype=object),
-            "SDSS:u": np.array([nploadtxt(filterdir+"/SLOAN_SDSS.u.dat",unpack=True), 3608.04, "PHOTON"], dtype=object),
-            "PAN-STARRS/PS1:y": np.array([nploadtxt(filterdir+"/PAN-STARRS_PS1.y.dat",unpack=True),9613.5, "PHOTON"], dtype=object),
-            "PAN-STARRS/PS1:z": np.array([nploadtxt(filterdir+"/PAN-STARRS_PS1.z.dat",unpack=True),8668.5, "PHOTON"], dtype=object),
-            "PAN-STARRS/PS1:i": np.array([nploadtxt(filterdir+"/PAN-STARRS_PS1.i.dat",unpack=True), 7503.03, "PHOTON"], dtype=object),
-            "PAN-STARRS/PS1:r": np.array([nploadtxt(filterdir+"/PAN-STARRS_PS1.r.dat",unpack=True), 6156.4, "PHOTON"], dtype=object),
-            "PAN-STARRS/PS1:g": np.array([nploadtxt(filterdir+"/PAN-STARRS_PS1.g.dat",unpack=True),4810.9, "PHOTON"], dtype=object),
-            "Johnson:V": np.array([nploadtxt(filterdir+"/Generic_Johnson.V.dat",unpack=True),5466.1, "ENERGY"], dtype=object),
-            #"BarrosU":np.array([nploadtxt(filterdir+"/WHT_ULTRACAM.u.dat",unpack=True), 3481.95, "PHOTON"], dtype=object),
-            #"BarrosG":np.array([nploadtxt(filterdir+"/WHT_ULTRACAM.g.dat",unpack=True), 4762.3, "PHOTON"], dtype=object),
-            #"BarrosR":np.array([nploadtxt(filterdir+"/WHT_ULTRACAM.r.dat",unpack=True), 6256.2, "PHOTON"], dtype=object),
-            #"BarrosI":np.array([nploadtxt(filterdir+"/WHT_ULTRACAM.i.dat",unpack=True), 7585.9, "PHOTON"], dtype=object),
-            "HST_F775W":np.array([nploadtxt(filterdir+"/HST_WFC3_UVIS1.F775W.dat",unpack=True), 7612.8, "PHOTON"], dtype=object),
-            "HST_F390W":np.array([nploadtxt(filterdir+"/HST_WFC3_UVIS1.F390W.dat",unpack=True), 4022.2, "PHOTON"], dtype=object),
-            "HST_F225W":np.array([nploadtxt(filterdir+"/HST_WFC3_UVIS1.F225W.dat",unpack=True), 2372.8, "PHOTON"], dtype=object),
-            "XMM-OT:UVW1":np.array([nploadtxt(filterdir+"/XMM_OM.UVW1_filter.dat",unpack=True), 2971.0, "PHOTON"], dtype=object),
-            "SWIFT:U":np.array([nploadtxt(filterdir+"/Swift_UVOT.U_trn.dat",unpack=True), 3520.95, "PHOTON"], dtype=object),
-            "GALEX:NUV":np.array([nploadtxt(filterdir+"/GALEX_GALEX.NUV.dat",unpack=True), 2303.37, "PHOTON"], dtype=object),
-            "GALEX:FUV":np.array([nploadtxt(filterdir+"/GALEX_GALEX.FUV.dat",unpack=True), 1548.85, "PHOTON"], dtype=object),
-            "GAIA/GAIA2:Grp":np.array([nploadtxt(filterdir+"/GAIA_GAIA2.Grp.dat",unpack=True), 7592.04, "ENERGY"], dtype=object),
-            "GAIA/GAIA2:Gbp":np.array([nploadtxt(filterdir+"/GAIA_GAIA2.Gbp.dat",unpack=True), 5014.05, "ENERGY"], dtype=object), 
-            "GAIA/GAIA2:G": np.array([nploadtxt(filterdir+"/GAIA_GAIA2.G.dat",unpack=True), 5838.81, "ENERGY"], dtype=object), 
-            "XMM-OT:UVM2": np.array([nploadtxt(filterdir+"/XMM_OM.UVM2_filter.dat",unpack=True), 2329.54, "PHOTON"], dtype=object),
-            "XMM-OT:UVW2": np.array([nploadtxt(filterdir+"/XMM_OM.UVW2_filter.dat",unpack=True), 2143.84, "PHOTON"], dtype=object),
-            "UVOT:UVW2": np.array([nploadtxt(filterdir+"/XMM_OM.UVW2_filter.dat",unpack=True), 2143.84, "PHOTON"], dtype=object),
-            "UVOT:UVW1": np.array([nploadtxt(filterdir+"/XMM_OM.UVW1_filter.dat",unpack=True), 2971.72, "PHOTON"], dtype=object),
-            "XMM-OT:U": np.array([nploadtxt(filterdir+"/XMM_OM.U_filter.dat",unpack=True), 3515.73, "PHOTON"], dtype=object),
-            "XMM-OT:V": np.array([nploadtxt(filterdir+"/XMM_OM.V_filter.dat",unpack=True), 5437.81, "PHOTON"], dtype=object),
-            "Johnson:B": np.array([nploadtxt(filterdir+"/Generic_Johnson.B.dat",unpack=True), 4369.53, "ENERGY"], dtype=object),
-            "WISE:W1": np.array([nploadtxt(filterdir+"/WISE_WISE.W1.dat",unpack=True), 33154.27, "ENERGY"], dtype=object),
-            "WISE:W2": np.array([nploadtxt(filterdir+"/WISE_WISE.W2.dat",unpack=True), 45644.77, "ENERGY"], dtype=object),
-            "WISE:W3": np.array([nploadtxt(filterdir+"/WISE_WISE.W3.dat",unpack=True), 107866.13, "ENERGY"], dtype=object),
-            "2MASS:J": np.array([nploadtxt(filterdir+"/2MASS_2MASS.J.dat",unpack=True), 12285.64, "ENERGY"], dtype=object),
-            "2MASS:H": np.array([nploadtxt(filterdir+"/2MASS_2MASS.H.dat",unpack=True), 16385.40, "ENERGY"], dtype=object),
-            "2MASS:Ks": np.array([nploadtxt(filterdir+"/2MASS_2MASS.Ks.dat",unpack=True), 21521.61, "ENERGY"], dtype=object),
-            "OAJ_JPLUS.gSDSS": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.gSDSS.dat",unpack=True), 4748.47, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.J0410": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0410.dat",unpack=True), 4107.98, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.J0861": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0861.dat",unpack=True), 8610.16, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.iSDSS": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.iSDSS.dat",unpack=True), 7613.86, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.J0430": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0430.dat",unpack=True), 4298.36, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.rSDSS": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.rSDSS.dat",unpack=True), 6206.11, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.J0378": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0378.dat",unpack=True), 3793.38, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.J0515": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0515.dat",unpack=True), 5139.67, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.uJAVA": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.uJAVA.dat",unpack=True), 3542.20, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.J0395": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0395.dat",unpack=True), 3938.55, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.J0660": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.J0660.dat",unpack=True), 6606.67, "PHOTON"], dtype=object),
-            "OAJ_JPLUS.zSDSS": np.array([nploadtxt(filterdir+"/OAJ_JPLUS.zSDSS.dat",unpack=True), 8940.28, "PHOTON"], dtype=object)
-
-            }
-        
-        
+    try:
         try:
-            
+            try:
+                External_Flux_Jy = np.asarray(config_info["extFluxJy"]).astype(float)
+                External_Flux_Jy_err = np.asarray(config_info["extFluxErrJy"]).astype(float)
+            except:
+                External_Flux_Jy = np.asarray(config_info["External_Flux_Jy"]).astype(float)
+                External_Flux_Jy_err = np.asarray(config_info["External_Flux_Jy_err"]).astype(float)
+        except:
             External_AB_mag = np.asarray(config_info["External_AB_mag"]).astype(float)
             External_AB_mag_err = np.asarray(config_info["External_AB_mag_err"]).astype(float)
             External_Flux_Jy=10**(23-(External_AB_mag+48.594)/2.5)  #  erg/cm2/s/Hz
             External_Flux_Jy_err=npsqrt(  ((-(0.9210340371976184*10**((External_AB_mag+243/5)*-0.4+23)))*External_AB_mag_err)**2   )
-            External_Filter = np.asarray(config_info["External_Filter"])
-            External_wl = []
-            for an_external_filt in External_Filter:
-                try:
-                    External_wl.append(filter_dict[str(an_external_filt)][1])
-                except Exception as e: 
-                    print_exception_details(e)
-                    print("External filter with name", an_external_filt, "not recognised. I am removing this filter from the list")
-                    mask = External_Filter!=an_external_filt
-                    External_Filter, External_wl, External_Flux_Jy, External_Flux_Jy_err = External_Filter[mask], External_wl[mask], External_Flux_Jy[mask], External_Flux_Jy_err[mask]
-            sedfilter, sed_wl, sedflux, sedfluxe  =  np.concatenate((sedfilter, External_Filter)), np.concatenate((sed_wl, External_wl)), np.concatenate((sedflux, External_Flux_Jy)), np.concatenate((sedfluxe, External_Flux_Jy_err))
-        except: None
+        
+        try: External_Filter = np.asarray(config_info["External_Filter"])
+        except: External_Filter = np.asarray(config_info["extFilters"])
+        
+        External_wl = []
+        for an_external_filt in External_Filter:
+            try:
+                External_wl.append(filter_dict[str(an_external_filt)][1])
+            except Exception as e: 
+                print_exception_details(e)
+                print("External filter with name", an_external_filt, "not recognised. I am removing this filter from the list")
+                mask = External_Filter!=an_external_filt
+                External_Filter, External_wl, External_Flux_Jy, External_Flux_Jy_err = External_Filter[mask], External_wl[mask], External_Flux_Jy[mask], External_Flux_Jy_err[mask]
+        sedfilter, sed_wl, sedflux, sedfluxe  =  np.concatenate((sedfilter, External_Filter)), np.concatenate((sed_wl, External_wl)), np.concatenate((sedflux, External_Flux_Jy)), np.concatenate((sedfluxe, External_Flux_Jy_err))
+    except: None
         
         
-        theminww, themaxww = 999999, -999999
-        for afilt in sedfilter:
-            ww, flfl  =  filter_dict[afilt][0]
-            mask=flfl>=0
-            ww, flfl = ww[mask], flfl[mask]
-            minww, maxww = npamin(ww), npamax(ww)
-            
-            if minww<theminww: theminww=minww
-            if maxww>themaxww: themaxww=maxww
-                
-            print(afilt)
-            
-        theminww_loadgrid = theminww-160
-        themaxww_loadgrid = themaxww+160
         
         
-        if theminww_loadgrid>3646:  theminww_loadgrid=3646
-        if themaxww_loadgrid<6800:  themaxww_loadgrid=6800
+    need_air_to_vac=False
+    theminww, themaxww = 999999, -999999
+    for afilt in sedfilter:
+        ww, flfl  =  filter_dict[afilt][0]
+        mask=flfl>=0
+        ww, flfl = ww[mask], flfl[mask]
+        minww, maxww = npamin(ww), npamax(ww)
         
+        if minww<theminww: theminww=minww
+        if maxww>themaxww: themaxww=maxww
         
-        theminww-=60
-        themaxww+=60
-        print(theminww, themaxww)
-        if theminww== 999999 and themaxww==-999999:  raise ValueError("The filters are likely not recognised in the script. Add them to 'filter_dict'")
-    else:
+        print(afilt)
+        
+        if "gaia" in afilt.lower() or "galex" in afilt.lower() or "wise" in afilt.lower():
+            need_air_to_vac = True
+        
+    theminww_loadgrid = theminww-160
+    themaxww_loadgrid = themaxww+160
+    
+    
+    if theminww_loadgrid>3646:  theminww_loadgrid=3646
+    if themaxww_loadgrid<6800:  themaxww_loadgrid=6800
+    
+    
+    theminww-=60
+    themaxww+=60
+    print(theminww, themaxww)
+    if theminww== 999999 and themaxww==-999999:  raise ValueError("The filters are likely not recognised in the script. Add them to 'filter_dict'")
+    
+    if not len(sedfilter)>=1:
         theminww_loadgrid, themaxww_loadgrid=1000,15000
         fit_phot_SED=False
         print("ALERT:")
@@ -1764,55 +1785,91 @@ except: None
 @njit
 def return_DAgrids(temperature_star, logg_star):
     if logg_star<6.5:  raise ValueError
-    minval=10000;   maxval=-10000
-    #if temperature_star>25000: raise ValueError
     
-    temdiff = temperature_star - unique_Teffs_synth
-    Teff_min=unique_Teffs_synth[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
-    Teff_max=unique_Teffs_synth[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
-        
+    #Teff_all = Teff_all_synth;    wl_all = wl_all_synth;    flux_all = flux_all_synth;    logg_all = logg_all_synth
+    
+    
+    #temdiff = temperature_star - unique_Teffs_synth
+    #Teff_min=unique_Teffs_synth[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
+    #Teff_max=unique_Teffs_synth[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
+    
+    
+    if temperature_star==4000: Teff_min=4000.0; Teff_max=4250.0
+    elif temperature_star==40000: Teff_min=35000.0; Teff_max=40000.0
+    else:
+        ti = np.searchsorted(unique_Teffs_synth, temperature_star)
+        Teff_min = unique_Teffs_synth[ti - 1]
+        Teff_max = unique_Teffs_synth[ti]
             
-    # then find the nearest 2 loggs
-    list_search = [6.5,7,7.5,8,8.5,9]
+    ## then find the nearest 2 loggs
+    #list_search = [6.5,7,7.5,8,8.5,9]
+    #minval=10000;   maxval=-10000
         
-    for logg_opts in list_search:
-        if logg_opts-logg_star<np.abs(logg_opts-maxval):    maxval = logg_opts
-        if logg_star-logg_opts>0:   minval = logg_opts
+    #for logg_opts in list_search:
+    #    if logg_opts-logg_star<np.abs(logg_opts-maxval):    maxval = logg_opts
+    #    if logg_star-logg_opts>0:   minval = logg_opts
+    
+    
+    if logg_star==6.5: minval=6.5; maxval=7.0
+    elif logg_star==9: minval=8.5; maxval=9.0
+    else:
+        logg_grid = np.array([6.5, 7.0, 7.5, 8.0, 8.5, 9.0])
+        gi = np.searchsorted(logg_grid, logg_star)
+        minval = logg_grid[gi - 1]
+        maxval = logg_grid[gi]
         
         
     mask_logg = (logg_all_synth<=maxval) & (logg_all_synth>=minval) & (Teff_all_synth<=Teff_max) & (Teff_all_synth>=Teff_min)
         
         
-    Grav1_N = logg_all_synth[mask_logg];    wl_all1_N=wl_all_synth[mask_logg];    flux1_N=flux_all_synth[mask_logg];    Teff1_N=Teff_all_synth[mask_logg]
-        
-    if len(npunique(Teff1_N))==3:
-        un_teffs = npunique(Teff1_N)
-        if temperature_star<un_teffs[1]:   newmask = (Teff1_N!=un_teffs[2])
-        else:   newmask = (Teff1_N!=un_teffs[0])
-            
-        Grav1_N, wl_all1_N, flux1_N, Teff1_N = Grav1_N[newmask], wl_all1_N[newmask], flux1_N[newmask], Teff1_N[newmask]
-        
-    return Grav1_N, wl_all1_N, flux1_N, Teff1_N
+    #if len(npunique(Teff_all_synth[mask_logg]))==3:
+    #    Grav1_N = logg_all[mask_logg];    wl_all1_N=wl_all[mask_logg];    flux1_N=flux_all[mask_logg];    Teff1_N=Teff_all_synth[mask_logg]
+    #    un_teffs = npunique(Teff1_N)
+    #    if temperature_star<un_teffs[1]:   newmask = (Teff1_N!=un_teffs[2])
+    #    else:   newmask = (Teff1_N!=un_teffs[0])
+    #        
+    #    return Grav1_N[newmask], wl_all1_N[newmask], flux1_N[newmask], Teff1_N[newmask]
+    
+    return logg_all_synth[mask_logg], wl_all_synth[mask_logg], flux_all_synth[mask_logg], Teff_all_synth[mask_logg]
 
 @njit
 def return_ELMgrids(temperature_star, logg_star):
-    minval=10000;   maxval=-10000
     if logg_star>=4:
         Teff_all = Teff_all_logg;    wl_all = wl_all_logg;    flux_all = flux_all_logg;    logg_all = logg_all_logg
             
-        temdiff = temperature_star - unique_Teff
-        Teff_min=unique_Teff[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
-        Teff_max=unique_Teff[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
+        #temdiff = temperature_star - unique_Teff
+        #Teff_min=unique_Teff[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
+        #Teff_max=unique_Teff[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
+        
+        if temperature_star==4000: Teff_min=4000.0; Teff_max=4250.0
+        elif temperature_star==40000: Teff_min=35000.0; Teff_max=40000.0
+        else:
+            ti = np.searchsorted(unique_Teff, temperature_star)
+            Teff_min = unique_Teff[ti - 1]
+            Teff_max = unique_Teff[ti]
             
     else: raise ValueError
             
             
-    # then find the nearest 2 loggs
-    list_search = [4.0, 4.25, 4.5, 4.75, 5, 5.25, 5.5, 5.75, 6, 6.25, 6.5, 6.75, 7, 7.25, 7.5, 7.75, 8, 8.25, 8.5, 8.75, 9, 9.25, 9.5]
+    #minval=10000;   maxval=-10000
+    
+    ## then find the nearest 2 loggs
+    #list_search = [4.0, 4.25, 4.5, 4.75, 5, 5.25, 5.5, 5.75, 6, 6.25, 6.5, 6.75, 7, 7.25, 7.5, 7.75, 8, 8.25, 8.5, 8.75, 9, 9.25, 9.5]
         
-    for logg_opts in list_search:
-        if logg_opts-logg_star<np.abs(logg_opts-maxval):    maxval = logg_opts
-        if logg_star-logg_opts>0:   minval = logg_opts
+    #for logg_opts in list_search:
+    #    if logg_opts-logg_star<np.abs(logg_opts-maxval):    maxval = logg_opts
+    #    if logg_star-logg_opts>0:   minval = logg_opts
+    
+    
+    if logg_star==4.0: minval=4.0; maxval=4.25
+    elif logg_star==9.5: minval=9.25; maxval=9.5
+    else:
+        logg_grid = np.array([4.0, 4.25, 4.5, 4.75, 5, 5.25, 5.5, 5.75, 6, 6.25, 6.5, 6.75, 7, 7.25, 7.5, 7.75, 8, 8.25, 8.5, 8.75, 9, 9.25, 9.5])
+        gi = np.searchsorted(logg_grid, logg_star)
+        minval = logg_grid[gi - 1]
+        maxval = logg_grid[gi]
+    
+    
         
         
     mask_logg = (logg_all<=maxval) & (logg_all>=minval) & (Teff_all<=Teff_max) & (Teff_all>=Teff_min)
@@ -2416,7 +2473,7 @@ def lnlike(theta, arguments):
             
             
         
-        rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, return_points_for_phot_model=False)
+        rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, return_points_for_phot_model=False, need_air_to_vac_conversion=need_air_to_vac)
         
         #chisq_phot*=100
         
@@ -4134,6 +4191,8 @@ elif sys_args[1]=="ATM":
             
             if starType2=="ELM":
                 R2 = get_MTR(forced_teff2, logg=forced_logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1], ELM=True)
+            elif starType2=="DBA"  or starType2=="DB" or starType2=="DC":
+                R2 = get_MTR_DB(forced_teff2, logg=forced_logg2)
             else:
                 R2 = get_MTR(forced_teff2, logg=forced_logg2, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
             inputScaling= (R1**2/R2**2)
@@ -4253,6 +4312,37 @@ elif sys_args[1]=="ATM":
         lines_to_write.append("H/He2:\n")
         lines_to_write.append(str(HoverHe2_med) + "\t" + str(np.percentile(HoverHe2_result, 16, axis=0) - HoverHe2_med) + "\t" + str(np.percentile(HoverHe2_result, 84, axis=0) - HoverHe2_med) + "\n")
     else:   HoverHe2_med = forced_HoverHe2;   HoverHe2_min = 0;   HoverHe2_max=0
+    
+    
+    if IDX_T1>=0 and IDX_logg1 >= 0: 
+        if starType1=="DA":
+            R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
+        elif starType1=="ELM": 
+            R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1], ELM=True)
+        
+        
+        if starType1=="DA" or starType1=="ELM":
+            M1 = get_MTR(T1_med, logg=logg1_med, return_M=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
+            lines_to_write.append("M1:"+str(M1)+"\n")
+        
+        lines_to_write.append("R1:"+str(R1)+"\n")
+    
+    
+    if IDX_T2>=0 and IDX_logg2 >= 0: 
+        if starType2=="DA":
+            R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
+        elif starType2=="ELM": 
+            R2 = get_MTR(T2_med, logg=logg2_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1], ELM=True)
+        elif starType2=="DBA"  or starType2=="DB" or starType2=="DC":
+            R2 = get_MTR_DB(T2_med, logg=logg2_med)
+        
+        
+        if starType2=="DA" or starType2=="ELM":
+            M2 = get_MTR(T2_med, logg=logg2_med, return_M=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
+            lines_to_write.append("M2:"+str(M2)+"\n")
+        
+        lines_to_write.append("R2:"+str(R2)+"\n")
+        
 
 
     if IDX_K1>=0:
@@ -4393,6 +4483,9 @@ elif sys_args[1]=="ATM":
     for arvresult2, arvresult2_min, arvresult2_max, ahjd in zip(allRV2s, allRV2s_minerr, allRV2s_maxerr, HJD_values):
         if forced_K2==False:     lines_to_write.append(str(ahjd) + "\t" + str(arvresult2) + "\t" + str(arvresult2_min) + "\t" + str(arvresult2_max) + "\n")
         else:                    lines_to_write.append(str(ahjd) + "\t" + str(arvresult2) + "\n")
+    
+    
+    
     
     
     try: os.mkdir("out")
@@ -4658,7 +4751,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
                 smeared_wl, smeared_flux, smeared_flux1, smeared_flux2 = Fit_phot.fit_phot_SED_double(Grav1_N, wl_all1_N, flux1_N, Teff1_N, None, Grav2_N, wl_all2_N, flux2_N, Teff2_N, None, T1_med, logg1_med, None, T2_med, logg2_med, None, min_wl=theminww, max_wl=themaxww, starType1=starType1, starType2=starType2, R1=R1, R2=R2, parallax=parallax_med, red=reddening_Ebv, return_indiv_stars=True, extinction_law = ext)
             
             
-            rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, plot_solution=True, theminww_plot=theminww+50, themaxww_plot=themaxww+50, specStar1=smeared_flux1, specStar2=smeared_flux2, return_points_for_phot_model=False)
+            rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, plot_solution=True, theminww_plot=theminww+50, themaxww_plot=themaxww+50, specStar1=smeared_flux1, specStar2=smeared_flux2, return_points_for_phot_model=False, need_air_to_vac_conversion=need_air_to_vac)
 
 
 
