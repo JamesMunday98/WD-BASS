@@ -2466,7 +2466,7 @@ def lnlike(theta, arguments):
                 
                 # Smear to the desired resolution
                 res = resolutions[ii]
-                if res not in convolved_for_this_ref_wl:
+                if (ref_wl, res) not in convolved_for_this_ref_wl:
                     key = (ref_wl, res, model_wl1[10], model_wl1[9])
                     #if key not in KERNEL_CACHE:
                     #    KERNEL_CACHE[key] = Gaussian1DKernel(stddev=0.5*(ref_wl/resolutions[ii])/(model_wl1[10]-model_wl1[9]))
@@ -2477,10 +2477,10 @@ def lnlike(theta, arguments):
                         kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/res)/(model_wl1[10]-model_wl1[9])).array
                         KERNEL_CACHE[key] =  kern_array/kern_array.sum() # need to normalise to preserve flux. astropy does this automatically 
                     
-                    convolved_for_this_ref_wl[res] = convolve1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
+                    convolved_for_this_ref_wl[(ref_wl, res)] = convolve1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
                 
                 
-                interparmodel = convolved_for_this_ref_wl[res]
+                interparmodel = convolved_for_this_ref_wl[(ref_wl, res)]
                 
                 #if False:
                 #    plt.close();   fig, (ax,ax2) = plt.subplots(2)
@@ -4017,17 +4017,17 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
             
             
             
-            if inp_resolution not in convolved_for_this_ref_wl:
+            if (ref_wl, inp_resolution) not in convolved_for_this_ref_wl:
                 key = (ref_wl, inp_resolution, model_wl1[10], model_wl1[9])
             
                 if key not in KERNEL_CACHE:
                     kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])).array
                     KERNEL_CACHE[key] =  kern_array/kern_array.sum() # need to normalise to preserve flux. astropy does this automatically 
                 
-                convolved_for_this_ref_wl[inp_resolution] = convolve1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
+                convolved_for_this_ref_wl[(ref_wl, inp_resolution)] = convolve1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
             
             
-            interparmodel = convolved_for_this_ref_wl[inp_resolution]
+            interparmodel = convolved_for_this_ref_wl[(ref_wl, inp_resolution)]
             
             
             interparr = interp(normalised_wavelength, model_wl1+dlam1, interparmodel)
@@ -4182,23 +4182,27 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
                 #interparmodel = convolve(model_spectrum_star1, Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])), boundary = 'extend')
                 
                 
-                if inp_resolution not in convolved_for_this_ref_wl:
+                if (ref_wl, inp_resolution) not in convolved_for_this_ref_wl:
                     key = (ref_wl, inp_resolution, model_wl1[10], model_wl1[9])
                 
                     if key not in KERNEL_CACHE:
                         kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])).array
                         KERNEL_CACHE[key] =  kern_array/kern_array.sum() # need to normalise to preserve flux. astropy does this automatically 
                     
-                    convolved_for_this_ref_wl[inp_resolution] = convolve1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
+                    convolved_for_this_ref_wl[(ref_wl, inp_resolution)] = convolve1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
                 
                 
-                interparmodel = convolved_for_this_ref_wl[inp_resolution]
+                interparmodel = convolved_for_this_ref_wl[(ref_wl, inp_resolution)]
                 
                 
                 
                 #kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])).array
                 #interparmodel = convolve1d(model_spectrum_star1, kern_array/kern_array.sum(), mode="nearest")
-                interparr = interp(normalised_wavelength, model_wl1+dlam1, interparmodel)
+                
+                try:
+                    interparr = interp(normalised_wavelength, model_wl1+dlam1, interparmodel)
+                except:
+                    raise ValueError(len(model_wl1), dlam1, len(interparmodel), ref_wl)
                 
                 
                 
