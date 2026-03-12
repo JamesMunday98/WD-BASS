@@ -11,6 +11,7 @@ from astropy.constants import R_sun, pc
 from numba import njit, jit
 from dust_extinction.parameter_averages import G23
 import astropy.units as u
+from decimal import Decimal, getcontext
 
 
 class Fit_phot(object):
@@ -24,7 +25,6 @@ class Fit_phot(object):
 	
 	
 	def air_wl_to_vacuum_wl(lambda_air):
-		from decimal import Decimal, getcontext
 		lambda_vac=[]
 		for alambda in lambda_air:
 			alambda=Decimal(alambda)
@@ -110,7 +110,6 @@ class Fit_phot(object):
 		fine_grid=np.linspace(wl_min,wl_max,int((wl_max - wl_min)*10)) # 0.1AA spacing
 		
 		
-		#fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*400)) # 0.0025AA spacing
 		model_spectrum=np.interp(fine_grid, wl_grid, model_spectrum)
 		
 		return fine_grid, model_spectrum
@@ -127,10 +126,10 @@ class Fit_phot(object):
 		wl_grid, unique_Ts, unique_Gs, unique_HoverHes = np.unique(wl_all1_N), np.unique(Teff1_N), np.unique(Grav1_N), np.unique(HoverHe1_N)
 		model_spectrum=griddata(np.array([Teff1_N, wl_all1_N, Grav1_N, HoverHe1_N]).T, flux1_N, np.array([np.full((len(wl_grid),),temperature_star), wl_grid, np.full((len(wl_grid),),logg_star), np.full((len(wl_grid),),HoverHe_star)]).T, method="linear")
 		
-		if ref_wl>6500:     fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*10)) # 0.1AA spacing
-		elif ref_wl>4500:   fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*10)) # 0.1AA spacing
-		elif ref_wl>4200:   fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*10)) # 0.1AA spacing
-		else:               fine_grid=np.linspace(np.amin(wl_grid),np.amax(wl_grid),int((np.amax(wl_grid) - np.amin(wl_grid))*10)) # 0.1AA spacing
+		if ref_wl>6500:     fine_grid=np.linspace(wl_grid[0],wl_grid[-1],int((wl_grid[-1] - wl_grid[0])*10)) # 0.1AA spacing
+		elif ref_wl>4500:   fine_grid=np.linspace(wl_grid[0],wl_grid[-1],int((wl_grid[-1] - wl_grid[0])*10)) # 0.1AA spacing
+		elif ref_wl>4200:   fine_grid=np.linspace(wl_grid[0],wl_grid[-1],int((wl_grid[-1] - wl_grid[0])*10)) # 0.1AA spacing
+		else:               fine_grid=np.linspace(wl_grid[0],wl_grid[-1],int((wl_grid[-1] - wl_grid[0])*10)) # 0.1AA spacing
 		
 		model_spectrum=np.interp(fine_grid, wl_grid, model_spectrum)
 		
@@ -249,7 +248,10 @@ class Fit_phot(object):
 		
 		spec = (factor1 * model_spectrum_star1  +  factor2 * model_spectrum_star2) *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
 		
-		spec *= extinction_law.extinguish(model_wl*u.AA, Ebv=red)
+		
+		extinction_value = extinction_law.extinguish(model_wl*u.AA, Ebv=red)
+		
+		spec *= extinction_value
 		
 		
 		
@@ -261,8 +263,8 @@ class Fit_phot(object):
 		else:
 			spec1 = factor1 * model_spectrum_star1 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
 			spec2 = factor2 * model_spectrum_star2 *  1E23 * np.pi/D**2 # was in erg/cm^2/s/Hz, putting into Jy
-			spec1 *= extinction_law.extinguish(model_wl*u.AA, Ebv=red)
-			spec2 *= extinction_law.extinguish(model_wl*u.AA, Ebv=red)
+			spec1 *= extinction_value
+			spec2 *= extinction_value
 			return model_wl, spec, spec1, spec2
 	
 	
@@ -350,10 +352,9 @@ class Fit_phot(object):
 	def get_data(url, searchOnline):
 		""" get CDS url to lookup and download photometry """
 		
-		#raise ValueError(url)
-		import urllib.request
-		print(url);   print(url);   print(url);   print(url)
+		print(url)#;   print(url);   print(url);   print(url)
 		if searchOnline:
+			import urllib.request
 			if not "photSED.vot" in os.listdir(os.getcwd()+"/out"):    urllib.request.urlretrieve(url, "out/photSED.vot")
 		from astropy.io.votable import parse
 		votab = parse("out/photSED.vot")
@@ -406,7 +407,7 @@ class Fit_phot(object):
 	
 	
 	
-	def process_photometry_in_each_pb(model_wl, model_flux, filters, sed_wl, sedflux, sedfluxe, filter_dict, plot_solution=False, theminww_plot=1000, themaxww_plot=10000, specStar1=None, specStar2=None, single_or_double="double", return_points_for_phot_model=False, ignore_absolute_flux_phot=False):
+	def process_photometry_in_each_pb(model_wl, model_flux, filters, sed_wl, sedflux, sedfluxe, filter_dict, plot_solution=False, theminww_plot=1000, themaxww_plot=10000, specStar1=None, specStar2=None, single_or_double="double", return_points_for_phot_model=False, ignore_absolute_flux_phot=False, need_air_to_vac_conversion=False):
 		""" integrate the model spectrum in each passband and compute chisq compared with the observed data """
 		
 		#### integrate the model over the transmission filter. If I find photometry from a space based satellite, convert air to vacuum wavelengths.		
@@ -429,18 +430,17 @@ class Fit_phot(object):
 				#mask_filt = (model_wl>=np.amin(filter_wl))  &  (model_wl<=np.amax(filter_wl))
 				#input_wl = model_wl[mask_filt];    input_flux = model_flux[mask_filt]
 				
-				if "gaia" in filt.lower() or "galex" in filt.lower() or "wise" in filt.lower():
-					input_wl = Fit_phot.air_wl_to_vacuum_wl(input_wl)
+				if need_air_to_vac_conversion:
+				    if "gaia" in filt.lower() or "galex" in filt.lower() or "wise" in filt.lower():
+					    input_wl = Fit_phot.air_wl_to_vacuum_wl(input_wl)
 
 				filter_transmission_on_model_grid = np.interp(input_wl, filter_wl, filter_transmission)
 				
-				#plt.plot(input_wl, filter_transmission_on_model_grid);   plt.plot(input_wl, input_flux)
-				#plt.show();   plt.clf()
 				
 				if filter_dict[filt][2] == "ENERGY":
-					flux_in_the_bandpass = integrate.simpson(filter_transmission_on_model_grid * input_flux, x=input_wl, dx=0.1)   /   integrate.simpson(filter_transmission_on_model_grid, x=input_wl, dx=0.1)
+					flux_in_the_bandpass = integrate.simpson(filter_transmission_on_model_grid * input_flux, x=input_wl, dx=0.2)   /   integrate.simpson(filter_transmission_on_model_grid, x=input_wl, dx=0.2)
 				elif filter_dict[filt][2] == "PHOTON":
-					flux_in_the_bandpass = integrate.simpson(filter_transmission_on_model_grid * input_flux * input_wl, x=input_wl, dx=0.1)   /   integrate.simpson(filter_transmission_on_model_grid * input_wl, x=input_wl, dx=0.1)
+					flux_in_the_bandpass = integrate.simpson(filter_transmission_on_model_grid * input_flux * input_wl, x=input_wl, dx=0.2)   /   integrate.simpson(filter_transmission_on_model_grid * input_wl, x=input_wl, dx=0.2)
 				else: raise ValueError
 				
 				
