@@ -176,14 +176,11 @@ def save_tables_output_DB():
 
 def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, return_M=False, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[], force_CO_MTR=False, ELM=False):
 	
-	#print(np.amin(all_radiusHe), np.amax(all_radiusHe), np.amin(all_tempsHe), np.amax(all_tempsHe))
-	
 	if return_R==True:
 		#all_tempsCO, all_loggCO, all_massCO, all_radiusCO = np.loadtxt("/home/james/python_scripts_path/dwd_fit_package/saved_MTR/table_valuesCO.dat", unpack=True)
 		all_tempsCO, all_loggCO, all_massCO, all_radiusCO = load(install_path + "/saved_MTR/table_valuesCO.npy")
 		#all_tempsHe, all_loggHe, all_massHe, all_radiusHe = np.loadtxt(install_path + "/saved_MTR/table_valuesHe.dat", unpack=True)
 		all_tempsHe, all_loggHe, all_massHe, all_radiusHe = load(install_path + "/saved_MTR/table_valuesHe.npy")
-		
 		
 		rad_He = float(griddata(np.array([all_tempsHe,all_massHe]).T,all_radiusHe,np.array([T, M]).T, method='linear')[0])
 		rad_CO = float(griddata(np.array([all_tempsCO,all_massCO]).T,all_radiusCO,np.array([T, M]).T, method='linear')[0])
@@ -210,9 +207,6 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 		        mask=(all_tempsCO>=4500)  &  (all_tempsCO>=T-5000)  &  (all_tempsCO<=T+5000)  &  (all_loggCO<logg+0.5)  &  (all_loggCO>logg-0.5)
 		        
 		        radius_CO = float(griddata(np.array([all_tempsCO[mask],all_loggCO[mask]]).T,all_radiusCO[mask],np.array([T, logg]).T, method='linear')[0])
-		        #print("CO")
-		        
-		        #if np.isnan(radius_CO): raise ValueError(T, logg, np.amin(all_loggCO[mask]), np.amax(all_loggCO[mask]))
 		        return radius_CO
 			    
 		try:
@@ -228,11 +222,10 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 				
 				radius_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_radiusHe,np.array([T, logg]).T, method='linear')[0])
 			else:
-				
-				try:
-					if logg>7.625: raise ValueError  # istrate grid max logg is 7.625  (I checked)
+				if logg<=7.625:   # istrate grid max logg is 7.625  (I checked)
 					if len(loaded_Istrate)==0:  all_tempsHe_Ist, all_radiusHe_Ist, all_loggHe_Ist=load(install_path + "/saved_MTR/Istrate_Z0p02_diffusion_nomasses.npy")
 					else:  all_tempsHe_Ist, all_radiusHe_Ist, all_loggHe_Ist  =  loaded_Istrate
+					
 					
 					if logg>=7:
 						maskIst = (all_loggHe_Ist>logg-0.25) & (all_loggHe_Ist<logg+0.25)
@@ -249,16 +242,33 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 						elif T>8000: maskIst= all_tempsHe_Ist>6000
 					
 					
-					#plt.scatter(all_tempsHe, all_loggHe);   plt.show()
-					
-					#all_massHe, all_tempsHe, all_radiusHe, all_loggHe = all_massHe[mask], all_tempsHe[mask], all_radiusHe[mask], all_loggHe[mask]
 					radius_He = float(griddata(np.array([all_tempsHe_Ist[maskIst],all_loggHe_Ist[maskIst]]).T,all_radiusHe_Ist[maskIst],np.array([T, logg]).T, method='linear')[0])
-					if np.isnan(radius_He): raise ValueError
-				except:
-					#all_tempsHe, all_loggHe, all_massHe, all_radiusHe = np.loadtxt(install_path + "/saved_MTR/table_valuesHe.dat", unpack=True)
 					
+					if np.isnan(radius_He):
+					    maskIst = (all_loggHe_Ist>logg-0.5) & (all_loggHe_Ist<logg+0.5) &  (all_tempsHe_Ist>T-7500)   &  (all_tempsHe_Ist<T+7500)
+					    radius_He = float(griddata(np.array([all_tempsHe_Ist[maskIst],all_loggHe_Ist[maskIst]]).T,all_radiusHe_Ist[maskIst],np.array([T, logg]).T, method='linear')[0])
+					    
+					    if np.isnan(radius_He): # if Istrate fails, fall back on Althaus
+					        if False:   all_tempsHe, all_loggHe, all_massHe, all_radiusHe = load(install_path + "/saved_MTR/table_valuesHe.npy")
+					        else:
+						        if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe = load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
+						        else:  all_tempsHe, all_loggHe, all_radiusHe  =  loaded_Althaus
+					
+					        mask = (all_loggHe>logg-0.35)    &  (all_loggHe<logg+0.35)
+					        if T>20000: mask=mask & (all_tempsHe>T-5000)
+					        elif T>15000: mask=mask & (all_tempsHe>T-3500)  &  (all_tempsHe<22500)
+					        elif T>10000: mask=mask & (all_tempsHe>T-2000)  &  (all_tempsHe<17500)
+					        elif T>8500: mask=mask & (all_tempsHe>T-1500)   &  (all_tempsHe<12500)
+					        elif T>7000: mask=mask & (all_tempsHe>T-1000)  &  (all_tempsHe<10000)
+					        elif T>6000: mask=mask & (all_tempsHe>T-800)  &  (all_tempsHe<8500)
+					        else: mask=mask & (all_tempsHe>T-800)  &  (all_tempsHe<8000)
+            
+					        radius_He = float(griddata(np.array([all_tempsHe[mask],all_loggHe[mask]]).T,all_radiusHe[mask],np.array([T, logg]).T, method='linear')[0])
+				            
+					        if np.isnan(radius_He):  raise ValueError
+				else:
 					if False:   all_tempsHe, all_loggHe, all_massHe, all_radiusHe = load(install_path + "/saved_MTR/table_valuesHe.npy")
-					else:       
+					else:
 						if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe = load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
 						else:  all_tempsHe, all_loggHe, all_radiusHe  =  loaded_Althaus
 					
@@ -271,19 +281,15 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 					elif T>6000: mask=mask & (all_tempsHe>T-800)  &  (all_tempsHe<8500)
 					else: mask=mask & (all_tempsHe>T-800)  &  (all_tempsHe<8000)
 	
-	
 					radius_He = float(griddata(np.array([all_tempsHe[mask],all_loggHe[mask]]).T,all_radiusHe[mask],np.array([T, logg]).T, method='linear')[0])
-					
-					
 					
 					if np.isnan(radius_He): 
 						if logg<7.6:
 							radius_He = float(griddata(np.array([all_tempsHe_Ist[maskIst],all_loggHe_Ist[maskIst]]).T,all_radiusHe_Ist[maskIst],np.array([T, logg]).T, method='nearest')[0])
-							
 						else:  raise ValueError
 			return radius_He	
-		except:
-			if logg<7.45: raise ValueError("ERROR: Out of logg range, edit the lower boundary of p0logg to be above 7.45")
+		except Exception as www:
+			if logg<7.45: raise ValueError("ERROR: Out of logg range, edit the lower boundary of p0logg to be above 7.45:", T, logg, www)
 			
 			#all_tempsCO, all_loggCO, all_massCO, all_radiusCO = np.loadtxt("/home/james/python_scripts_path/dwd_fit_package/saved_MTR/table_valuesCO.dat", unpack=True)
 			if len(loaded_CO)==0: all_tempsCO, all_loggCO, all_massCO, all_radiusCO = load(install_path + "/saved_MTR/table_valuesCO.npy")
@@ -293,9 +299,6 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 			mask=(all_tempsCO>=4500)  &  (all_tempsCO>=T-5000)  &  (all_tempsCO<=T+5000)  &  (all_loggCO<logg+0.5)  &  (all_loggCO>logg-0.5)
 			
 			radius_CO = float(griddata(np.array([all_tempsCO[mask],all_loggCO[mask]]).T,all_radiusCO[mask],np.array([T, logg]).T, method='linear')[0])
-			#print("CO")
-			
-			#if np.isnan(radius_CO): raise ValueError(T, logg, np.amin(all_loggCO[mask]), np.amax(all_loggCO[mask]))
 			return radius_CO
 			
 		if False:
@@ -367,14 +370,11 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 		G=6.67430E-11;    one_solM = 1.98847E30;    one_solR = 6.957E8
 
 		if logg!=None:
-			try:
-			    mass_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_massHe,np.array([T, logg]).T, method='linear')[0])
-			except:
-			    raise ValueError(T, logg, Althaus_or_Istrate)
+			mass_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_massHe,np.array([T, logg]).T, method='linear')[0])
 			mass_CO = float(griddata(np.array([all_tempsCO,all_loggCO]).T,all_massCO,np.array([T, logg]).T, method='linear')[0])
 		if compute_logg:
-			g_He=np.log10(   1000*G*mass_He*one_solM*1000/np.square(radius_He*one_solR*100) )
-			g_CO=np.log10(   1000*G*mass_CO*one_solM*1000/np.square(radius_CO*one_solR*100) )
+			g_He=np.log10(   1000*G*mass_He*one_solM*1000/(radius_He*one_solR*100)**2 )
+			g_CO=np.log10(   1000*G*mass_CO*one_solM*1000/(radius_CO*one_solR*100)**2 )
 			return mass_He, mass_CO, g_He, g_CO
 		else:
 			return mass_He, mass_CO
