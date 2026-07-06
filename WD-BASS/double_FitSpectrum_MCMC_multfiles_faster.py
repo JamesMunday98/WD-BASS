@@ -83,7 +83,7 @@ else:
     forced_K1, forced_K2, forced_Vgamma1, forced_Vgamma2 = False, False, False, False
     p0K1, p0K2, p0Vgamma1, p0Vgamma2 = [-300,300], [-300,300], [-100,100], [-100,100]
 plot_fit=np.asarray([config_info["plot_fit"]])[0]
-fit_phot_SED=np.asarray([config_info["fit_phot_SED"]])
+fit_phot_SED=np.asarray([config_info["fit_phot_SED"]]).astype(bool)
 RA=np.asarray([config_info["RA"]])[0]
 Dec=np.asarray([config_info["Dec"]])[0]
 try: force_CO_MTR=np.asarray(config_info["force_CO_MTR"]).astype(bool)
@@ -487,6 +487,11 @@ if fit_phot_SED:
                 
             
             sedfluxe[sedfluxe==0] = npamin(sedfluxe[sedfluxe!=0])
+            
+            if want_gaiadr3 and JM_environment:
+                for cnt, ifilt in enumerate(sedfilter):
+                    if "gaia" in ifilt.lower():
+                        sedfluxe[cnt]=0.01*sedflux[cnt]
 
             try: 
                 if np.asarray(config_info["plot_phot_spectrum"]):
@@ -494,6 +499,7 @@ if fit_phot_SED:
             except: None
 
             sed_wl*=10
+            
         
     try:
         try:
@@ -556,6 +562,8 @@ if fit_phot_SED:
     print(theminww, themaxww)
     if theminww== 999999 and themaxww==-999999:  raise ValueError("The filters are likely not recognised in the script. Add them to 'filter_dict'")
     
+    
+    
     if not len(sedfilter)>=1:
         theminww_loadgrid, themaxww_loadgrid=1000,15000
         fit_phot_SED=False
@@ -567,6 +575,7 @@ if fit_phot_SED:
 #theminww, themaxww = 3300, 11400
 #theminww_loadgrid, themaxww_loadgrid = 3000, 11400
 
+    
 
 if continuum_normalisation==False:
     theminww_loadgrid = 1000 
@@ -890,7 +899,10 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
                 flux_e_data = flux_data/snr
                 
             else:
-                wl_data, flux_data, flux_e_data = nploadtxt(getcwd+"/"+files, skiprows=1,unpack=True)  #  if you have flux errors, files are loaded in normally. Great.
+                try:
+                    wl_data, flux_data, flux_e_data = nploadtxt(getcwd+"/"+files, skiprows=1,unpack=True)  #  if you have flux errors, files are loaded in normally. Great.
+                except:
+                    wl_data, flux_data, flux_e_data = nploadtxt(getcwd+"/"+files, skiprows=1, unpack=True, usecols=(0,1,2))  #  if you have flux errors, files are loaded in normally. Great.
         except:
             ##### this part of the code is for when you do not have flux errors. I do my best to guess the SNR of the data given an expected continuum SNR under the assumption that your spectral line follows a gaussian profile. In the "gauss" function below, mmm and ccc are included to fit the general trend of the continuum as a linear fit. 
             
@@ -988,9 +1000,12 @@ for files, normaliseHa, cut_Ha, ref_wl in zip(input_files, normaliseHa_all, cut_
     
     # I deredden the observed spectra (spectra, not flux calibrated photometry - this is modelled with a reddened synthetic spectrum) so that the synthetic spectra do not need to be redenned every iteration. This may become an issue if you have very low resolution (R<100) data, but otherwise it's not something to worry about
     
-    
-    flux_data /= ext.extinguish(wl_data*u.AA, Ebv=reddening_Ebv)
-    flux_e_data /= ext.extinguish(wl_data*u.AA, Ebv=reddening_Ebv)
+    if JM_environment and files.lower().startswith("norm"):
+        None
+    else:
+        extinguish_factor = ext.extinguish(wl_data*u.AA, Ebv=reddening_Ebv)
+        flux_data /= extinguish_factor
+        flux_e_data /= extinguish_factor
     
         
     #plt.plot(wl_data,flux_data);  plt.title(files);  plt.show();  plt.clf()
@@ -4319,8 +4334,10 @@ elif sys_args[1]=="ATM":
             R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
         elif starType1=="ELM": 
             R1 = get_MTR(T1_med, logg=logg1_med, return_R_from_T_logg=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1], ELM=True)
+        elif starType1=="DBA"  or starType1=="DB" or starType1=="DC":
+            R1 = get_MTR_DB(forced_teff1, logg=forced_logg1)
         
-        
+
         if starType1=="DA" or starType1=="ELM":
             M1 = get_MTR(T1_med, logg=logg1_med, return_M=True, loaded_Istrate=loaded_Istrate, loaded_CO=loaded_CO, loaded_Althaus=loaded_Althaus, force_CO_MTR=force_CO_MTR[1])
             lines_to_write.append("M1:"+str(M1)+"\n")

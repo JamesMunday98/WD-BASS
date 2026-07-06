@@ -68,7 +68,7 @@ else:
     forced_K1, forced_Vgamma1 = False, False
     p0K1, p0Vgamma1 = [-300,300], [-100,100]
 plot_fit=np.asarray(config_info["plot_fit"])
-fit_phot_SED=config_info["fit_phot_SED"]
+fit_phot_SED=bool(config_info["fit_phot_SED"])
 
 
 
@@ -88,7 +88,7 @@ except: force_CO_MTR=False
 
 if config_info["plot_phot_spectrum"]==False and plot_fit[0]==False:
 	import matplotlib
-	matplotlib.use("Agg")  # non-interactive backend for speed
+	#matplotlib.use("Agg")  # non-interactive backend for speed
 import matplotlib.pyplot as plt
 
 
@@ -594,7 +594,13 @@ if fit_phot_SED:
                     
             sedfilter, sed_wl, sedflux, sedfluxe  =  np.concatenate((sedfilter, External_Filter)), np.concatenate((sed_wl, External_wl)), np.concatenate((sedflux, External_Flux_Jy)), np.concatenate((sedfluxe, External_Flux_Jy_err))
     
-    
+    if want_gaiadr3 and os.environ['WD_BASS_INSTALL_DIR'] == "/home/james/python_scripts_path/dwd_fit_package/":
+        for cnt, ifilt in enumerate(sedfilter):
+            if "gaia" in ifilt.lower():
+                #raise ValueError(sedfilter[cnt], sedflux[cnt], sedfluxe[cnt], sedflux)
+                if sedfluxe[cnt]<0.01*sedflux[cnt]:
+                    sedfluxe[cnt]=0.01*sedflux[cnt]
+
         
     try: 
         if config_info["plot_phot_spectrum"]:
@@ -633,12 +639,14 @@ if fit_phot_SED:
     print(theminww, themaxww)
     if theminww== 999999 and themaxww==-999999:  raise ValueError("The filters are likely not recognised in the script. Add them to 'filter_dict'")
     
+    
+    
 
 
 #Uniform priors over which the variables will be allowed to vary
 p0T1=config_info["p0teff"][0]  # max teff is 14000 for DA
 p0logg1=config_info["p0logg"][0]
-if forced_Scaling=="ELM" and npamax(p0logg1)>8.3: raise ValueError("For the ELM grid, Althaus mass-temperature-radius relationships do not cover logg>8.5. Decrease the maximum logg")
+#if forced_Scaling=="ELM" and npamax(p0logg1)>8.3: raise ValueError("For the ELM grid, Althaus mass-temperature-radius relationships do not cover logg>8.5. Decrease the maximum logg")
 p0HoverHe1=config_info["p0HoverHe"][0]
 try:  p0scaling=np.asarray(config_info["p0scaling"]).astype(float)
 except: 
@@ -3378,7 +3386,7 @@ if sys_arg1=="RV" or sys_arg1=="RV_gauss":
     try: os.mkdir("RVfits")
     except: None
     
-        
+    
     rvfilename=[]
     desired_refwl = npamax(reference_wl)
     mask_ref_wl = reference_wl==desired_refwl
@@ -3395,9 +3403,8 @@ if sys_arg1=="RV" or sys_arg1=="RV_gauss":
             
             
             #smear_model_spectrum_star1 = convolve(model_spectrum_star1, Gaussian1DKernel(stddev=0.5*resAA/(model_wl1[10]-model_wl1[9])), boundary = 'extend')
-            kern_array = Gaussian1DKernel(stddev=0.5*resAA/(wl1[10]-wl1[9])).array
+            kern_array = Gaussian1DKernel(stddev=0.5*resAA/(model_wl1[10]-model_wl1[9])).array
             smear_model_spectrum_star1 = convolve1d(model_spectrum_star1, kern_array/kern_array.sum(), mode="nearest")
-            
             
             if sys_arg1=="RV_gauss":
                 gauss1 = agauss(model_wl1, A1_med, desired_wl, std_dev1_med)
@@ -3470,7 +3477,6 @@ if sys_arg1=="RV" or sys_arg1=="RV_gauss":
                 else: clip_mask=~np.isnan(normalised_flux) # clip_mask=normalised_flux==normalised_flux
                 
                 
-                
                 # Try to improve the accuracy of the normalisation again with the full wavelength range, this time with the bad points sigma clipped
                 if sys_arg1=="RV_gauss":
                     RV1, RV1err, extra_norm, extra_norm_err, coff, coff_err = fit_bootstrap([RV1, extra_norm, coff],  normalised_wavelength[clip_mask],  normalised_flux[clip_mask],  normalised_err[clip_mask], bounds=[rvbound1[0], rvbound1[1], -0.02,0.02, -20, 20], num_its=100, wl1=model_wl1, spec1=smear_model_spectrum_star1, gauss1=smear_gauss1)
@@ -3478,10 +3484,10 @@ if sys_arg1=="RV" or sys_arg1=="RV_gauss":
                     RV1, RV1err, extra_norm, extra_norm_err, coff, coff_err = fit_bootstrap([RV1, extra_norm, coff],  normalised_wavelength[clip_mask],  normalised_flux[clip_mask],  normalised_err[clip_mask], bounds=[rvbound1[0], rvbound1[1], -0.02,0.02, -20, 20], num_its=100, wl1=model_wl1, spec1=smear_model_spectrum_star1) 
                 
                 
-                
                 # Apply the tweaked normalisation to the data
                 #plt.plot(normalised_wavelength, normalised_flux, c='k')
                 normalised_flux*=(normalised_wavelength*extra_norm + coff)
+                
                 mask = ((normalised_wavelength>desired_refwl+cut_limits_min) & (normalised_wavelength<desired_refwl+norm_limits_min)) | ((normalised_wavelength>desired_refwl+norm_limits_max)   & (normalised_wavelength<desired_refwl+cut_limits_max))
                 # and lastly make the spectrum normalised to 1 again using the desired region with 1 sigma clipping iteration to the normalisation region
                 #m_, c_ = polyfit(normalised_wavelength[mask]-desired_refwl, normalised_flux[mask], deg=1)
