@@ -24,30 +24,41 @@ class Fit_phot(object):
 	#	return lambda_vac
 	
 	
-	def air_wl_to_vacuum_wl(lambda_air):
-		lambda_vac=[]
-		for alambda in lambda_air:
-			alambda=Decimal(alambda)
+	#def air_wl_to_vacuum_wl(lambda_air):
+	#	lambda_vac=[]
+	#	for alambda in lambda_air:
+	#		alambda=Decimal(alambda)
+	#
+	#		# Set the desired precision (can be increased if needed)
+	#		getcontext().prec = 28
+	#		
+	#		"""Convert air to vacuum wavelength using high precision."""
+	#		
+	#		# Ensure lambda_air is a Decimal
+	#		
+	#		s = Decimal('10000') / alambda
+	#		
+	#		# Rewriting the refractive index n calculation with Decimals
+	#		n = (
+	#		Decimal('1')
+	#		+ Decimal('0.00008336624212083')
+	#		+ Decimal('0.02408926869968') / (Decimal('130.1065924522') - s**2)
+	#		+ Decimal('0.0001599740894897') / (Decimal('38.92568793293') - s**2)
+	#		)
+	#		
+	#		lambda_vac.append(float(alambda * n))
+	#	return np.asarray(lambda_vac)
 	
-			# Set the desired precision (can be increased if needed)
-			getcontext().prec = 28
-			
-			"""Convert air to vacuum wavelength using high precision."""
-			
-			# Ensure lambda_air is a Decimal
-			
-			s = Decimal('10000') / alambda
-			
-			# Rewriting the refractive index n calculation with Decimals
-			n = (
-			Decimal('1')
-			+ Decimal('0.00008336624212083')
-			+ Decimal('0.02408926869968') / (Decimal('130.1065924522') - s**2)
-			+ Decimal('0.0001599740894897') / (Decimal('38.92568793293') - s**2)
-			)
-			
-			lambda_vac.append(float(alambda * n))
-		return np.asarray(lambda_vac)
+	@njit
+	def air_wl_to_vacuum_wl2(lambda_air):
+	    lambda_air = np.asarray(lambda_air, dtype=np.float64)
+	    
+	    s = 10000.0 / lambda_air
+	    s2 = s * s
+	    
+	    n = 1.0 + 0.00008336624212083 + 0.02408926869968 / (130.1065924522 - s2) + 0.0001599740894897 / (38.92568793293 - s2)
+	    
+	    return lambda_air * n
 
 
 
@@ -277,7 +288,6 @@ class Fit_phot(object):
 			if starType1=="DA" or starType1=="DB" or starType1=="DC" or starType1=="ELM":
 				Grav1_N, wl_all1_N, flux1_N, Teff1_N = Grav1_N[mask_logg_wl_1], wl_all1_N[mask_logg_wl_1], flux1_N[mask_logg_wl_1], Teff1_N[mask_logg_wl_1]
 				model_wl1, model_spectrum_star1 = Fit_phot.return_model_spectrum_DA(wl_all1_N, 0, 0, 0, Grav1_N, flux1_N, Teff1_N, T1, logg1)
-
 			elif starType1=="DBA":
 				Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N = Grav1_N[mask_logg_wl_1], wl_all1_N[mask_logg_wl_1], flux1_N[mask_logg_wl_1], Teff1_N[mask_logg_wl_1], HoverHe1_N[mask_logg_wl_1]
 				model_wl1, model_spectrum_star1 = Fit_phot.return_model_spectrum_DBA(wl_all1_N, 0, 0, 0, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe_star=HoverHe1)
@@ -432,7 +442,7 @@ class Fit_phot(object):
 				
 				if need_air_to_vac_conversion:
 				    if "gaia" in filt.lower() or "galex" in filt.lower() or "wise" in filt.lower():
-					    input_wl = Fit_phot.air_wl_to_vacuum_wl(input_wl)
+					    input_wl = Fit_phot.air_wl_to_vacuum_wl2(input_wl)
 
 				filter_transmission_on_model_grid = np.interp(input_wl, filter_wl, filter_transmission)
 				
@@ -465,6 +475,7 @@ class Fit_phot(object):
 			list_fluxe*=norm
 			
 			if plot_solution==True:
+				import matplotlib.pyplot as plt
 				plt.clf()
 				fig, (ax, ax2) = plt.subplots(2, gridspec_kw={'height_ratios': [3, 1]})
 				ax.plot(model_wl, model_flux,c='g', label="model fit")
@@ -499,6 +510,7 @@ class Fit_phot(object):
 		
 		plot_fancy=False #True
 		if plot_solution==True and plot_fancy==False:
+			import matplotlib.pyplot as plt
 			plt.clf()
 			fig, (ax, ax2) = plt.subplots(2, gridspec_kw={'height_ratios': [3, 1]})
 			ax.plot(model_wl, model_flux,c='k', label="model fit")
@@ -585,8 +597,11 @@ class Fit_phot(object):
 			plt.clf();   plt.close()
 			
 		
-		
-		if return_points_for_phot_model:  return chisq/(len(list_flux_bpass)-1), chisq, list_wl_bpass, list_flux_bpass, list_flux_sed, list_fluxe
-		else:                             return chisq/(len(list_flux_bpass)-1), chisq  # reduced chisq
+		if ignore_absolute_flux_phot:
+		    if return_points_for_phot_model:  return chisq/(len(list_flux_bpass)-1), chisq, list_wl_bpass, list_flux_bpass, list_flux_sed, list_fluxe, norm
+		    else:                             return chisq/(len(list_flux_bpass)-1), chisq, norm  # reduced chisq
+		else:
+		    if return_points_for_phot_model:  return chisq/(len(list_flux_bpass)-1), chisq, list_wl_bpass, list_flux_bpass, list_flux_sed, list_fluxe
+		    else:                             return chisq/(len(list_flux_bpass)-1), chisq  # reduced chisq
 	
 	
