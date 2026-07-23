@@ -2399,8 +2399,10 @@ def lnlike(theta, arguments):
         elif starType1.startswith("sd"):
             smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1, min_wl=theminww, max_wl=themaxww, starType1=starType1, R1=mcmc_R, parallax=mcmc_parallax, red=reddening_Ebv, extraflux=constraintsBB, ignore_absolute_flux_phot=ignore_absolute_flux_phot, extinction_law = ext)
         
-        
-        rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot, need_air_to_vac_conversion=need_air_to_vac)
+        if ignore_absolute_flux_phot:
+            rchisq_phot, chisq_phot, norm_ignore_abs_flux = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot, need_air_to_vac_conversion=need_air_to_vac)
+        else:
+            rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot, need_air_to_vac_conversion=need_air_to_vac)
         
         if chisq_phot > -1E-7:
             plt.plot(smeared_wl, smeared_flux);  plt.title(str(T1) + "  "+ str(logg1));  plt.show()
@@ -3782,7 +3784,7 @@ elif sys_arg1=="ATM" or arg1_is_photometry_only:
             else:
                 lines_to_write.append(str(ahjd) + "\t" + str(arvresult1) + "\n")
 
-        
+    
 
     try: os.mkdir("out")
     except: None
@@ -3938,8 +3940,25 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
             smeared_wl, smeared_flux = Fit_phot.fit_phot_SED_single(Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N, T1_med, logg1_med, HoverHe1_med, min_wl=theminww, max_wl=themaxww,starType1=starType1, R1=R_med, parallax=parallax_med, red=reddening_Ebv, ignore_absolute_flux_phot=ignore_absolute_flux_phot, extinction_law = ext)
         
         
-        
-        rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, plot_solution=True, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot, need_air_to_vac_conversion=need_air_to_vac)
+        if ignore_absolute_flux_phot:
+            rchisq_phot, chisq_phot, norm_ignore_abs_flux = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, plot_solution=True, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot, need_air_to_vac_conversion=need_air_to_vac)
+            
+            result = open(os.getcwd()+"/out/result.out").readlines()
+            norm_ignore_abs_found = False
+            for iii, lll in enumerate(result):
+                if "norm_ignore_abs_flux" in lll: norm_ignore_abs_found = True
+            
+            if not norm_ignore_abs_found:
+                result = open(os.getcwd()+"/out/result.out", "a+")
+                #result.write("norm_ignore_abs_flux:\n")
+                #result.write(str(norm_ignore_abs_flux) + "\n")
+                D_norm_ign = 1000/plax  *  3.086e+16
+                approxR_solR = np.sqrt( D_norm_ign**2/ (1E23 * norm_ignore_abs_flux * 4*np.pi) ) / 6.957e+8
+                result.write("approxR_ELM_no_absolute_flux:\n")
+                result.write(str(approxR_solR) + "\n")
+            
+        else:
+            rchisq_phot, chisq_phot = Fit_phot.process_photometry_in_each_pb(smeared_wl, smeared_flux, sedfilter, sed_wl, sedflux, sedfluxe, filter_dict=filter_dict, plot_solution=True, theminww_plot=theminww+50, themaxww_plot=themaxww+50, single_or_double="single", return_points_for_phot_model=False, ignore_absolute_flux_phot=ignore_absolute_flux_phot, need_air_to_vac_conversion=need_air_to_vac)
 
 
 
