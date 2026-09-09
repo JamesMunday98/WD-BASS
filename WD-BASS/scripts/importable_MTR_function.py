@@ -327,7 +327,7 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 						else:  all_tempsHe, all_loggHe, all_radiusHe  =  loaded_Althaus
 					
 					
-					mask = (all_loggHe>logg-0.35)    &  (all_loggHe<logg+0.35)
+					mask = (all_loggHe>logg-1)    &  (all_loggHe<logg+1)
 					if T>20000: mask=mask & (all_tempsHe>T-5000)
 					elif T>15000: mask=mask & (all_tempsHe>T-3500)  &  (all_tempsHe<22500)
 					elif T>10000: mask=mask & (all_tempsHe>T-2000)  &  (all_tempsHe<17500)
