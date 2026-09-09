@@ -7,6 +7,7 @@ from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 from numpy import load
 from numpy import polyfit
+from numba import njit
 
 def save_tables_output_DA():
 	""" save cooling tracks into .dat files for DA He and DA CO core"""
@@ -61,15 +62,27 @@ def save_tables_output_DA():
 	all_gHe*=0.01
 	all_radiusHe=np.sqrt(G*all_massHe*one_solM/all_gHe)/one_solR
 	
-	np.savetxt("../saved_MTR/table_valuesCO.dat", np.array([all_tempsCO, all_loggCO, all_massCO, all_radiusCO]).T)
-	np.save("../saved_MTR/table_valuesCO.npy", np.array([all_tempsCO, all_loggCO, all_massCO, all_radiusCO]))
-	
-	np.savetxt("../saved_MTR/table_valuesHe.dat", np.array([all_tempsHe, all_loggHe, all_massHe, all_radiusHe]).T)
-	np.save("../saved_MTR/table_valuesHe.npy", np.array([all_tempsHe, all_loggHe, all_massHe, all_radiusHe]))
+	if False:
+	    np.savetxt("../saved_MTR/table_valuesCO.dat", np.array([all_tempsCO, all_loggCO, all_massCO, all_radiusCO]).T)
+	    np.save("../saved_MTR/table_valuesCO.npy", np.array([all_tempsCO, all_loggCO, all_massCO, all_radiusCO]))
+	    
+	    np.savetxt("../saved_MTR/table_valuesHe.dat", np.array([all_tempsHe, all_loggHe, all_massHe, all_radiusHe]).T)
+	    np.save("../saved_MTR/table_valuesHe.npy", np.array([all_tempsHe, all_loggHe, all_massHe, all_radiusHe]))
+	else:
+	    mask = (all_tempsCO<70000) & (all_tempsCO>4000) 
+	    all_tempsCO, all_loggCO, all_massCO, all_radiusCO = all_tempsCO[mask], all_loggCO[mask], all_massCO[mask], all_radiusCO[mask]
+	    np.savetxt("../saved_MTR/table_valuesCO.dat", np.array([all_tempsCO, all_loggCO, all_massCO, all_radiusCO]).T)
+	    np.save("../saved_MTR/table_valuesCO.npy", np.array([all_tempsCO, all_loggCO, all_massCO, all_radiusCO]))
+	    
+	    np.savetxt("../saved_MTR/table_valuesHe.dat", np.array([all_tempsHe, all_loggHe, all_massHe, all_radiusHe]).T)
+	    np.save("../saved_MTR/table_valuesHe.npy", np.array([all_tempsHe, all_loggHe, all_massHe, all_radiusHe]))
+	    
+
 
 def save_Althaus_2013_full():  #  I depend on Istrate for lower masses, so only need the higher mass ones here
 	all_T, all_logg, all_R, all_M = np.array([]), np.array([]), np.array([]), np.array([])
 	os.chdir("/home/james/Downloads/ELMtracks")
+	import matplotlib.pyplot as plt
 	for f in os.listdir(os.getcwd()):
 		if f.endswith(".trk"):# and ("03207" in f or "03630" in f or "04352" in f) : # I don't care too much about ELMs here. That was improved in https://ui.adsabs.harvard.edu/abs/2018A%26A...614A..49C/abstract  and could be added in the future to WD-BASS. Going to sample the masses at a slightly lower resolution for M<0.2 as this is the speed bottleneck otherwise
 			print(f)
@@ -124,15 +137,42 @@ def save_Althaus_2013_full():  #  I depend on Istrate for lower masses, so only 
 			
 			
 			mass_star = np.full((len(Teff),), mass_star)
+			if False:
+			    plt.close()
+			    mask = (Teff<50000) & (Teff>=4200)
+			    #plt.scatter(Teff[mask], Log_grav[mask], c='k')
+			    if f=="01649.trk":
+			        plt.scatter(Teff[mask][::3], Log_grav[mask][::3], c='y') # very dense tracks
+			        plt.title(str(f))
+			        plt.show()
+			    elif f=="01762.trk" or  f=="01706.trk":
+			        plt.scatter(Teff[mask][::6], Log_grav[mask][::6], c='r') # very dense tracks
+			        plt.title(str(f))
+			        plt.show()
+			    else:
+			        None #plt.scatter(Teff[mask][::2], Log_grav[mask][::2], c='r')
+			    
+			if f=="01649.trk": num_snip = 3
+			elif f=="01762.trk" or  f=="01706.trk": num_snip = 6
+			else: num_snip = 2
 			
-			all_T, all_logg, all_R, all_M  =  np.append(all_T, Teff),  np.append(all_logg, Log_grav),  np.append(all_R, R),  np.append(all_M, mass_star)
+			all_T, all_logg, all_R, all_M  =  np.append(all_T, Teff[::num_snip]),  np.append(all_logg, Log_grav[::num_snip]),  np.append(all_R, R[::num_snip]),  np.append(all_M, mass_star[::num_snip])
 			
+	mask = (all_T<50000) & (all_T>=4200)
+	all_T, all_logg, all_M, all_R = all_T[mask], all_logg[mask], all_M[mask], all_R[mask]
+	if True:
+	    np.save(install_path+ "/saved_MTR/Althaus_2013_full.npy", np.array([all_T, all_logg, all_M, all_R]))
+	    np.save(install_path+ "/saved_MTR/Althaus_2013_full_nomasses.npy", np.array([all_T, all_logg, all_R]))
+	else:
+	    np.save("/home/james/python_scripts_path/dwd_fit_package/scripts/Althaus_2013_full.npy", np.array([all_T, all_logg, all_M, all_R]))
+	    np.save("/home/james/python_scripts_path/dwd_fit_package/scripts/Althaus_2013_full_nomasses.npy", np.array([all_T, all_logg, all_R]))
 	
+	plt.close()
+	for i, j in zip(all_T, all_logg):
+	    plt.scatter(i,j)
+	plt.show()
 	
-	np.save(install_path+ "/saved_MTR/Althaus_2013_full.npy", np.array([all_T, all_logg, all_M, all_R]))
-	np.save(install_path+ "/saved_MTR/Althaus_2013_full_nomasses.npy", np.array([all_T, all_logg, all_R]))
-	
-	
+#save_Althaus_2013_full()
 			
 			
 
@@ -172,6 +212,20 @@ def save_tables_output_DB():
 	
 	#np.savetxt("../saved_grids_npy/tableBedardDB.dat", np.array([all_tempsDB, all_loggDB, all_radiusDB]).T)  # K, logg, solR
 	np.save(install_path + "/saved_grids_npy/tableBedardDB", np.array([all_tempsDB, all_loggDB, all_radiusDB]))  # K, logg, solR
+
+@njit
+def find_neighbours(value, options):
+    idx = np.searchsorted(options, value)
+    if idx == 0:
+        return options[0], options[0]  # below range
+    if idx == len(options):
+        return options[-1], options[-1]  # above range
+    if options[idx] == value:
+        return options[idx], options[idx]  # exact match
+    
+    lower = options[idx - 1]
+    upper = options[idx]
+    return lower, upper
 
 
 def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, return_M=False, return_R_from_T_logg=False, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[], force_CO_MTR=False, ELM=False):
@@ -254,7 +308,7 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 						        if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe = load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
 						        else:  all_tempsHe, all_loggHe, all_radiusHe  =  loaded_Althaus
 					
-					        mask = (all_loggHe>logg-0.35)    &  (all_loggHe<logg+0.35)
+					        mask = (all_loggHe>logg-1)    &  (all_loggHe<logg+1)
 					        if T>20000: mask=mask & (all_tempsHe>T-5000)
 					        elif T>15000: mask=mask & (all_tempsHe>T-3500)  &  (all_tempsHe<22500)
 					        elif T>10000: mask=mask & (all_tempsHe>T-2000)  &  (all_tempsHe<17500)
@@ -271,6 +325,7 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 					else:
 						if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe = load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
 						else:  all_tempsHe, all_loggHe, all_radiusHe  =  loaded_Althaus
+					
 					
 					mask = (all_loggHe>logg-0.35)    &  (all_loggHe<logg+0.35)
 					if T>20000: mask=mask & (all_tempsHe>T-5000)
@@ -361,9 +416,18 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 
 
 		all_tempsCO, all_loggCO, all_massCO, all_radiusCO = load(install_path + "/saved_MTR/table_valuesCO.npy")
-		mask=all_tempsCO>=4500
-		radius_CO = float(griddata(np.array([all_tempsCO[mask],all_loggCO[mask]]).T,all_radiusCO[mask],np.array([T, logg]).T, method='linear')[0])
-	
+		
+		Teff_options = np.unique(all_tempsCO)
+		
+		nearest_T1, nearest_T2 = find_neighbours(T, Teff_options)
+		
+		try:
+		    mask=(all_tempsCO>=nearest_T1) & (all_tempsCO<=nearest_T2) & (all_loggCO<=logg+0.3) & (all_loggCO>=logg-0.3)
+		    radius_CO = float(griddata(np.array([all_tempsCO[mask],all_loggCO[mask]]).T,all_radiusCO[mask],np.array([T, logg]).T, method='linear')[0])
+		except:
+		    mask=(all_tempsCO>=nearest_T1) & (all_tempsCO<=nearest_T2) & (all_loggCO<=logg+0.75) & (all_loggCO>=logg-0.75)
+		    radius_CO = float(griddata(np.array([all_tempsCO[mask],all_loggCO[mask]]).T,all_radiusCO[mask],np.array([T, logg]).T, method='linear')[0])
+		
 	
 	
 	
@@ -710,58 +774,83 @@ def get_age(T, M):
 
 #save_tables_output_DA()
 
+
+
 if False:
-	teff1=19400;  teff1err=210
-	teff2=13300;  teff2err=190
-	logg1=8.06;   logg1err=0.05
-	logg2=7.87;   logg2err=0.04
+    def sample_mass_MC(teff, tefferr, logg, loggerr, n_samples=5000, seed=None):
+        """
+        Monte Carlo propagation of Teff/logg errors through get_MTR to get
+        a representative mass distribution.
+        """
+        rng = np.random.default_rng(seed)
 
-	medmass1=np.asarray(get_MTR(teff1, logg=logg1, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-	mask=np.isnan(medmass1)
-	medmass1=medmass1[~mask][0]
-	medmass2=np.asarray(get_MTR(teff2, logg=logg2, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-	mask=np.isnan(medmass2)
-	medmass2=medmass2[~mask][0]
+        teff_samples = rng.normal(teff, tefferr, n_samples)
+        logg_samples = rng.normal(logg, loggerr, n_samples)
 
+        masses = np.full(n_samples, np.nan)
 
-	mass1err1=np.asarray(get_MTR(teff1+teff1err, logg=logg1+logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-	mask=np.isnan(mass1err1)
-	mass1err1=mass1err1[~mask][0]
-	mass1err2=np.asarray(get_MTR(teff1+teff1err, logg=logg1-logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-	mask=np.isnan(mass1err2)
-	mass1err2=mass1err2[~mask][0]
-	mass1err3=np.asarray(get_MTR(teff1-teff1err, logg=logg1+logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-	mask=np.isnan(mass1err3)
-	mass1err3=mass1err3[~mask][0]
-	mass1err4=np.asarray(get_MTR(teff1-teff1err, logg=logg1-logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-	mask=np.isnan(mass1err4)
-	mass1err4=mass1err4[~mask][0]
+        for i in range(n_samples):
+            m = np.asarray(get_MTR(
+                teff_samples[i], logg=logg_samples[i], return_M=True,
+                Althaus_or_Istrate="Istrate",
+                loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]
+            ))
+            mask = ~np.isnan(m)
+            if mask.any():
+                masses[i] = m[mask][0]
 
+        masses = masses[~np.isnan(masses)]  # drop failed evaluations
 
-	mass1arr=np.array([mass1err1-medmass1, mass1err2-medmass1, mass1err3-medmass1, mass1err4-medmass1])
-	mass1max, mass1min=np.amax(mass1arr), np.amin(mass1arr)
+        if len(masses) == 0:
+            raise RuntimeError("All MC samples failed to produce a valid mass.")
 
-	mass2err1=np.asarray(get_MTR(teff2+teff2err, logg=logg2+logg2err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-	mask=np.isnan(mass2err1)
-	mass2err1=mass2err1[~mask][0]
-	mass2err2=np.asarray(get_MTR(teff2+teff2err, logg=logg2-logg2err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-	mask=np.isnan(mass2err2)
-	mass2err2=mass2err2[~mask][0]
-	mass2err3=np.asarray(get_MTR(teff2-teff2err, logg=logg2+logg2err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-	mask=np.isnan(mass2err3)
-	mass2err3=mass2err3[~mask][0]
-	mass2err4=np.asarray(get_MTR(teff2-teff2err, logg=logg2-logg2err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
-	mask=np.isnan(mass2err4)
-	mass2err4=mass2err4[~mask][0]
+        med = np.median(masses)
+        lo, hi = np.percentile(masses, [16, 84])  # ~1-sigma equivalent
+
+        return med, hi - med, lo - med, masses
 
 
-	mass2arr=np.array([mass2err1-medmass2, mass2err2-medmass2, mass2err3-medmass2, mass2err4-medmass2])
-	mass2max, mass2min=np.amax(mass2arr), np.amin(mass2arr)
-
-
-	print("M1:", medmass1, "+", np.round(mass1max,3), np.round(mass1min,3))
-	print("M2:", medmass2, "+", np.round(mass2max,3), np.round(mass2min,3))
+    for teff1, teff1err, logg1, logg1err in [[19400, 210, 8.06, 0.05], [13300, 190, 7.87, 0.04]]:
+        medmass1, upper_err, lower_err, mass_dist = sample_mass_MC(
+            teff1, teff1err, logg1, logg1err, n_samples=100
+        )
+        print("M:", np.round(medmass1, 3), "+", np.round(upper_err, 3), np.round(lower_err, 3))
 
 
 
 
+
+
+
+
+
+
+
+if False:
+
+    for teff1, teff1err, logg1, logg1err in [[19400, 210, 8.06, 0.05], [13300, 190, 7.87, 0.04]]:
+
+	    medmass1=np.asarray(get_MTR(teff1, logg=logg1, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	    mask=np.isnan(medmass1)
+	    medmass1=medmass1[~mask][0]
+
+
+	    mass1err1=np.asarray(get_MTR(teff1+teff1err, logg=logg1+logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	    mask=np.isnan(mass1err1)
+	    mass1err1=mass1err1[~mask][0]
+	    mass1err2=np.asarray(get_MTR(teff1+teff1err, logg=logg1-logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	    mask=np.isnan(mass1err2)
+	    mass1err2=mass1err2[~mask][0]
+	    mass1err3=np.asarray(get_MTR(teff1-teff1err, logg=logg1+logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	    mask=np.isnan(mass1err3)
+	    mass1err3=mass1err3[~mask][0]
+	    mass1err4=np.asarray(get_MTR(teff1-teff1err, logg=logg1-logg1err, return_M=True, Althaus_or_Istrate="Istrate", loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]))
+	    mask=np.isnan(mass1err4)
+	    mass1err4=mass1err4[~mask][0]
+
+
+	    mass1arr=np.array([mass1err1-medmass1, mass1err2-medmass1, mass1err3-medmass1, mass1err4-medmass1])
+	    mass1max, mass1min=np.amax(mass1arr), np.amin(mass1arr)
+
+
+	    print("M:", medmass1, "+", np.round(mass1max,3), np.round(mass1min,3))
