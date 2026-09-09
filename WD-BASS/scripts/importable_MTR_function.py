@@ -251,7 +251,16 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 		    if logg<7.55:
 		        if len(loaded_Althaus)==0:  all_tempsHe, all_loggHe, all_radiusHe  =  load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
 		        else:      all_tempsHe, all_loggHe, all_radiusHe = loaded_Althaus
-		        radius_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_radiusHe,np.array([T, logg]).T, method='linear')[0])
+		        mask = (all_loggHe>logg-1)    &  (all_loggHe<logg+1)
+		        if T>20000: mask=mask & (all_tempsHe>T-5000)
+		        elif T>15000: mask=mask & (all_tempsHe>T-3500)  &  (all_tempsHe<22500)
+		        elif T>10000: mask=mask & (all_tempsHe>T-2000)  &  (all_tempsHe<17500)
+		        elif T>8500: mask=mask & (all_tempsHe>T-1500)   &  (all_tempsHe<12500)
+		        elif T>7000: mask=mask & (all_tempsHe>T-1000)  &  (all_tempsHe<10000)
+		        elif T>6000: mask=mask & (all_tempsHe>T-800)  &  (all_tempsHe<8500)
+		        else: mask=mask & (all_tempsHe>T-800)  &  (all_tempsHe<8000)
+		        
+		        radius_He = float(griddata(np.array([all_tempsHe[mask],all_loggHe[mask]]).T,all_radiusHe[mask],np.array([T, logg]).T, method='linear')[0])
 		        return radius_He
 		    else:
 		        if len(loaded_CO)==0: all_tempsCO, all_loggCO, all_massCO, all_radiusCO = load(install_path + "/saved_MTR/table_valuesCO.npy")
@@ -273,8 +282,8 @@ def get_MTR(T, M=None, R=None, logg=None, compute_logg=False, return_R=False, re
 					if len(loaded_Althaus)==0:   all_tempsHe, all_loggHe, all_radiusHe  =  load(install_path + "/saved_MTR/Althaus_2013_full_nomasses.npy")
 					else:  all_tempsHe, all_loggHe, all_radiusHe = loaded_Althaus
 				
-				
-				radius_He = float(griddata(np.array([all_tempsHe,all_loggHe]).T,all_radiusHe,np.array([T, logg]).T, method='linear')[0])
+				mask = (all_loggHe>logg-1)    &  (all_loggHe<logg+1)
+				radius_He = float(griddata(np.array([all_tempsHe[mask],all_loggHe[mask]]).T,all_radiusHe[mask],np.array([T, logg]).T, method='linear')[0])
 			else:
 				if logg<=7.625:   # istrate grid max logg is 7.625  (I checked)
 					if len(loaded_Istrate)==0:  all_tempsHe_Ist, all_radiusHe_Ist, all_loggHe_Ist=load(install_path + "/saved_MTR/Istrate_Z0p02_diffusion_nomasses.npy")
