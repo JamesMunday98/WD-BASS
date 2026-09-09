@@ -13,6 +13,7 @@ from numpy import amin as npamin, amax as npamax, unique as npunique, argwhere a
 from dust_extinction.parameter_averages import G23
 ext = G23(Rv=3.1)
 from scipy.ndimage import convolve1d
+from scipy.ndimage import correlate1d
 minus_npinf = -np.inf
 
 sys_args = sys.argv
@@ -50,6 +51,7 @@ forced_teff1 = np.asarray(config_info["forced_teff"])
 forced_logg1 = np.asarray(config_info["forced_logg"])
 forced_HoverHe1 = np.asarray(config_info["forced_HoverHe"])
 plot_corner=config_info["plot_corner"]
+plot_fancy=False
 
 
 forced_Scaling=config_info["forced_scaling"][0]
@@ -1035,9 +1037,14 @@ if not arg1_is_photometry_only:
                             wl_data, flux_data, flux_e_data = nploadtxt(getcwd+"/"+files, skiprows=1, unpack=True,usecols=[0,1,2])
                 except:
                     ##### this part of the code is for when you do not have flux errors. I do my best to guess the SNR of the data given an expected continuum SNR under the assumption that your spectral line follows a gaussian profile. In the "gauss" function below, mmm and ccc are included to fit the general trend of the continuum as a linear fit. 
+                    if not JM_environment: raise ValueError("Should include flux errors. I do put a workaround at this part of the code, but use it carefully and make sure to assign the right value to predicted_SNR_of_normalise_region_per_pixel. This largely controls the RV errors")
                 
                     ##### I used this method to fit to FIES observations as errors are not output in its reduction pipeline
                     wl_data, flux_data = nploadtxt(getcwd+"/"+files, skiprows=2, unpack=True)
+                    
+                    if files.startswith("SALT_CD-38") or files.startswith("SALT_CPD-69"):
+                        mask_skylines = ((wl_data>6557.6) & (wl_data<6557.96))  |  ((wl_data>6557.948) & (wl_data<6558.176))  |  ((wl_data>6564.57) & (wl_data<6565.06))  |  ((wl_data>6560.85) & (wl_data<6561.3))  |  ((wl_data>6561.6) & (wl_data<6561.87))  |  ((wl_data>6558.58) & (wl_data<6558.93))  |  ((wl_data>6556.87) & (wl_data<6557.32))
+                        wl_data, flux_data = wl_data[~mask_skylines], flux_data[~mask_skylines]
                 
                     cut_limits_min, cut_limits_max = ref_wl+cut_Ha[0],  ref_wl+cut_Ha[1]
                     norm_limits_min, norm_limits_max = ref_wl+normaliseHa[0],  ref_wl+normaliseHa[1]
@@ -1047,14 +1054,65 @@ if not arg1_is_photometry_only:
                     mask_norm = ((wl_data>=cut_limits_min) & (wl_data<=norm_limits_min)) | ((wl_data<=cut_limits_max) & (wl_data>=norm_limits_max))
                 
                 
-                    popt, pcov = curve_fit(gauss_if_no_flux_error, wl_data[mask_cut], flux_data[mask_cut], p0 = [-0.8, ref_wl, 10, 1, 1, 1], bounds=[[minus_npinf,ref_wl-5,0,0,minus_npinf,minus_npinf], [0,ref_wl+5,80,np_inf,np_inf,np_inf]])
+                    popt, pcov = curve_fit(gauss_if_no_flux_error, wl_data[mask_cut], flux_data[mask_cut], p0 = [-0.8, ref_wl, 10, 1], bounds=[[minus_npinf,ref_wl-5,0,0], [0,ref_wl+5,80,np_inf]])
                 
                     # plt.plot(wl_data[mask_cut], flux_data[mask_cut], c='k');  plt.plot(wl_data[mask_cut], gauss_if_no_flux_error(wl_data[mask_cut], *popt));  plt.show();  plt.close()
                 
                     med_flux = np.median(flux_data[mask_norm])   # this gets the median flux of the normalised region
                 
                 
-                    predicted_SNR_of_normalise_region_per_pixel = 10  # this is the predicted flux of the normalised part of the spectrum.  I use this to predict what the SNR is for all other pixels below
+                    # 40min exptime FIES, B, 1.2 airmass, Gaia G mag, R. For Wolf 28, Ca II
+                    if "BD-07_" in files:  predicted_SNR_of_normalise_region_per_pixel = 25.89
+                    elif "HD340611_" in files:  predicted_SNR_of_normalise_region_per_pixel = 38.47
+                    elif "LAN51_" in files:  predicted_SNR_of_normalise_region_per_pixel = 25.51
+                    elif "VDN_DRA_" in files:  predicted_SNR_of_normalise_region_per_pixel = 26.93
+                    elif "WOLF28_" in files:  predicted_SNR_of_normalise_region_per_pixel = 12.25
+                    else: predicted_SNR_of_normalise_region_per_pixel = 25  # this is the predicted flux of the normalised part of the spectrum.  I use this to predict what the SNR is for all other pixels below
+                    
+                    
+                    # DO THIS WHEN HOME. QUOTE CONTINUUM SNR
+                    if files.startswith("SALT_CD-38"):
+                        if "60718.1" in files:# date=="20250211":
+                            snr_cont_red = 80;  snr_cont_blue = 110
+                        elif "60739.0" in files:#date=="20250304":
+                            snr_cont_red = 70;  snr_cont_blue = 90
+                        elif "60745.0" in files:#date=="20250310":
+                            snr_cont_red = 60;  snr_cont_blue = 80
+                        elif "60749.0" in files:#date=="20250314":
+                            snr_cont_red = 70;  snr_cont_blue = 85
+                        else: raise ValueError
+                    elif files.startswith("SALT_CPD-69"):
+                        if "60626.84" in files: #date=="202411120014":
+                            snr_cont_red = 50;  snr_cont_blue = 60
+                        elif "60626.87" in files: #date=="202411120015":
+                            snr_cont_red = 75;  snr_cont_blue = 90
+                        elif "60643.8" in files: #date=="20241129":
+                            snr_cont_red = 70;  snr_cont_blue = 80
+                        elif "60651.7" in files: #date=="20241207":
+                            snr_cont_red = 75;  snr_cont_blue = 95
+                        elif "60660.8" in files: #date=="20241216":
+                            snr_cont_red = 80;  snr_cont_blue = 100
+                        elif "60682.8" in files: #date=="20250107":
+                            snr_cont_red = 70;  snr_cont_blue = 80
+                        elif "60685.8" in files: #date=="20250110":
+                            snr_cont_red = 50;  snr_cont_blue = 60
+                        elif "60690.8" in files: #date=="20250115":
+                            snr_cont_red = 65;  snr_cont_blue = 80
+                        elif "60703.8" in files: #date=="20250128":
+                            snr_cont_red = 50;  snr_cont_blue = 60
+                        elif "60711.7" in files: #date=="20250205":
+                            snr_cont_red = 50;  snr_cont_blue = 55
+                        else: raise ValueError
+                    elif files.startswith("SALT_Wolf28"):
+                        if "60630.8" in files: #date=="20241116":
+                            snr_cont_red = 60;  snr_cont_blue = 20 # this is around Ca doublet
+                        else: raise ValueError
+                    
+                    
+                    if files.startswith("SALT_CD-38") or files.startswith("SALT_CPD-69") or files.startswith("SALT_Wolf28"):
+                        if "red" in files:      predicted_SNR_of_normalise_region_per_pixel = snr_cont_red
+                        elif "blue" in files:   predicted_SNR_of_normalise_region_per_pixel = snr_cont_blue
+                        else: raise ValueError
                 
                     flux_e_data = med_flux /predicted_SNR_of_normalise_region_per_pixel   *  npsqrt(med_flux/gauss_if_no_flux_error(wl_data, *popt))  # propogate SNR to all parts of the spectrum. I assume that there is no detector readout noise and so your SNR only depends on the root(#photons)
                 
@@ -1666,57 +1724,238 @@ if len(p0labels) == 1:
 
 
 
+if False:
+    if starType1_is_DA:
+        @njit
+        def return_DAgrids(temperature_star, logg_star):
+            if logg_star<6.5:  raise ValueError
+            
+            #Teff_all = Teff_all_synth;    wl_all = wl_all_synth;    flux_all = flux_all_synth;    logg_all = logg_all_synth
+            
+            
+            #temdiff = temperature_star - unique_Teffs_synth
+            #Teff_min=unique_Teffs_synth[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
+            #Teff_max=unique_Teffs_synth[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
+            
+            
+            if temperature_star==4000: Teff_min=4000.0; Teff_max=4250.0
+            elif temperature_star==40000: Teff_min=35000.0; Teff_max=40000.0
+            else:
+                ti = np.searchsorted(unique_Teffs_synth, temperature_star)
+                Teff_min = unique_Teffs_synth[ti - 1]
+                Teff_max = unique_Teffs_synth[ti]
+                    
+            ## then find the nearest 2 loggs
+            #list_search = [6.5,7,7.5,8,8.5,9]
+            #minval=10000;   maxval=-10000
+                
+            #for logg_opts in list_search:
+            #    if logg_opts-logg_star<np.abs(logg_opts-maxval):    maxval = logg_opts
+            #    if logg_star-logg_opts>0:   minval = logg_opts
+            
+            
+            if logg_star==6.5: minval=6.5; maxval=7.0
+            elif logg_star==9: minval=8.5; maxval=9.0
+            else:
+                logg_grid = np.array([6.5, 7.0, 7.5, 8.0, 8.5, 9.0])
+                gi = np.searchsorted(logg_grid, logg_star)
+                minval = logg_grid[gi - 1]
+                maxval = logg_grid[gi]
+                
+                
+            mask_logg = (logg_all_synth<=maxval) & (logg_all_synth>=minval) & (Teff_all_synth<=Teff_max) & (Teff_all_synth>=Teff_min)
+                
+                
+            #if len(npunique(Teff_all_synth[mask_logg]))==3:
+            #    Grav1_N = logg_all[mask_logg];    wl_all1_N=wl_all[mask_logg];    flux1_N=flux_all[mask_logg];    Teff1_N=Teff_all_synth[mask_logg]
+            #    un_teffs = npunique(Teff1_N)
+            #    if temperature_star<un_teffs[1]:   newmask = (Teff1_N!=un_teffs[2])
+            #    else:   newmask = (Teff1_N!=un_teffs[0])
+            #        
+            #    return Grav1_N[newmask], wl_all1_N[newmask], flux1_N[newmask], Teff1_N[newmask]
+            
+            return logg_all_synth[mask_logg], wl_all_synth[mask_logg], flux_all_synth[mask_logg], Teff_all_synth[mask_logg]
 
-if starType1_is_DA:
+
+
+if starType1_is_DA: ## claude speedup
+    # ---------------------------------------------------------------------------
+    # STEP 1: cheap bracket-finder (this is your original logic, minus the mask)
+    # Stays @njit since it's pure scalar/array-search work, no fancy indexing.
+    # ---------------------------------------------------------------------------
     @njit
-    def return_DAgrids(temperature_star, logg_star):
-        if logg_star<6.5:  raise ValueError
-        
+    def _find_DA_bracket(temperature_star, logg_star):
+        if logg_star < 6.5:
+            raise ValueError
+
         #Teff_all = Teff_all_synth;    wl_all = wl_all_synth;    flux_all = flux_all_synth;    logg_all = logg_all_synth
-        
-        
+
         #temdiff = temperature_star - unique_Teffs_synth
         #Teff_min=unique_Teffs_synth[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
         #Teff_max=unique_Teffs_synth[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
-        
-        
-        if temperature_star==4000: Teff_min=4000.0; Teff_max=4250.0
-        elif temperature_star==40000: Teff_min=35000.0; Teff_max=40000.0
+
+        if temperature_star == 4000:
+            Teff_min = 4000.0; Teff_max = 4250.0
+        elif temperature_star == 40000:
+            Teff_min = 35000.0; Teff_max = 40000.0
         else:
             ti = np.searchsorted(unique_Teffs_synth, temperature_star)
             Teff_min = unique_Teffs_synth[ti - 1]
             Teff_max = unique_Teffs_synth[ti]
-                
-        ## then find the nearest 2 loggs
-        #list_search = [6.5,7,7.5,8,8.5,9]
-        #minval=10000;   maxval=-10000
-            
-        #for logg_opts in list_search:
-        #    if logg_opts-logg_star<np.abs(logg_opts-maxval):    maxval = logg_opts
-        #    if logg_star-logg_opts>0:   minval = logg_opts
-        
-        
-        if logg_star==6.5: minval=6.5; maxval=7.0
-        elif logg_star==9: minval=8.5; maxval=9.0
+
+
+        if logg_star == 6.5:
+            minval = 6.5; maxval = 7.0
+        elif logg_star == 9:
+            minval = 8.5; maxval = 9.0
         else:
             logg_grid = np.array([6.5, 7.0, 7.5, 8.0, 8.5, 9.0])
             gi = np.searchsorted(logg_grid, logg_star)
             minval = logg_grid[gi - 1]
             maxval = logg_grid[gi]
-            
-            
-        mask_logg = (logg_all_synth<=maxval) & (logg_all_synth>=minval) & (Teff_all_synth<=Teff_max) & (Teff_all_synth>=Teff_min)
-            
-            
-        #if len(npunique(Teff_all_synth[mask_logg]))==3:
-        #    Grav1_N = logg_all[mask_logg];    wl_all1_N=wl_all[mask_logg];    flux1_N=flux_all[mask_logg];    Teff1_N=Teff_all_synth[mask_logg]
-        #    un_teffs = npunique(Teff1_N)
-        #    if temperature_star<un_teffs[1]:   newmask = (Teff1_N!=un_teffs[2])
-        #    else:   newmask = (Teff1_N!=un_teffs[0])
-        #        
-        #    return Grav1_N[newmask], wl_all1_N[newmask], flux1_N[newmask], Teff1_N[newmask]
-        
-        return logg_all_synth[mask_logg], wl_all_synth[mask_logg], flux_all_synth[mask_logg], Teff_all_synth[mask_logg]
+
+        return Teff_min, Teff_max, minval, maxval
+
+
+    # ---------------------------------------------------------------------------
+    # STEP 2: build the lookup table ONCE, for every possible bracket.
+    # This does the expensive masking/copying that used to happen on every call.
+    # Plain Python (not njit) — dict-of-tuples-of-arrays isn't numba-friendly,
+    # and it only needs to run once so speed here doesn't matter.
+    # ---------------------------------------------------------------------------
+    def build_DA_grid_lookup():
+        lookup = {}
+        logg_grid = np.array([6.5, 7.0, 7.5, 8.0, 8.5, 9.0])
+
+        # Build the same set of Teff brackets that _find_DA_bracket can produce,
+        # including the two special-cased edge brackets (4000/40000).
+        teff_bracket_list = [(4000.0, 4250.0), (35000.0, 40000.0)]
+        for i in range(len(unique_Teffs_synth) - 1):
+            teff_bracket_list.append((unique_Teffs_synth[i], unique_Teffs_synth[i + 1]))
+
+        # Build the same set of logg brackets, including the two special-cased edges.
+        logg_bracket_list = [(6.5, 7.0), (8.5, 9.0)]
+        for j in range(len(logg_grid) - 1):
+            logg_bracket_list.append((logg_grid[j], logg_grid[j + 1]))
+
+        # Dedupe (the edge cases overlap with the general loop's first/last bins)
+        teff_bracket_list = list(set(teff_bracket_list))
+        logg_bracket_list = list(set(logg_bracket_list))
+
+        for Tmin, Tmax in teff_bracket_list:
+            for gmin, gmax in logg_bracket_list:
+                mask = (
+                    (logg_all_synth <= gmax) & (logg_all_synth >= gmin) &
+                    (Teff_all_synth <= Tmax) & (Teff_all_synth >= Tmin)
+                )
+                lookup[(Tmin, Tmax, gmin, gmax)] = (
+                    logg_all_synth[mask],
+                    wl_all_synth[mask],
+                    flux_all_synth[mask],
+                    Teff_all_synth[mask],
+                )
+        return lookup
+
+
+    # ---------------------------------------------------------------------------
+    # STEP 3: thin wrapper with the ORIGINAL name/signature.
+    # Call sites elsewhere in your code (e.g. inside lnlike) need NO changes.
+    # ---------------------------------------------------------------------------
+    def return_DAgrids(temperature_star, logg_star):
+        Teff_min, Teff_max, minval, maxval = _find_DA_bracket(temperature_star, logg_star)
+        return DA_GRID_LOOKUP[(Teff_min, Teff_max, minval, maxval)]
+
+
+    if False:
+        # ---------------------------------------------------------------------------
+        # Build the lookup table ONCE at import/setup time, before the MCMC run starts.
+        # ---------------------------------------------------------------------------
+        import time
+        t1=time.time()
+        DA_GRID_LOOKUP = build_DA_grid_lookup()
+
+
+
+
+
+
+
+
+        # ------------------------------------------------------------
+        # One-time sanity check + timing — compare old vs new
+        # ------------------------------------------------------------
+
+        T_tests = np.linspace(4000, 40000, 50)
+        logg_tests = np.linspace(6.5, 9.0, 20)
+
+        old_times = []
+        new_times = []
+
+        n_success = 0
+        n_fail = 0
+
+        for T_test in T_tests:
+            for logg_test in logg_tests:
+                try:
+                    # Time OLD implementation
+                    t0 = time.perf_counter()
+                    old = return_DAgrids_ORIGINAL(T_test, logg_test)
+                    old_time = time.perf_counter() - t0
+
+                    # Time NEW implementation
+                    t0 = time.perf_counter()
+                    new = return_DAgrids(T_test, logg_test)
+                    new_time = time.perf_counter() - t0
+
+                    # Sanity check
+                    assert np.allclose(old[0], new[0])
+                    assert np.allclose(old[3], new[3])
+
+                    old_times.append(old_time)
+                    new_times.append(new_time)
+                    n_success += 1
+
+                except Exception as e:
+                    print(T_test, logg_test, e)
+                    n_fail += 1
+
+
+        # ------------------------------------------------------------
+        # Timing summary
+        # ------------------------------------------------------------
+
+        old_times = np.array(old_times)
+        new_times = np.array(new_times)
+
+        print("\n--- Sanity check ---")
+        print(f"Successful: {n_success}")
+        print(f"Failed:     {n_fail}")
+
+        print("\n--- Total execution time ---")
+        print(f"OLD: {old_times.sum():.4f} s")
+        print(f"NEW: {new_times.sum():.4f} s")
+
+        print("\n--- Per-lookup execution time ---")
+        print(f"OLD mean:   {old_times.mean() * 1e3:.4f} ms")
+        print(f"NEW mean:   {new_times.mean() * 1e3:.4f} ms")
+
+        print(f"OLD median: {np.median(old_times) * 1e3:.4f} ms")
+        print(f"NEW median: {np.median(new_times) * 1e3:.4f} ms")
+
+        print("\n--- Speedup ---")
+        print(f"Mean speedup:   {old_times.mean() / new_times.mean():.2f}x")
+        print(f"Median speedup: {np.median(old_times) / np.median(new_times):.2f}x")
+
+        raise ValueError
+
+
+    DA_GRID_LOOKUP = build_DA_grid_lookup()
+
+
+
+
+
+
 
 
 if starType1=="ELM":
@@ -2218,7 +2457,7 @@ def chisq_block(flux, model, err):
     w_=1/np_square(err)
     off = np.sum(w_ * (flux - model)) / np.sum(w_)
     model+=off
-    return -0.5*np.sum((flux-model)**2 / err**2)
+    return -0.5*np.sum(np_square(flux-model) / np_square(err))
 
 
 
@@ -2487,7 +2726,7 @@ def lnlike(theta, arguments):
                         kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/res)/(model_wl1[10]-model_wl1[9])).array
                         KERNEL_CACHE[key] =  kern_array/kern_array.sum() # need to normalise to preserve flux. astropy does this automatically 
                     
-                    convolved_for_this_ref_wl[(ref_wl, res)] = convolve1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
+                    convolved_for_this_ref_wl[(ref_wl, res)] = correlate1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
                 
                 
                 interparmodel = convolved_for_this_ref_wl[(ref_wl, res)]
@@ -2737,11 +2976,10 @@ if not (starType1.startswith("D")  or starType1.startswith("sd") or starType1=="
                 
                 # Smear to the resolution desired
                 
-                resstd=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])
                 
                 #interparr = convolve(interparr, Gaussian1DKernel(stddev=resstd), boundary = 'extend')
-                kern_array = Gaussian1DKernel(resstd).array
-                interparr = convolve1d(interparr, kern_array/kern_array.sum(), mode="nearest")
+                kern_array = Gaussian1DKernel(0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])).array
+                interparr = correlate1d(interparr, kern_array/kern_array.sum(), mode="nearest")
                 
                 
                 interparr = interp(normalised_wavelength, model_wl1, interparr)
@@ -2794,7 +3032,8 @@ if not (starType1.startswith("D")  or starType1.startswith("sd") or starType1=="
                 
 
                 ## Now on to calculating chisq
-                chisq_spec += -0.5*np.sum((np_square(normalised_flux[desired_range & aaamask][~clip_mask]-(off+interparr[desired_range & aaamask][~clip_mask])))/np_square(normalised_err[desired_range & aaamask][~clip_mask]))
+                chisq_mask = desired_range & aaamask
+                chisq_spec += -0.5*np.sum((np_square(normalised_flux[chisq_mask][~clip_mask]-(off+interparr[chisq_mask][~clip_mask])))/np_square(normalised_err[chisq_mask][~clip_mask]))
                 
                 
         
@@ -2924,10 +3163,9 @@ if not (starType1.startswith("D")  or starType1.startswith("sd") or starType1=="
                 
                 
                 # Smear to the resolution desired
-                resstd=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])
                 #interparr = convolve(interparr, Gaussian1DKernel(stddev=resstd), boundary = 'extend')
-                kern_array = Gaussian1DKernel(resstd).array
-                interparr = convolve1d(interparr, kern_array/kern_array.sum(), mode="nearest")
+                kern_array = Gaussian1DKernel(0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])).array
+                interparr = correlate1d(interparr, kern_array/kern_array.sum(), mode="nearest")
                 interparr = interp(normalised_wavelength, model_wl1, interparr)
                     
                 
@@ -2978,7 +3216,8 @@ if not (starType1.startswith("D")  or starType1.startswith("sd") or starType1=="
                 off = np.sum(w_ * (normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask])) / np.sum(w_)
 
                 ## Now on to calculating chisq
-                chisq_spec += -0.5*np.sum((np_square(normalised_flux[desired_range & aaamask][~clip_mask]-(off+interparr[desired_range & aaamask][~clip_mask])))/np_square(normalised_err[desired_range & aaamask][~clip_mask]))
+                chisq_mask = desired_range & aaamask
+                chisq_spec += -0.5*np.sum((np_square(normalised_flux[chisq_mask][~clip_mask]-(off+interparr[chisq_mask][~clip_mask])))/np_square(normalised_err[chisq_mask][~clip_mask]))
                 
                 
         
@@ -3180,7 +3419,7 @@ if sys_arg1=="RV" or sys_arg1=="RV_gauss":
                     
                     #smear_model_spectrum_star1 = convolve(spec1, Gaussian1DKernel(stddev=0.5*resAA/(wl1[10]-wl1[9])), boundary = 'extend')
                     kern_array = Gaussian1DKernel(stddev=0.5*resAA/(wl1[10]-wl1[9])).array
-                    smear_model_spectrum_star1 = convolve1d(spec1, kern_array/kern_array.sum(), mode="nearest")
+                    smear_model_spectrum_star1 = correlate1d(spec1, kern_array/kern_array.sum(), mode="nearest")
                     
                     smear_model_spectrum_star1 = interp(wl1, wl1+wl_RV1, smear_model_spectrum_star1)
                     
@@ -3198,7 +3437,7 @@ if sys_arg1=="RV" or sys_arg1=="RV_gauss":
                     
                     #smear_gauss1 = convolve(gauss1, Gaussian1DKernel(stddev=0.5*resAA/(wl1[10]-wl1[9])), boundary = 'extend')
                     kern_array = Gaussian1DKernel(stddev=0.5*resAA/(wl1[10]-wl1[9])).array
-                    smear_gauss1 = convolve1d(gauss1, kern_array/kern_array.sum(), mode="nearest")
+                    smear_gauss1 = correlate1d(gauss1, kern_array/kern_array.sum(), mode="nearest")
                     
                     smear_gauss1 = interp(normalised_wavelength, wl1+wl_RV1, smear_gauss1)
                     
@@ -3406,14 +3645,14 @@ if sys_arg1=="RV" or sys_arg1=="RV_gauss":
             
             #smear_model_spectrum_star1 = convolve(model_spectrum_star1, Gaussian1DKernel(stddev=0.5*resAA/(model_wl1[10]-model_wl1[9])), boundary = 'extend')
             kern_array = Gaussian1DKernel(stddev=0.5*resAA/(model_wl1[10]-model_wl1[9])).array
-            smear_model_spectrum_star1 = convolve1d(model_spectrum_star1, kern_array/kern_array.sum(), mode="nearest")
+            smear_model_spectrum_star1 = correlate1d(model_spectrum_star1, kern_array/kern_array.sum(), mode="nearest")
             
             if sys_arg1=="RV_gauss":
                 gauss1 = agauss(model_wl1, A1_med, desired_wl, std_dev1_med)
                 
                 #smear_gauss1 = convolve(gauss1, Gaussian1DKernel(stddev=0.5*resAA/(model_wl1[10]-model_wl1[9])), boundary = 'extend')
                 kern_array = Gaussian1DKernel(stddev=0.5*resAA/(wl1[10]-wl1[9])).array
-                smear_gauss1 = convolve1d(gauss1, kern_array/kern_array.sum(), mode="nearest")
+                smear_gauss1 = correlate1d(gauss1, kern_array/kern_array.sum(), mode="nearest")
             
             if starType1=="quadLorentz":
                 smear_model_spectrum_star1_temp = smear_model_spectrum_star1 + 1 - 1
@@ -3762,6 +4001,50 @@ elif sys_arg1=="ATM" or arg1_is_photometry_only:
 
 
 
+    
+    if plot_fancy==True:
+        def sample_mass_MC(teff, tefferr, logg, loggerr, n_samples=5000, seed=None):
+            """
+            Monte Carlo propagation of Teff/logg errors through get_MTR to get
+            a representative mass distribution.
+            """
+            rng = np.random.default_rng(seed)
+
+            teff_samples = rng.normal(teff, tefferr, n_samples)
+            logg_samples = rng.normal(logg, loggerr, n_samples)
+
+            masses = np.full(n_samples, np.nan)
+
+            for i in range(n_samples):
+                m = np.asarray(get_MTR(
+                    teff_samples[i], logg=logg_samples[i], return_M=True,
+                    Althaus_or_Istrate="Istrate",
+                    loaded_Istrate=[], loaded_CO=[], loaded_Althaus=[]
+                ))
+                mask = ~np.isnan(m)
+                if mask.any():
+                    masses[i] = m[mask][0]
+
+            masses = masses[~np.isnan(masses)]  # drop failed evaluations
+
+            if len(masses) == 0:
+                raise RuntimeError("All MC samples failed to produce a valid mass.")
+
+            med = np.median(masses)
+            lo, hi = np.percentile(masses, [16, 84])  # ~1-sigma equivalent
+
+            return med, hi - med, lo - med
+    
+    
+        medmass1, upper_err, lower_err = sample_mass_MC(
+            T1_med, ((T1_med-T1_min) + (T1_max - T1_med))/2, logg1_med, ((logg1_med-logg1_min) + (logg1_max - logg1_med))/2, n_samples=100
+        )
+        
+        lines_to_write.append("Mass:\n")
+        lines_to_write.append(str(medmass1) + "\t" + str(upper_err) + "\t" + str(lower_err) + "\n")
+    
+    
+    
     if not arg1_is_photometry_only:
         allRV1s, allRV1s_minerr, allRV1s_maxerr = [], [], []
         if RV_in_labels:
@@ -4037,7 +4320,7 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
             # Smear to the resolution desired
             ##interparmodel = convolve(model_spectrum_star1, Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])), boundary = 'extend')
             #kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])).array
-            #interparmodel = convolve1d(model_spectrum_star1, kern_array/kern_array.sum(), mode="nearest")
+            #interparmodel = correlate1d(model_spectrum_star1, kern_array/kern_array.sum(), mode="nearest")
             
             
             
@@ -4049,7 +4332,7 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
                     kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])).array
                     KERNEL_CACHE[key] =  kern_array/kern_array.sum() # need to normalise to preserve flux. astropy does this automatically 
                 
-                convolved_for_this_ref_wl[(ref_wl, inp_resolution)] = convolve1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
+                convolved_for_this_ref_wl[(ref_wl, inp_resolution)] = correlate1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
             
             
             interparmodel = convolved_for_this_ref_wl[(ref_wl, inp_resolution)]
@@ -4136,17 +4419,43 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
 
 
 
+    
+    if plot_fancy:
+        minstored=np_inf
+        maxstored=minus_npinf
+        import matplotlib
+        import matplotlib.pyplot as plt
+        matplotlib.rcParams['text.usetex'] = True
+        matplotlib.rcParams['mathtext.fontset'] = 'stix'
+        matplotlib.rcParams['font.family'] = 'STIXGeneral'
+        matplotlib.rcParams['pdf.fonttype'] = 42
+        matplotlib.rcParams['ps.fonttype'] = 42
+        plt.rcParams["xtick.direction"] = "in"
+        plt.rcParams["ytick.direction"] = "in"
+        plt.rcParams['xtick.top'] = True
+        plt.rcParams['ytick.right'] = True
+        matplotlib.rcParams["savefig.dpi"] = 100
+        matplotlib.rcParams["font.size"] = 14
+        plt.rcParams['xtick.minor.visible'] = True
+        plt.rcParams['ytick.minor.visible'] = True
+    
+    
+    toappendtext=[]
     #### Now plot just the shared rv combinations
     where_share_rv = (share_rv != -1)
     mask_out_Ha_min_all, mask_out_Ha_max_all = np.asarray(mask_out_Ha_min_all), np.asarray(mask_out_Ha_max_all)
     if starType1.startswith("D")  or starType1.startswith("sd") or starType1=="ELM":
         for unique_shared_rv in npunique(share_rv[where_share_rv]):
             norm_wl_combinations, normalised_flux_combinations, normalised_err_combinations = [], [], []
-            fig = plt.figure()
-            gs = fig.add_gridspec(2, 2)
-            ax = fig.add_subplot(gs[0, :])
-            ax2 = fig.add_subplot(gs[1, 0])
-            ax3 = fig.add_subplot(gs[1, 1])
+            if plot_fancy==False:
+                fig = plt.figure()
+                gs = fig.add_gridspec(2, 2)
+                ax = fig.add_subplot(gs[0, :])
+                ax2 = fig.add_subplot(gs[1, 0])
+                ax3 = fig.add_subplot(gs[1, 1])
+            else:
+                fig, ax = plt.subplots()
+                
             select_shared_mask = (share_rv==unique_shared_rv) | (range(len(share_rv))==unique_shared_rv)
             
             
@@ -4192,10 +4501,6 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
                 
                     
                 
-
-
-                offset=cn_shared*-0.3 * 1.05**cn_shared
-                
                 
                 
                 
@@ -4214,7 +4519,7 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
                         kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])).array
                         KERNEL_CACHE[key] =  kern_array/kern_array.sum() # need to normalise to preserve flux. astropy does this automatically 
                     
-                    convolved_for_this_ref_wl[(ref_wl, inp_resolution)] = convolve1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
+                    convolved_for_this_ref_wl[(ref_wl, inp_resolution)] = correlate1d(model_spectrum_star1, KERNEL_CACHE[key], mode="nearest")
                 
                 
                 interparmodel = convolved_for_this_ref_wl[(ref_wl, inp_resolution)]
@@ -4222,13 +4527,12 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
                 
                 
                 #kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])).array
-                #interparmodel = convolve1d(model_spectrum_star1, kern_array/kern_array.sum(), mode="nearest")
+                #interparmodel = correlate1d(model_spectrum_star1, kern_array/kern_array.sum(), mode="nearest")
                 
                 try:
                     interparr = interp(normalised_wavelength, model_wl1+dlam1, interparmodel)
                 except:
                     raise ValueError(len(model_wl1), dlam1, len(interparmodel), ref_wl)
-                
                 
                 
                 
@@ -4252,50 +4556,97 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
                 
                 desired_range = (normalised_wavelength>ref_wl+modelHa_min)  &  (normalised_wavelength<ref_wl+modelHa_max)
                 
+                
+                
+                if plot_fancy==False:
+                    offset=cn_shared*-0.3 * 1.05**cn_shared
+                else:
+                    offset=cn_shared*0.27 * 0.91**cn_shared
+                    if ref_wl<4000:      offset-=(0.01+0.01*cn_shared)
+                    #if cn_shared==6:    offset-=0.09
+                    
+                    mask=input_files_combinations==in_fi
+                    mins, maxes = modelHa_combinations[mask].T
+                    textvalmin, textvalmax = npamin(mins), npamax(maxes)
+                    difference = textvalmax - textvalmin
+                    
+                    if np.round(ref_wl,0)==6563:   toappendtext.append([npamin(mins)+difference/25, npamax(interparr[desired_range]+offset)-0.18, r"H$\alpha$", npamin(mins), npamax(maxes)])
+                    elif np.round(ref_wl,0)==4861: toappendtext.append([npamin(mins)+difference/25,npamax(interparr[desired_range]+offset)-0.1,r"H$\beta$", npamin(mins), npamax(maxes)])
+                    elif np.round(ref_wl,0)==4340: toappendtext.append([npamin(mins)+difference/25,npamax(interparr[desired_range]+offset)-0.075,r"H$\gamma$", npamin(mins), npamax(maxes)])
+                    elif np.round(ref_wl,0)==4102: toappendtext.append([npamin(mins)+difference/25,npamax(interparr[desired_range]+offset)-0.05-cn_shared*0.01,r"H$\delta$", npamin(mins), npamax(maxes)])
+                    elif np.round(ref_wl,0)==3970: toappendtext.append([npamin(mins)+difference/25,npamax(interparr[desired_range]+offset)-0.0-cn_shared*0.01,r"H$\epsilon$", npamin(mins), npamax(maxes)])
+                    elif np.round(ref_wl,0)==3889: toappendtext.append([npamin(mins)+difference/25,npamax(interparr[desired_range]+offset)+0.02-cn_shared*0.01,r"H$\zeta$", npamin(mins), npamax(maxes)])
+                    elif np.round(ref_wl,0)==3835: toappendtext.append([npamin(mins)+difference/25,npamax(interparr[desired_range]+offset)+0.07-cn_shared*0.01,r"H$\eta$", npamin(mins), npamax(mins)])
+                    else: name="UNDEF"
+                
+                
+                
+                
+                
 
-                ax.plot(normalised_wavelength - ref_wl,normalised_flux + offset, c='k')
-                ax2.plot(speed_of_light * (normalised_wavelength - ref_wl)/ref_wl,normalised_flux + offset, c='k')
-                if ref_wl==npamax(reference_wl_combinations):
-                    an_x = speed_of_light * (normalised_wavelength - ref_wl)/ref_wl
-                    amask = (an_x>-1750) & (an_x<1750)
-                    ax3.plot(an_x[amask], normalised_flux[amask] + offset, c='k')
+                if plot_fancy==False:
+                    ax.plot(normalised_wavelength - ref_wl,normalised_flux + offset, c='k')
+                    ax2.plot(speed_of_light * (normalised_wavelength - ref_wl)/ref_wl,normalised_flux + offset, c='k')
+                    if ref_wl==npamax(reference_wl_combinations):
+                        an_x = speed_of_light * (normalised_wavelength - ref_wl)/ref_wl
+                        amask = (an_x>-1750) & (an_x<1750)
+                        ax3.plot(an_x[amask], normalised_flux[amask] + offset, c='k')
+                else:
+                    mask_model = (normalised_wavelength>ref_wl+norm_limits_min) & (normalised_wavelength<ref_wl+norm_limits_max)
+                    ax.plot(normalised_wavelength[mask_model] - ref_wl,normalised_flux[mask_model] + offset, c='k')
+                
                 x, y = normalised_wavelength[mask_norm], normalised_flux[mask_norm]
                 x,y =normalised_wavelength[~desired_range],  interparr[~desired_range]
-                ax.plot(x[x<ref_wl] - ref_wl, y[x<ref_wl] + offset, c='b', label="_blue = Continued model fit")
-                ax2.plot(speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl, y[x<ref_wl] + offset, c='b', label="_blue = Continued model fit")
-                if ref_wl==npamax(reference_wl_combinations):
-                    an_x = speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl
-                    a_y = y[x<ref_wl] + offset
-                    amask = (an_x>-1750) & (an_x<1750)
-                    ax3.plot(an_x[amask], a_y[amask], c='b', label="_blue = Continued model fit")
-                ax.plot(x[x>ref_wl] - ref_wl, y[x>ref_wl] + offset, c='b')
-                ax2.plot(speed_of_light * (x[x>ref_wl] - ref_wl)/ref_wl, y[x>ref_wl] + offset, c='b')
-                if ref_wl==npamax(reference_wl_combinations):
-                    an_x = speed_of_light * (x[x>ref_wl] - ref_wl)/ref_wl
-                    amask = (an_x>-1750) & (an_x<1750)
-                    a_y = y[x>ref_wl] + offset
-                    ax3.plot(an_x[amask], a_y[amask], c='b')
-                ax.plot(x[x<ref_wl] - ref_wl, y[x<ref_wl] + offset, c='r', label="_red = For normalising")
-                ax2.plot(speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl, y[x<ref_wl] + offset, c='r', label="_red = For normalising")
-                if ref_wl==npamax(reference_wl_combinations):
-                    an_x = speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl
-                    amask = (an_x>-1750) & (an_x<1750)
-                    a_y = y[x<ref_wl] + offset
-                    ax2.plot(an_x[amask], a_y[amask], c='r', label="_red = For normalising")
-                ax.plot(x[x>ref_wl] - ref_wl, y[x>ref_wl] + offset, c='r')
-                ax2.plot(speed_of_light * (x[x>ref_wl] - ref_wl)/ref_wl, y[x>ref_wl] + offset, c='r')
-                if ref_wl==npamax(reference_wl_combinations):
-                    an_x = speed_of_light * (x[x>ref_wl] - ref_wl)/ref_wl
-                    amask = (an_x>-1750) & (an_x<1750)
-                    a_y = y[x>ref_wl] + offset
-                    ax3.plot(an_x[amask], a_y[amask], c='r')
-                ax.plot(normalised_wavelength[desired_range] - ref_wl, interparr[desired_range] + offset, c='orange')
-                ax2.plot(speed_of_light * (normalised_wavelength[desired_range] - ref_wl)/ref_wl, interparr[desired_range] + offset, c='orange')
-                if ref_wl==npamax(reference_wl_combinations):
-                    an_x = speed_of_light * (normalised_wavelength[desired_range] - ref_wl)/ref_wl
-                    amask = (an_x>-1750) & (an_x<1750)
-                    a_y = interparr[desired_range] + offset
-                    ax3.plot(an_x[amask], a_y[amask], c='orange');  ax3.text(-400,1, str(ref_wl))
+                if plot_fancy==False:
+                    ax.plot(x[x<ref_wl] - ref_wl, y[x<ref_wl] + offset, c='b', label="_blue = Continued model fit")
+                    ax2.plot(speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl, y[x<ref_wl] + offset, c='b', label="_blue = Continued model fit")
+                    if ref_wl==npamax(reference_wl_combinations):
+                        an_x = speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl
+                        a_y = y[x<ref_wl] + offset
+                        amask = (an_x>-1750) & (an_x<1750)
+                        ax3.plot(an_x[amask], a_y[amask], c='b', label="_blue = Continued model fit")
+                    ax.plot(x[x>ref_wl] - ref_wl, y[x>ref_wl] + offset, c='b')
+                    ax2.plot(speed_of_light * (x[x>ref_wl] - ref_wl)/ref_wl, y[x>ref_wl] + offset, c='b')
+                    if ref_wl==npamax(reference_wl_combinations):
+                        an_x = speed_of_light * (x[x>ref_wl] - ref_wl)/ref_wl
+                        amask = (an_x>-1750) & (an_x<1750)
+                        a_y = y[x>ref_wl] + offset
+                        ax3.plot(an_x[amask], a_y[amask], c='b')
+                    ax.plot(x[x<ref_wl] - ref_wl, y[x<ref_wl] + offset, c='r', label="_red = For normalising")
+                    ax2.plot(speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl, y[x<ref_wl] + offset, c='r', label="_red = For normalising")
+                    if ref_wl==npamax(reference_wl_combinations):
+                        an_x = speed_of_light * (x[x<ref_wl] - ref_wl)/ref_wl
+                        amask = (an_x>-1750) & (an_x<1750)
+                        a_y = y[x<ref_wl] + offset
+                        ax2.plot(an_x[amask], a_y[amask], c='r', label="_red = For normalising")
+                    ax.plot(x[x>ref_wl] - ref_wl, y[x>ref_wl] + offset, c='r')
+                    ax2.plot(speed_of_light * (x[x>ref_wl] - ref_wl)/ref_wl, y[x>ref_wl] + offset, c='r')
+                    if ref_wl==npamax(reference_wl_combinations):
+                        an_x = speed_of_light * (x[x>ref_wl] - ref_wl)/ref_wl
+                        amask = (an_x>-1750) & (an_x<1750)
+                        a_y = y[x>ref_wl] + offset
+                        ax3.plot(an_x[amask], a_y[amask], c='r')
+                    ax.plot(normalised_wavelength[desired_range] - ref_wl, interparr[desired_range] + offset, c='orange')
+                    ax2.plot(speed_of_light * (normalised_wavelength[desired_range] - ref_wl)/ref_wl, interparr[desired_range] + offset, c='orange')
+                    if ref_wl==npamax(reference_wl_combinations):
+                        an_x = speed_of_light * (normalised_wavelength[desired_range] - ref_wl)/ref_wl
+                        amask = (an_x>-1750) & (an_x<1750)
+                        a_y = interparr[desired_range] + offset
+                        ax3.plot(an_x[amask], a_y[amask], c='orange');  ax3.text(-400,1, str(ref_wl))
+                
+                
+                else:
+                    ax.plot(normalised_wavelength[desired_range] - ref_wl, interparr[desired_range] + offset, c='r',linewidth=1.25)
+                
+                    # record minimum of entire plot
+                    if npamin(interparr[desired_range] + offset) < minstored:
+                        minstored=npamin(interparr[desired_range] + offset)
+                    if npamin(normalised_flux[mask_model] + offset) < minstored:
+                        minstored=npamin(normalised_flux[mask_model] + offset)
+                    if npamax(interparr[desired_range] + offset) > maxstored:
+                        maxstored=npamax(interparr[desired_range] + offset)
+                    if npamax(normalised_flux[mask_model] + offset) > maxstored:
+                        maxstored=npamax(normalised_flux[mask_model] + offset)
                     
                 
                 
@@ -4304,32 +4655,87 @@ if sys_arg1=="ATM" or sys_arg1=="plotOnly" or arg1_is_photometry_only:
                     resid = normalised_flux-interparr
                     resid_in_sig = resid/np.std(np.abs(resid[desired_range]))
                     clip_mask = (np.abs(resid_in_sig)>sigclipspec) & desired_range  & (np.abs(normalised_wavelength - ref_wl) > 5) #& ((normalised_wavelength > ref_wl+5) | (normalised_wavelength < ref_wl-5))
-                    ax.scatter(normalised_wavelength[clip_mask] - ref_wl, normalised_flux[clip_mask] + offset, c='r', s=4)
-                    ax2.scatter(speed_of_light * (normalised_wavelength[clip_mask] - ref_wl)/ref_wl, normalised_flux[clip_mask] + offset, c='r', s=4)
-                    if ref_wl==npamax(reference_wl_combinations):
-                        xx=speed_of_light * (normalised_wavelength[clip_mask] - ref_wl)/ref_wl
-                        amask = (xx>-1750) & (xx<1750)
-                        yy=normalised_flux[clip_mask] + offset
-                        ax3.scatter(xx[amask], yy[amask], c='r', s=8)
+                    if plot_fancy==False:
+                        ax.scatter(normalised_wavelength[clip_mask] - ref_wl, normalised_flux[clip_mask] + offset, c='r', s=4)
+                        ax2.scatter(speed_of_light * (normalised_wavelength[clip_mask] - ref_wl)/ref_wl, normalised_flux[clip_mask] + offset, c='r', s=4)
+                        if ref_wl==npamax(reference_wl_combinations):
+                            xx=speed_of_light * (normalised_wavelength[clip_mask] - ref_wl)/ref_wl
+                            amask = (xx>-1750) & (xx<1750)
+                            yy=normalised_flux[clip_mask] + offset
+                            ax3.scatter(xx[amask], yy[amask], c='r', s=8)
                 
                 
             
             
             if starType1=="DBA" or starType1.startswith("sd"):    plt.scatter(0,1,alpha=0, label="H/He1 = " + str(HoverHe1_med))
             
+            if plot_fancy==False:
+                ax.scatter(0,1,alpha=0, label="RV1 = " + str(np.round(rv_med1,3)));       ax2.scatter(0,1,alpha=0, label="RV1 = " + str(np.round(rv_med1,3)))
+                #ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl));                
+                ax2.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
+                if starType1.startswith("D")  or starType1.startswith("sd")  or starType1=="ELM":
+                    ax.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)));         ax2.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)))
+                    ax.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)));   ax2.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)))
+                ax.set_title(filename)
+                ax3.set_xlim(-1750,1750)
+                ax2.set_xlabel("RV [kms-1]");   ax3.set_xlabel("RV [kms-1]")
+                ax.legend(loc='lower right', handlelength=0, fontsize=10)
+                plt.savefig("out/"+filename.split(".dat")[0]+"_all_shared_rvs"+".png", dpi=300)
+                if plot_fit[0] and unique_shared_rv in plot_fit and not False in plot_fit:   plt.show()
+                plt.close()
             
-            ax.scatter(0,1,alpha=0, label="RV1 = " + str(np.round(rv_med1,3)));       ax2.scatter(0,1,alpha=0, label="RV1 = " + str(np.round(rv_med1,3)))
-            #ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl));                
-            ax2.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
-            if starType1.startswith("D")  or starType1.startswith("sd")  or starType1=="ELM":
-                ax.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)));         ax2.scatter(0,1,alpha=0, label="T1 = " + str(np.round(T1_med,0)))
-                ax.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)));   ax2.scatter(0,1,alpha=0, label="Logg1 = " + str(np.round(logg1_med,3)))
-            ax.set_title(filename)
-            ax3.set_xlim(-1750,1750)
-            ax2.set_xlabel("RV [kms-1]");   ax3.set_xlabel("RV [kms-1]")
-            ax.legend(loc='lower right', handlelength=0, fontsize=10)
-            plt.savefig("out/"+filename.split(".dat")[0]+"_all_shared_rvs"+".png", dpi=300)
-            if plot_fit[0] and unique_shared_rv in plot_fit and not False in plot_fit:   plt.show()
+            else:
+                #ax.scatter(0,1,alpha=0, label="wl = " + str(ref_wl))
+                #ax.scatter(0,1,alpha=0, label="T$_1$ = " + str(int(np.round(T1_med,-1))) +"\,$\pm$\,"+ str(int(np.round(max(T1_plus,-1*T1_minus),-1))) + "\,K")
+                #ax.scatter(0,1,alpha=0, label="$\log$(g$_1$) = " + str(np.round(logg1_med,2)) +"\,$\pm$\,"+ str(np.round(max(logg1_plus,-1*logg1_minus),2)))
+                #ax.scatter(0,1,alpha=0, label="V$_1$ = " + str(np.round(rv_med1,1)) +"\,$\pm$\,"+ str(np.round(max(rv_med1_max,-1*rv_med1_min),1)) + "\,km\,s$^{-1}$")
+                #ax.scatter(0,1,alpha=0, label="T$_2$ = " + str(int(np.round(T2_med,-1))) +"\,$\pm$\,"+ str(int(np.round(max(T2_plus,-1*T2_minus),-1))) + "\,K")
+                #ax.scatter(0,1,alpha=0, label="$\log$(g$_2$) = " + str(np.round(logg2_med,2)) +"\,$\pm$\,"+ str(np.round(max(logg2_plus,-1*logg2_minus),2)))
+                #ax.scatter(0,1,alpha=0, label="V$_2$ = " + str(np.round(rv_med2,1)) +"\,$\pm$\,"+ str(np.round(max(rv_med2_max,-1*rv_med2_min),1)) + "\,km\,s$^{-1}$")
+            
+            
+                ax.scatter(0,1,alpha=0, label="T$_1$ = " + str(int(np.round(T1_med,-1))) + "\,K")
+                ax.scatter(0,1,alpha=0, label="$\log$(g$_1$) = " + str(np.round(logg1_med,2)))
+                if rv_med1<0:
+                    ax.scatter(0,1,alpha=0, label="V$_1$ = $-$" + str(np.abs(np.round(rv_med1,1)))+"\,km\,s$^{-1}$")
+                else:
+                    ax.scatter(0,1,alpha=0, label="V$_1$ = +" + str(np.round(rv_med1,1))+"\,km\,s$^{-1}$")
+            
+        
+                ax.set_xlabel(r"$\lambda$ [\AA]");   ax.set_ylabel("Relative flux")
+            
+            
+                x,y,lab,xmin,xmax=np.asarray(toappendtext).T
+                x,xmin,xmax=x.astype(float), xmin.astype(float), xmax.astype(float)
+                ax.set_xlim(npamin(xmin), npamax(xmax))
+            
+            
+                ax.set_ylim(minstored-0.15,maxstored+0.05)
+                h, l = ax.get_legend_handles_labels()
+                
+            
+            
+                if float(l[0].split("=")[-1].split("\\")[0])<10000 and float(l[3].split("=")[-1].split("\\")[0])>10000:
+                    l[0] = l[0].split("=")[0] + "=\,\,\,  " + l[0].split("=")[1]
+            
+                if l[1][-2]==".":
+                    l[1]=l[1]+"0"
+
+
+                textvalmin, textvalmax = npamin(xmin), npamax(xmax)
+                start_for_plot = textvalmin + 0.15*(textvalmax - textvalmin)
+            
+
+                ax.text(start_for_plot, minstored-0.085, l[0] + "      " + l[1] + " dex   " + l[2], fontsize=11)
+            
+            
+            
+                minBalmerText = npamin(x)
+                for x,y,lab,xmin,xmax in toappendtext:
+                    ax.text(minBalmerText,y,lab, fontsize=11)
+            
+                plt.savefig("out/"+filename.split(".dat")[0]+"_all_shared_rvs_fancy"+".pdf", dpi=300, bbox_inches="tight")
+            if plot_fit[0]!=False and unique_shared_rv in plot_fit and not starType1=="quadLorentz":   raise ValueError(unique_shared_rv,plot_fit); plt.show()
             plt.close()
 
 

@@ -20,6 +20,7 @@ ext = G23(Rv=3.1)
 from mpi4py.MPI import COMM_WORLD
 from functools import partial
 from scipy.ndimage import convolve1d
+from scipy.ndimage import correlate1d
 minus_npinf = -np.inf
 if os.environ['WD_BASS_INSTALL_DIR'] == "/home/james/python_scripts_path/dwd_fit_package/": JM_environment=True
 else: JM_environment=False
@@ -1798,7 +1799,7 @@ except: None
 
 
 @njit
-def return_DAgrids(temperature_star, logg_star):
+def return_DAgrids_ORIGINAL(temperature_star, logg_star):
     if logg_star<6.5:  raise ValueError
     
     #Teff_all = Teff_all_synth;    wl_all = wl_all_synth;    flux_all = flux_all_synth;    logg_all = logg_all_synth
@@ -1846,6 +1847,208 @@ def return_DAgrids(temperature_star, logg_star):
     #    return Grav1_N[newmask], wl_all1_N[newmask], flux1_N[newmask], Teff1_N[newmask]
     
     return logg_all_synth[mask_logg], wl_all_synth[mask_logg], flux_all_synth[mask_logg], Teff_all_synth[mask_logg]
+
+
+
+if True: ## claude speedup
+    # ---------------------------------------------------------------------------
+    # STEP 1: cheap bracket-finder (this is your original logic, minus the mask)
+    # Stays @njit since it's pure scalar/array-search work, no fancy indexing.
+    # ---------------------------------------------------------------------------
+    @njit
+    def _find_DA_bracket(temperature_star, logg_star):
+        if logg_star < 6.5:
+            raise ValueError
+
+        #Teff_all = Teff_all_synth;    wl_all = wl_all_synth;    flux_all = flux_all_synth;    logg_all = logg_all_synth
+
+        #temdiff = temperature_star - unique_Teffs_synth
+        #Teff_min=unique_Teffs_synth[npargwhere(temdiff==npamin(temdiff[temdiff>0]))[0][0]]
+        #Teff_max=unique_Teffs_synth[npargwhere(temdiff==npamax(temdiff[temdiff<0]))[0][0]]
+
+        if temperature_star == 4000:
+            Teff_min = 4000.0; Teff_max = 4250.0
+        elif temperature_star == 40000:
+            Teff_min = 35000.0; Teff_max = 40000.0
+        else:
+            ti = np.searchsorted(unique_Teffs_synth, temperature_star)
+            Teff_min = unique_Teffs_synth[ti - 1]
+            Teff_max = unique_Teffs_synth[ti]
+
+
+        if logg_star == 6.5:
+            minval = 6.5; maxval = 7.0
+        elif logg_star == 9:
+            minval = 8.5; maxval = 9.0
+        else:
+            logg_grid = np.array([6.5, 7.0, 7.5, 8.0, 8.5, 9.0])
+            gi = np.searchsorted(logg_grid, logg_star)
+            minval = logg_grid[gi - 1]
+            maxval = logg_grid[gi]
+
+        return Teff_min, Teff_max, minval, maxval
+
+
+    # ---------------------------------------------------------------------------
+    # STEP 2: build the lookup table ONCE, for every possible bracket.
+    # This does the expensive masking/copying that used to happen on every call.
+    # Plain Python (not njit) — dict-of-tuples-of-arrays isn't numba-friendly,
+    # and it only needs to run once so speed here doesn't matter.
+    # ---------------------------------------------------------------------------
+    def build_DA_grid_lookup():
+        lookup, lookup_norm_spec = {}, {}
+        logg_grid = np.array([6.5, 7.0, 7.5, 8.0, 8.5, 9.0])
+        
+        mask_wl_grid_for_normspec = wl_all_synth != wl_all_synth
+        for ref_wl in npunique(reference_wl):
+            mask_ref_wl = reference_wl==ref_wl
+            ref_wl_cut_lims_min, ref_wl_cut_lims_max = cut_Ha_all[mask_ref_wl].T
+            cut_wl_min, cut_wl_max = npamin(ref_wl_cut_lims_min), npamax(ref_wl_cut_lims_max)
+            mask_wl_grid_for_normspec = mask_wl_grid_for_normspec | ((wl_all_synth>ref_wl + cut_wl_min - 10) & (wl_all_synth<ref_wl + cut_wl_max + 10))
+        
+
+        # Build the same set of Teff brackets that _find_DA_bracket can produce,
+        # including the two special-cased edge brackets (4000/40000).
+        teff_bracket_list = [(4000.0, 4250.0), (35000.0, 40000.0)]
+        for i in range(len(unique_Teffs_synth) - 1):
+            teff_bracket_list.append((unique_Teffs_synth[i], unique_Teffs_synth[i + 1]))
+
+        # Build the same set of logg brackets, including the two special-cased edges.
+        logg_bracket_list = [(6.5, 7.0), (8.5, 9.0)]
+        for j in range(len(logg_grid) - 1):
+            logg_bracket_list.append((logg_grid[j], logg_grid[j + 1]))
+
+        # Dedupe (the edge cases overlap with the general loop's first/last bins)
+        teff_bracket_list = list(set(teff_bracket_list))
+        logg_bracket_list = list(set(logg_bracket_list))
+
+        for Tmin, Tmax in teff_bracket_list:
+            for gmin, gmax in logg_bracket_list:
+                mask = (
+                    (logg_all_synth <= gmax) & (logg_all_synth >= gmin) &
+                    (Teff_all_synth <= Tmax) & (Teff_all_synth >= Tmin)
+                )
+                lookup[(Tmin, Tmax, gmin, gmax)] = (
+                    logg_all_synth[mask],
+                    wl_all_synth[mask],
+                    flux_all_synth[mask],
+                    Teff_all_synth[mask],
+                )
+                
+                lookup_norm_spec[(Tmin, Tmax, gmin, gmax)] = (
+                    logg_all_synth[mask & mask_wl_grid_for_normspec],
+                    wl_all_synth[mask & mask_wl_grid_for_normspec],
+                    flux_all_synth[mask & mask_wl_grid_for_normspec],
+                    Teff_all_synth[mask & mask_wl_grid_for_normspec],
+                )
+        return lookup, lookup_norm_spec
+
+
+    # ---------------------------------------------------------------------------
+    # STEP 3: thin wrapper with the ORIGINAL name/signature.
+    # Call sites elsewhere in your code (e.g. inside lnlike) need NO changes.
+    # ---------------------------------------------------------------------------
+    def return_DAgrids(temperature_star, logg_star):
+        Teff_min, Teff_max, minval, maxval = _find_DA_bracket(temperature_star, logg_star)
+        return DA_GRID_LOOKUP[(Teff_min, Teff_max, minval, maxval)]
+    
+    def return_DAgrids_normspec(temperature_star, logg_star):
+        Teff_min, Teff_max, minval, maxval = _find_DA_bracket(temperature_star, logg_star)
+        return DA_GRID_LOOKUP_NORMSPEC[(Teff_min, Teff_max, minval, maxval)]
+
+
+    if False:
+        # ---------------------------------------------------------------------------
+        # Build the lookup table ONCE at import/setup time, before the MCMC run starts.
+        # ---------------------------------------------------------------------------
+        import time
+        t1=time.time()
+        DA_GRID_LOOKUP = build_DA_grid_lookup()
+
+
+
+
+
+
+
+
+        # ------------------------------------------------------------
+        # One-time sanity check + timing — compare old vs new
+        # ------------------------------------------------------------
+
+        T_tests = np.linspace(4000, 40000, 50)
+        logg_tests = np.linspace(6.5, 9.0, 20)
+
+        old_times = []
+        new_times = []
+
+        n_success = 0
+        n_fail = 0
+
+        for T_test in T_tests:
+            for logg_test in logg_tests:
+                try:
+                    # Time OLD implementation
+                    t0 = time.perf_counter()
+                    old = return_DAgrids_ORIGINAL(T_test, logg_test)
+                    old_time = time.perf_counter() - t0
+
+                    # Time NEW implementation
+                    t0 = time.perf_counter()
+                    new = return_DAgrids(T_test, logg_test)
+                    new_time = time.perf_counter() - t0
+
+                    # Sanity check
+                    assert np.allclose(old[0], new[0])
+                    assert np.allclose(old[3], new[3])
+
+                    old_times.append(old_time)
+                    new_times.append(new_time)
+                    n_success += 1
+
+                except Exception as e:
+                    print(T_test, logg_test, e)
+                    n_fail += 1
+
+
+        # ------------------------------------------------------------
+        # Timing summary
+        # ------------------------------------------------------------
+
+        old_times = np.array(old_times)
+        new_times = np.array(new_times)
+
+        print("\n--- Sanity check ---")
+        print(f"Successful: {n_success}")
+        print(f"Failed:     {n_fail}")
+
+        print("\n--- Total execution time ---")
+        print(f"OLD: {old_times.sum():.4f} s")
+        print(f"NEW: {new_times.sum():.4f} s")
+
+        print("\n--- Per-lookup execution time ---")
+        print(f"OLD mean:   {old_times.mean() * 1e3:.4f} ms")
+        print(f"NEW mean:   {new_times.mean() * 1e3:.4f} ms")
+
+        print(f"OLD median: {np.median(old_times) * 1e3:.4f} ms")
+        print(f"NEW median: {np.median(new_times) * 1e3:.4f} ms")
+
+        print("\n--- Speedup ---")
+        print(f"Mean speedup:   {old_times.mean() / new_times.mean():.2f}x")
+        print(f"Median speedup: {np.median(old_times) / np.median(new_times):.2f}x")
+
+        raise ValueError
+
+
+    DA_GRID_LOOKUP, DA_GRID_LOOKUP_NORMSPEC = build_DA_grid_lookup()
+
+
+
+
+
+
+
+
 
 @njit
 def return_ELMgrids(temperature_star, logg_star):
@@ -2031,12 +2234,14 @@ def two_unique_values(arr):
     else:         return v1, v0
 
 @njit
-def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, temperature_star, logg_star):
+def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, Grav1_N, flux1_N, Teff1_N, temperature_star, logg_star, Ts_Gs_unique=None):
     if ref_wl>6000:    excess_slack=9.85 # angstroms to allow variation with RV of star. Here, Halpha goes +-450kms-1. Increase this if RV diff larger (remember you need some excess for convolution)
     else:  excess_slack=7.3 # angstroms to allow variation with RV of star. Here, Hbeta goes +-450kms-1. Increase this if RV diff larger (remember you need some excess for convolution)
     
     mask_logg_wl = ((wl_all1_N > ref_wl+cut_limits_min-excess_slack) & (wl_all1_N < ref_wl+cut_limits_max+excess_slack))
-    Grav_N_N = Grav1_N[mask_logg_wl];   wl_all_N_N=wl_all1_N[mask_logg_wl];    flux_N_N=flux1_N[mask_logg_wl];    Teff_N_N=Teff1_N[mask_logg_wl]
+    Grav_N_N = Grav1_N[mask_logg_wl];   flux_N_N=flux1_N[mask_logg_wl];    Teff_N_N=Teff1_N[mask_logg_wl]  #  ; wl_all_N_N=wl_all1_N[mask_logg_wl]
+    
+    wl_grid = npunique(wl_all1_N[mask_logg_wl])
     
     # interpolate for a model at the reference wavelength with this mcmc interation
     #wl_grid, unique_Ts, unique_Gs = npunique(wl_all_N_N), npunique(Teff_N_N), npunique(Grav_N_N)
@@ -2053,13 +2258,17 @@ def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, 
     
     #try:
     #    model_spectrum = (flux_N_N[maskT0 & maskG0] * (unique_Ts[1] - temperature_star) * (unique_Gs[1] - logg_star) +           flux_N_N[maskT1 & maskG0] * (temperature_star - unique_Ts[0]) * (unique_Gs[1] - logg_star) +            flux_N_N[maskT0 & maskG1] * (unique_Ts[1] - temperature_star) * (logg_star - unique_Gs[0]) +            flux_N_N[maskT1 & maskG1] * (temperature_star - unique_Ts[0]) * (logg_star - unique_Gs[0])           ) / ((unique_Ts[1] - unique_Ts[0]) * (unique_Gs[1] - unique_Gs[0]))
-    #except:    raise ValueError(unique_Ts, unique_Gs, unique_Ts[0], unique_Ts[1], unique_Gs[0], unique_Gs[1], len(flux_N_N[maskT0 & maskG0]), len(flux_N_N[maskT0 & maskG1]), len(flux_N_N[maskT1 & maskG0]), len(flux_N_N[maskT1 & maskG1]), temperature_star, logg_star)
+    #except:    raise ValueError(unique_Ts, unique_Gs, unique_Ts[0], unique_Ts[1], unique_Gs[0], unique_Gs[1], len(flux_N_N[maskT0 & maskG0]), len(flux_N_N[maskT0 & maskG1]), len(flux_N_N[maskT1 & maskG0]), len(flux_N_N[maskT1 & maskG1]), tereturn_model_spectrum_DAmperature_star, logg_star)
     
     
     
-    wl_grid = npunique(wl_all_N_N)
-    T0, T1 = two_unique_values(Teff_N_N)
-    G0, G1 = two_unique_values(Grav_N_N)
+    if Ts_Gs_unique is not None:
+        T0, T1, G0, G1 = Ts_Gs_unique
+    else:
+        T0, T1 = two_unique_values(Teff_N_N)
+        G0, G1 = two_unique_values(Grav_N_N)
+    
+    
     
     maskT0 = Teff_N_N==T0
     maskT1 = Teff_N_N==T1
@@ -2070,19 +2279,17 @@ def return_model_spectrum_DA(wl_all1_N, ref_wl, cut_limits_min, cut_limits_max, 
     #ffffsss3 = flux_N_N[maskT1 & maskG0]
     #ffffsss4 = flux_N_N[maskT1 & maskG1]
     
-    
-    #try:
     model_spectrum = (flux_N_N[maskT0 & maskG0] * (T1 - temperature_star) * (G1 - logg_star) +           flux_N_N[maskT1 & maskG0] * (temperature_star - T0) * (G1 - logg_star) +            flux_N_N[maskT0 & maskG1] * (T1 - temperature_star) * (logg_star - G0) +            flux_N_N[maskT1 & maskG1] * (temperature_star - T0) * (logg_star - G0)           ) / ((T1 - T0) * (G1 - G0))
-    #except:    raise ValueError(T0, T1, G0, G1, len(flux_N_N[maskT0 & maskG0]), len(flux_N_N[maskT0 & maskG1]), len(flux_N_N[maskT1 & maskG0]), len(flux_N_N[maskT1 & maskG1]), temperature_star, logg_star)
+    
 
+
+    delta_wl_max_min = wl_grid[-1] - wl_grid[0]  # because I did npunique above, the wl_grid is ordered, so the first element is the min and the last element is the max 
     
-    wl_min = wl_grid[0]  # because I did npunique above, the wl_grid is ordered, so the first element is the min and the last element is the max
-    wl_max = wl_grid[-1]
+    if ref_wl>6500:     fine_grid=nplinspace(wl_grid[0],wl_grid[-1],int((delta_wl_max_min)*50)) # 0.02AA spacing
+    elif ref_wl>4500:   fine_grid=nplinspace(wl_grid[0],wl_grid[-1],int((delta_wl_max_min)*33)) # 0.03AA spacing
+    elif ref_wl>4200:   fine_grid=nplinspace(wl_grid[0],wl_grid[-1],int((delta_wl_max_min)*20)) # 0.05AA spacing
+    else:               fine_grid=nplinspace(wl_grid[0],wl_grid[-1],int((delta_wl_max_min)*10)) # 0.1AA spacing
     
-    if ref_wl>6500:     fine_grid=nplinspace(wl_min,wl_max,int((wl_max - wl_min)*50)) # 0.02AA spacing
-    elif ref_wl>4500:   fine_grid=nplinspace(wl_min,wl_max,int((wl_max - wl_min)*33)) # 0.03AA spacing
-    elif ref_wl>4200:   fine_grid=nplinspace(wl_min,wl_max,int((wl_max - wl_min)*20)) # 0.05AA spacing
-    else:               fine_grid=nplinspace(wl_min,wl_max,int((wl_max - wl_min)*10)) # 0.1AA spacing
     
     return fine_grid, interp(fine_grid, wl_grid, model_spectrum)
     
@@ -2338,48 +2545,7 @@ def lnlike(theta, arguments):
     input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, normalised_wavelength, normalised_flux, normalised_err,  inp_resolution, used_RV_boundaries, HJD_values, sigma_clip, the_unique_wavelengths, spec1wl, spec1flux, spec2wl, spec2flux, inputScaling = arguments
     if type(input_files)==np.str_:
         input_files, share_rv, reference_wl, cut_Ha_all, normaliseHa_all, normalised_wavelength, normalised_flux, normalised_err,  inp_resolution, used_RV_boundaries, HJD_values, sigma_clip = [input_files], [share_rv], [reference_wl], [cut_Ha_all], [normaliseHa_all], [normalised_wavelength], [normalised_flux], [normalised_err],  [inp_resolution], [used_RV_boundaries], [HJD_values], [sigma_clip]
-    
-    #if "T1" in p0labels:            args = npargwhere(p0labels=="T1")[0][0];          T1 = theta[args]
-    #else:                           T1 = forced_teff1
-    
-    #if "logg1" in p0labels:         args = npargwhere(p0labels=="logg1")[0][0];       logg1 = theta[args]
-    #else:                           logg1 = forced_logg1
-    
-    #if "T2" in p0labels:            args = npargwhere(p0labels=="T2")[0][0];          T2 = theta[args]
-    #else:                           T2 = forced_teff2
-    
-    #if "logg2" in p0labels:         args = npargwhere(p0labels=="logg2")[0][0];       logg2 = theta[args]
-    #else:                           logg2 = forced_logg2
-    
-    #if "H/He1" in p0labels:         args = npargwhere(p0labels=="H/He1")[0][0];       HoverHe1 = theta[args]
-    #else:
-    #    try:    HoverHe1 = forced_HoverHe1
-    #    except: None
-    
-    #if "H/He2" in p0labels:         args = npargwhere(p0labels=="H/He2")[0][0];       HoverHe2 = theta[args]
-    #else:
-    #    try:    HoverHe2 = forced_HoverHe2
-    #    except: None
-    
-    #if "K1" in p0labels:            args = npargwhere(p0labels=="K1")[0][0];          mcmc_K1 = theta[args]
-    #else:                           mcmc_K1 = forced_K1
-    
-    #if "K2" in p0labels:            args = npargwhere(p0labels=="K2")[0][0];          mcmc_K2 = theta[args]
-    #else:                           mcmc_K2 = forced_K2
-    
-    #if "Vg1" in p0labels:           args = npargwhere(p0labels=="Vg1")[0][0];         mcmc_Vgamma1 = theta[args]
-    #else:                           mcmc_Vgamma1 = forced_Vgamma1
-    
-    #if "Vg2" in p0labels:           args = npargwhere(p0labels=="Vg2")[0][0];         mcmc_Vgamma2 = theta[args]
-    #else:                           mcmc_Vgamma2 = forced_Vgamma2
-    
-    #if "Parallax" in p0labels:      args = npargwhere(p0labels=="Parallax")[0][0];    mcmc_parallax = theta[args]
-    
-    #if "Scaling" in p0labels:       args = npargwhere(p0labels=="Scaling")[0][0];     Scaling = theta[args]
-    #else:                           Scaling = forced_Scaling
-    
-    #if "RV1_0" in p0labels:         num_start_RVs = npargwhere(p0labels=="RV1_0")[0][0]
-    
+       
     
     
     T1 = theta[IDX_T1] if IDX_T1>=0 else forced_teff1
@@ -2402,8 +2568,6 @@ def lnlike(theta, arguments):
     
     
     
-    
-    
     for starcnt, starType in enumerate([starType1, starType2]):
         if starType=="DA":
             if not pier_or_antoine=="pier3Dphot_antoine1Dspec":
@@ -2422,7 +2586,7 @@ def lnlike(theta, arguments):
             if starcnt==0:    Grav1_N, wl_all1_N, flux1_N, Teff1_N, HoverHe1_N = return_DBAgrids(T1, logg1, HoverHe1)
             elif starcnt==1:  Grav2_N, wl_all2_N, flux2_N, Teff2_N, HoverHe2_N = return_DBAgrids(T2, logg2, HoverHe2)
         
-        elif starType1=="DB":
+        elif starType=="DB":
             if starcnt==0:    Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_DBgrids(T1, logg1)
             elif starcnt==1:  Grav2_N, wl_all2_N, flux2_N, Teff2_N = return_DBgrids(T2, logg2)
         
@@ -2456,7 +2620,7 @@ def lnlike(theta, arguments):
         if np.isnan(R1): raise ValueError(T1, logg1)
         if np.isnan(R2): raise ValueError(T2, logg2)
     elif isinstance(forced_Scaling, float): Scaling=forced_Scaling
-    elif inputScaling!=None:
+    elif inputScaling is not None:
         Scaling=inputScaling
     
     
@@ -2466,6 +2630,7 @@ def lnlike(theta, arguments):
         else:                     RV=theta[num_start_RVs:]
     else:
         if forced_Scaling==False: Scaling=theta[-1]
+    
     
     
     if fit_phot_SED:
@@ -2501,12 +2666,28 @@ def lnlike(theta, arguments):
     
     chisq_spec=0
     
-    index = np.arange(0,len(input_files),1)
+    index = np.arange(len(input_files))
     
     if fit_phot_SED:
         #no_need_to_recompute = npamin(smeared_wl) < npamin(the_unique_wavelengths)+npamin(cut_Ha_all.T) - 10 and npamax(smeared_wl) > npamax(the_unique_wavelengths)+npamax(cut_Ha_all.T) + 10
         no_need_to_recompute = smeared_wl[0] < the_unique_wavelengths[0]+npamin(cut_Ha_all.T) - 10 and smeared_wl[-1] > the_unique_wavelengths[-1]+npamax(cut_Ha_all.T) + 10
     else:   no_need_to_recompute = False
+    
+    
+    
+    if starType1=="DA":
+        _T0, _T1 = two_unique_values(Teff1_N)
+        _G0, _G1 = two_unique_values(Grav1_N)
+        star1_Ts_Gs = [_T0, _T1, _G0, _G1]
+        if not no_need_to_recompute: # here I make the grid smaller so that only the areas covered by the normalised spectral lines (with 10A excess for each line) is considered
+            Grav1_N, wl_all1_N, flux1_N, Teff1_N = return_DAgrids_normspec(T1, logg1)
+    if starType2=="DA":
+        _T0, _T1 = two_unique_values(Teff2_N)
+        _G0, _G1 = two_unique_values(Grav2_N)
+        star2_Ts_Gs = [_T0, _T1, _G0, _G1]
+        if not no_need_to_recompute: # here I make the grid smaller so that only the areas covered by the normalised spectral lines (with 10A excess for each line) is considered
+            Grav2_N, wl_all2_N, flux2_N, Teff2_N = return_DAgrids_normspec(T2, logg2)
+    
     
     for ref_wl in the_unique_wavelengths:
         mask_ref_wl = reference_wl==ref_wl
@@ -2519,18 +2700,16 @@ def lnlike(theta, arguments):
             if fit_phot_SED:
                 mask =  (smeared_wl>ref_wl+cut_wl_min-10) & (smeared_wl<ref_wl+cut_wl_max+10)
                 model_wl1, model_wl2, model_spectrum_star1, model_spectrum_star2 = smeared_wl[mask], smeared_wl[mask], star1flux[mask], star2flux[mask]
-            elif spec1flux!=None and spec2flux!=None:
+            elif spec1flux is not None and spec2flux is not None:
                 mask1 =  (spec1wl>ref_wl+cut_wl_min-10) & (spec1wl<ref_wl+cut_wl_max+10)
                 mask2 =  (spec2wl>ref_wl+cut_wl_min-10) & (spec2wl<ref_wl+cut_wl_max+10)
                 model_wl1, model_wl2, model_spectrum_star1, model_spectrum_star2 = spec1wl[mask1], spec2wl[mask2], spec1flux[mask1], star2flux[mask2]
                 
-
-        
         else:
-            if starType1=="DA" or starType1=="DC" or starType1=="DB" or starType1=="ELM":  model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, T1, logg1)
+            if starType1=="DA" or starType1=="DC" or starType1=="DB" or starType1=="ELM":  model_wl1, model_spectrum_star1 = return_model_spectrum_DA(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, T1, logg1, Ts_Gs_unique=star1_Ts_Gs)
             elif starType1=="DBA": model_wl1, model_spectrum_star1 = return_model_spectrum_DBA(wl_all1_N, ref_wl, cut_wl_min, cut_wl_max, Grav1_N, flux1_N, Teff1_N, HoverHe1_N, T1, logg1, HoverHe1)
             
-            if starType2=="DA" or starType2=="DC" or starType2=="DB" or starType2=="ELM":  model_wl2, model_spectrum_star2 = return_model_spectrum_DA(wl_all2_N, ref_wl, cut_wl_min, cut_wl_max, Grav2_N, flux2_N, Teff2_N, T2, logg2)
+            if starType2=="DA" or starType2=="DC" or starType2=="DB" or starType2=="ELM":  model_wl2, model_spectrum_star2 = return_model_spectrum_DA(wl_all2_N, ref_wl, cut_wl_min, cut_wl_max, Grav2_N, flux2_N, Teff2_N, T2, logg2, Ts_Gs_unique=star2_Ts_Gs)
             elif starType2=="DBA": model_wl2, model_spectrum_star2 = return_model_spectrum_DBA(wl_all2_N, ref_wl, cut_wl_min, cut_wl_max, Grav2_N, flux2_N, Teff2_N, HoverHe2_N, T2, logg2, HoverHe2)
         
         
@@ -2570,7 +2749,7 @@ def lnlike(theta, arguments):
             
             dlam1 = ref_wl_over_speed_of_light*mcmc_rv1
             dlam2 = ref_wl_over_speed_of_light*mcmc_rv2
-
+            
             if high_RV_amp: modelHa_min+=dlam1; modelHa_max+=dlam1; cut_limits_min+=dlam1; cut_limits_max+=dlam1; norm_limits_min+=dlam1; norm_limits_max+=dlam1
             
             # interpolate the model onto the observation's wavelength grid
@@ -2589,11 +2768,13 @@ def lnlike(theta, arguments):
             key = (ref_wl, inp_resolution, model_wl2[10], model_wl2[9])
             if key not in KERNEL_CACHE:
                 kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])).array
-                KERNEL_CACHE[key] =  kern_array/kern_array.sum() # need to normalise to preserve flux. astropy does this automatically 
+                KERNEL_CACHE[key] =  kern_array/kern_array.sum() # need to normalise to preserve flux. astropy does this automatically
             
             # Smear to the resolution desired
             #interparr = convolve(interparr, KERNEL_CACHE[key], boundary = 'extend')
-            interparr = convolve1d(interparr, KERNEL_CACHE[key], mode="nearest")
+            #interparr = convolve1d(interparr, KERNEL_CACHE[key], mode="nearest")
+            interparr = correlate1d(interparr, KERNEL_CACHE[key], mode="nearest") # this works for symmetric functions (gaussian = good) and is about 3% faster, but for non-symmetric use astropy convolve1d
+            
             
             interparr = interp(normalised_wavelength, model_wl2, interparr)
             
@@ -2609,19 +2790,9 @@ def lnlike(theta, arguments):
                 except: return minus_npinf
                 
                 
-                if False:
-                    mask_rv=True
-                    lam_rv_remove = ref_wl*50/speed_of_light
-                    if mask_rv:   aaamask = (normalised_wavelength > ref_wl + dlam2 + lam_rv_remove) | (normalised_wavelength < ref_wl + dlam2 - lam_rv_remove)
-                    else:         aaamask = normalised_wavelength==normalised_wavelength
-                else:   aaamask = normalised_wavelength==normalised_wavelength
-                
-                
-                
-                desired_range = (normalised_wavelength>ref_wl+modha[0])  &  (normalised_wavelength<ref_wl+modha[1]) & aaamask
+                desired_range = (normalised_wavelength>ref_wl+modha[0])  &  (normalised_wavelength<ref_wl+modha[1])
             else:
                 desired_range = normalised_wavelength>1200  # not supporting LyA fitting
-                aaamask = normalised_wavelength==normalised_wavelength
             
             
             if sigclipspec!=-1:
@@ -2634,7 +2805,7 @@ def lnlike(theta, arguments):
             
             if continuum_normalisation:
                 #off = polyfit(normalised_wavelength[desired_range][~clip_mask], normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask], w=1/normalised_err[desired_range][~clip_mask], deg=0)[0]
-                w_=1/np.square(normalised_err[desired_range][~clip_mask])
+                w_=1/np_square(normalised_err[desired_range][~clip_mask])
                 off = np.sum(w_ * (normalised_flux[desired_range][~clip_mask] - interparr[desired_range][~clip_mask])) / np.sum(w_)
             else: off=0
             
@@ -2642,18 +2813,19 @@ def lnlike(theta, arguments):
             
 
             ## Now on to calculating chisq
-            chisq_indiv = -0.5*npsum((np_square(normalised_flux[desired_range & aaamask][~clip_mask]-(off+interparr[desired_range & aaamask][~clip_mask])))/np_square(normalised_err[desired_range & aaamask][~clip_mask]))
+            chisq_mask = desired_range
+            chisq_indiv = -0.5*npsum((np_square(normalised_flux[chisq_mask][~clip_mask]-(off+interparr[chisq_mask][~clip_mask])))/np_square(normalised_err[chisq_mask][~clip_mask]))
             chisq_spec += chisq_indiv
             
-            if np.isnan(chisq_indiv) or np.abs(chisq_indiv)==np.inf:
-                thing = (np_square(normalised_flux[desired_range & aaamask][~clip_mask]-(off+interparr[desired_range & aaamask][~clip_mask])))/np_square(normalised_err[desired_range & aaamask][~clip_mask])
-                plt.plot(normalised_wavelength[desired_range & aaamask][~clip_mask], normalised_flux[desired_range & aaamask][~clip_mask])
-                plt.plot(normalised_wavelength[desired_range & aaamask][~clip_mask], off+interparr[desired_range & aaamask][~clip_mask])
+            if not np.isfinite(chisq_indiv):
+                thing = (np_square(normalised_flux[chisq_mask][~clip_mask]-(off+interparr[chisq_mask][~clip_mask])))/np_square(normalised_err[chisq_mask][~clip_mask])
+                plt.plot(normalised_wavelength[chisq_mask][~clip_mask], normalised_flux[chisq_mask][~clip_mask])
+                plt.plot(normalised_wavelength[chisq_mask][~clip_mask], off+interparr[chisq_mask][~clip_mask])
                 #plt.title(str(np.amin(thing)) + "   " + str(np.amax(thing)) + "    " +  str(np.median(thing)))
                 
                 arg = np.argwhere((thing==np.nan) | (thing==np.inf) | (thing==-np.inf))
-                aa, aa2 = normalised_wavelength[desired_range & aaamask][~clip_mask][arg],thing[arg]
-                raise ValueError(aa, normalised_flux[desired_range & aaamask][~clip_mask][arg], (off+interparr[desired_range & aaamask][~clip_mask])[arg])
+                aa, aa2 = normalised_wavelength[chisq_mask][~clip_mask][arg],thing[arg]
+                raise ValueError(aa, normalised_flux[chisq_mask][~clip_mask][arg], (off+interparr[chisq_mask][~clip_mask])[arg])
                 #plt.title(str())
                 plt.show()
             
@@ -2821,7 +2993,7 @@ def lnlike_gauss_lorentz(theta, arguments):
     
     chisq_spec=0
     
-    index = np.arange(0,len(input_files),1)
+    index = np.arange(len(input_files))
     
     the_unique_wavelengths=[npamax(the_unique_wavelengths)]
     for ref_wl in the_unique_wavelengths:
@@ -2895,8 +3067,9 @@ def lnlike_gauss_lorentz(theta, arguments):
             
             
             # Smear to the resolution desired
-            resstd=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])
-            interparr = convolve(interparr, Gaussian1DKernel(stddev=resstd), boundary = 'extend')
+            kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])).array
+            kern_array /= kern_array.sum()
+            interparr = convolve1d(interparr, kern_array, mode = 'nearest')
             interparr = interp(normalised_wavelength, model_wl2, interparr)
                 
             
@@ -2911,16 +3084,10 @@ def lnlike_gauss_lorentz(theta, arguments):
             except: return minus_npinf
             
             
-            if False:
-                mask_rv=True
-                lam_rv_remove = ref_wl*50/speed_of_light
-                if mask_rv:   aaamask = (normalised_wavelength > ref_wl + dlam2 + lam_rv_remove) | (normalised_wavelength < ref_wl + dlam2 - lam_rv_remove)
-                else:         aaamask = normalised_wavelength==normalised_wavelength
-            else:   aaamask = normalised_wavelength==normalised_wavelength
             
             
             
-            desired_range = (normalised_wavelength>ref_wl+modelHa_min)  &  (normalised_wavelength<ref_wl+modelHa_max) & aaamask
+            desired_range = (normalised_wavelength>ref_wl+modelHa_min)  &  (normalised_wavelength<ref_wl+modelHa_max)
             if sigclipspec!=-1:
                 resid = normalised_flux-(interparr)
                 resid_in_sig = resid/np.std(np.abs(resid[desired_range]))
@@ -2936,7 +3103,7 @@ def lnlike_gauss_lorentz(theta, arguments):
             
             
             ## Now on to calculating chisq
-            chisq_indiv = -0.5*npsum((np_square(normalised_flux[desired_range & aaamask][~clip_mask]-(off+interparr[desired_range & aaamask][~clip_mask])))/np_square(normalised_err[desired_range & aaamask][~clip_mask]))
+            chisq_indiv = -0.5*npsum((np_square(normalised_flux[desired_range][~clip_mask]-(off+interparr[desired_range][~clip_mask])))/np_square(normalised_err[desired_range][~clip_mask]))
             chisq_spec += chisq_indiv
             
             
@@ -3098,7 +3265,7 @@ def lnlike_quad_lorentz(theta, arguments):
     
     chisq_spec=0
     
-    index = np.arange(0,len(input_files),1)
+    index = np.arange(len(input_files))
     
     the_unique_wavelengths=[npamax(the_unique_wavelengths)]
     for ref_wl in the_unique_wavelengths:
@@ -3164,8 +3331,9 @@ def lnlike_quad_lorentz(theta, arguments):
             
             
             # Smear to the resolution desired
-            resstd=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])
-            interparr = convolve(interparr, Gaussian1DKernel(stddev=resstd), boundary = 'extend')
+            kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])).array
+            kern_array /= kern_array.sum()
+            interparr = convolve1d(interparr, kern_array, mode = 'nearest')
             interparr = interp(normalised_wavelength, model_wl2, interparr)
                 
             
@@ -3205,16 +3373,8 @@ def lnlike_quad_lorentz(theta, arguments):
             #except: return minus_npinf
             
             
-            if False:
-                mask_rv=True
-                lam_rv_remove = ref_wl*50/speed_of_light
-                if mask_rv:   aaamask = (normalised_wavelength > ref_wl + dlam2 + lam_rv_remove) | (normalised_wavelength < ref_wl + dlam2 - lam_rv_remove)
-                else:         aaamask = normalised_wavelength==normalised_wavelength
-            else:   aaamask = normalised_wavelength==normalised_wavelength
             
-            
-            
-            desired_range = (normalised_wavelength>ref_wl+modelHa_min)  &  (normalised_wavelength<ref_wl+modelHa_max) & aaamask
+            desired_range = (normalised_wavelength>ref_wl+modelHa_min)  &  (normalised_wavelength<ref_wl+modelHa_max)
             if sigclipspec!=-1:
                 resid = normalised_flux-(interparr)
                 resid_in_sig = resid/np.std(np.abs(resid[desired_range]))
@@ -3230,7 +3390,7 @@ def lnlike_quad_lorentz(theta, arguments):
             
 
             ## Now on to calculating chisq
-            chisq_indiv = -0.5*npsum((np_square(normalised_flux[desired_range & aaamask][~clip_mask]-(off+interparr[desired_range & aaamask][~clip_mask])))/np_square(normalised_err[desired_range & aaamask][~clip_mask]))
+            chisq_indiv = -0.5*npsum((np_square(normalised_flux[desired_range][~clip_mask]-(off+interparr[desired_range][~clip_mask])))/np_square(normalised_err[desired_range][~clip_mask]))
             chisq_spec += chisq_indiv
             
             
@@ -3858,8 +4018,13 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commo
             resAA = desired_refwl/inp_resolution
             
             
-            smear_model_spectrum_star1 = convolve(model_spectrum_star1, Gaussian1DKernel(stddev=0.5*resAA/(model_wl1[10]-model_wl1[9])), boundary = 'extend')
-            smear_model_spectrum_star2 = convolve(model_spectrum_star2, Gaussian1DKernel(stddev=0.5*resAA/(model_wl2[10]-model_wl2[9])), boundary = 'extend')
+            kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl1[10]-model_wl1[9])).array
+            kern_array /= kern_array.sum()
+            smear_model_spectrum_star1 = convolve1d(model_spectrum_star1, kern_array, mode = 'nearest')
+            
+            kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])).array
+            kern_array /= kern_array.sum()
+            smear_model_spectrum_star2 = convolve1d(model_spectrum_star2, kern_array, mode = 'nearest')
             smear_model_spectrum_star2 = interp(model_wl1, model_wl2, smear_model_spectrum_star2)
             
             
@@ -3991,7 +4156,7 @@ if sys_args[1]=="RV" or sys_args[1]=="RV_gauss" or sys_args[1]=="RV_double_commo
                     
                     resid_in_sig = resid/np.std(np.abs(resid))
                     clip_mask = (np.abs(resid_in_sig)<sigclipspec) | ((normalised_wavelength < desired_refwl+5 + np.amax(np.array([desired_refwl*RV1/speed_of_light, desired_refwl*RV2/speed_of_light]))   ) & (normalised_wavelength > desired_refwl-5  +  np.amin(np.array([desired_refwl*RV1/speed_of_light, desired_refwl*RV2/speed_of_light]))  ))
-                    
+                    wl_all1_N
                 
                 
             
@@ -4870,13 +5035,15 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
             if starType1=="GG" or starType1=="LL" or starType1=="GL" or starType2=="GG" or starType2=="LL" or starType2=="GL":   interparr += 1
             
             # Smear to the resolution desired
-            interparr = convolve(interparr, Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])), boundary = 'extend')
+            kern_array = Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])).array
+            kern_array /= kern_array.sum()
+            interparr = convolve1d(interparr, kern_array, mode = 'nearest')
             
             interparr = interp(normalised_wavelength, model_wl2, interparr)
             
             if continuum_normalisation==False:
-                interparr_plot_star1 = convolve(interparr_plot_star1, Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])), boundary = 'extend')
-                interparr_plot_star2 = convolve(interparr_plot_star2, Gaussian1DKernel(stddev=0.5*(ref_wl/inp_resolution)/(model_wl2[10]-model_wl2[9])), boundary = 'extend')
+                interparr_plot_star1 = convolve1d(interparr_plot_star1, kern_array, mode = 'nearest')
+                interparr_plot_star2 = convolve1d(interparr_plot_star2, kern_array, mode = 'nearest')
                 
                 interparr_plot_star1 = interp(normalised_wavelength, model_wl2, interparr_plot_star1)
                 interparr_plot_star2 = interp(normalised_wavelength, model_wl2, interparr_plot_star2)
@@ -5027,12 +5194,12 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
                 want_ergscm2AA=True
                 if want_ergscm2AA:
                 	FluxIn_Jy = 1E23 * normalised_flux
-                	FluxIn_ergcm2AA = 2.99792458E-05 * FluxIn_Jy / normalised_wavelength**2
+                	FluxIn_ergcm2AA = 2.99792458E-05 * FluxIn_Jy / np_square(normalised_wavelength)
                 	normalised_flux = FluxIn_ergcm2AA
                 	
-                	interparr = 2.99792458E-05 * 1E23 * interparr / normalised_wavelength**2
-                	interparr_plot_star1 = 2.99792458E-05 * 1E23 * interparr_plot_star1 / normalised_wavelength**2
-                	interparr_plot_star2 = 2.99792458E-05 * 1E23 * interparr_plot_star2 / normalised_wavelength**2
+                	interparr = 2.99792458E-05 * 1E23 * interparr / np_square(normalised_wavelength)
+                	interparr_plot_star1 = 2.99792458E-05 * 1E23 * interparr_plot_star1 / np_square(normalised_wavelength)
+                	interparr_plot_star2 = 2.99792458E-05 * 1E23 * interparr_plot_star2 / np_square(normalised_wavelength)
                 
                 
                 if input_vacuum_wl==True: # convert back into vacuum wavelengths for plotting if needed
@@ -5480,7 +5647,7 @@ if sys_args[1]=="ATM" or sys_args[1]=="plotOnly":
             for x,y,lab,xmin,xmax in toappendtext:
                 ax.text(minBalmerText,y,lab, fontsize=11)
             
-            plt.savefig("out/"+filename.split(".dat")[0]+"_all_shared_rvs_fancy"+".pdf", dpi=300)
+            plt.savefig("out/"+filename.split(".dat")[0]+"_all_shared_rvs_fancy"+".pdf", dpi=300, bbox_inches="tight")
         if plot_fit[0]!=False and unique_shared_rv in plot_fit and not starType1=="quadLorentz":   raise ValueError(unique_shared_rv,plot_fit); plt.show()
         plt.close()
 
